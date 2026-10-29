@@ -1,5 +1,41 @@
 const $ = (id) => document.getElementById(id);
 let revision, configuration, draft;
+const editorFields = [
+  "campaignIntent",
+  "title",
+  "body",
+  "linkLabel",
+  "url",
+  "questions",
+  "combination",
+  "priority",
+  "maxShows",
+  "threshold",
+  "enabled",
+];
+function updatePreview() {
+  $("previewTitle").textContent =
+    $("title").value || "あなたのオファーが、\nここに表示されます。";
+  $("previewBody").textContent =
+    $("body").value ||
+    "タイトルとメッセージを入力すると、ここで内容を確認できます。";
+  $("previewLink").textContent = $("linkLabel").value || "リンク文言";
+  $("previewState").textContent =
+    $("enabled").value === "true" ? "有効" : "停止";
+  $("campaignName").textContent = $("campaign").value || "未選択";
+}
+for (const key of editorFields) {
+  $(key).addEventListener("input", () => {
+    updatePreview();
+    if (configuration)
+      $("saveState").textContent =
+        "編集中 — 設定に反映してから保存してください";
+  });
+}
+$("config").addEventListener("input", () => {
+  if (configuration)
+    $("saveState").textContent = "詳細設定に未保存の変更があります";
+});
 async function api(path, options = {}) {
   const r = await fetch("/admin/api/" + path, {
     ...options,
@@ -16,13 +52,17 @@ async function api(path, options = {}) {
 function bind(id, action) {
   $(id).onclick = async () => {
     $(id).disabled = true;
+    $(id).setAttribute("aria-busy", "true");
+    $("status").closest("footer").classList.remove("has-error");
     try {
       await action();
       $("status").textContent = "完了しました";
     } catch (e) {
       $("status").textContent = e.message;
+      $("status").closest("footer").classList.add("has-error");
     } finally {
       $(id).disabled = false;
+      $(id).removeAttribute("aria-busy");
     }
   };
 }
@@ -36,7 +76,13 @@ function campaign() {
 }
 function fill() {
   const c = campaign();
-  if (!c) return;
+  if (!c) {
+    for (const key of editorFields) $(key).value = "";
+    $("enabled").value = "false";
+    $("combination").value = "all";
+    updatePreview();
+    return;
+  }
   for (const k of ["priority", "maxShows", "threshold", "combination"])
     $(k).value = c[k];
   $("enabled").value = String(c.enabled);
@@ -44,11 +90,12 @@ function fill() {
   for (const k of ["title", "body", "linkLabel", "url"])
     $(k).value = c.content[k];
   $("questions").value = c.questions.map((q) => q.instructions).join("\n");
+  updatePreview();
 }
 function campaigns() {
   const site = configuration.sites.find((s) => s.id === $("site").value);
   $("campaign").replaceChildren(
-    ...site.campaigns.map((c) => new Option(c.id, c.id)),
+    ...(site?.campaigns ?? []).map((c) => new Option(c.id, c.id)),
   );
   fill();
 }
@@ -66,6 +113,9 @@ bind("load", async () => {
   configuration = result.config;
   sync();
   render();
+  $("connectionState").classList.add("connected");
+  $("connectionLabel").textContent = "接続済み";
+  $("saveState").textContent = "保存済みの設定を読み込みました";
 });
 bind("draft", async () => {
   draft = await api("draft", {
@@ -81,6 +131,9 @@ bind("useDraft", async () => {
   if (!draft) throw new Error("先に質問案を作成してください");
   $("questions").value = draft.questions.map((q) => q.instructions).join("\n");
   $("campaignIntent").value = draft.intent;
+  updatePreview();
+  $("saveState").textContent =
+    "質問案を取り込みました — 内容を確認してください";
 });
 bind("new", async () => {
   const site = configuration?.sites.find((s) => s.id === $("site").value);
@@ -109,6 +162,8 @@ bind("new", async () => {
   campaigns();
   $("campaign").value = id;
   fill();
+  $("saveState").textContent =
+    "新しい施策を作成しました — まだ保存されていません";
 });
 bind("apply", async () => {
   const c = campaign();
@@ -126,6 +181,7 @@ bind("apply", async () => {
     .filter(Boolean)
     .map((instructions, i) => ({ key: "q" + i, instructions }));
   sync();
+  $("saveState").textContent = "設定に反映済み — 保存すると配信に適用されます";
 });
 bind("save", async () => {
   if (!revision) throw new Error("先に設定を読み込んでください");
@@ -135,4 +191,5 @@ bind("save", async () => {
     body: JSON.stringify(JSON.parse($("config").value)),
   });
   revision = result.revision;
+  $("saveState").textContent = "設定を保存しました";
 });

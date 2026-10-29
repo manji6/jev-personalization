@@ -9,6 +9,7 @@
 - [導入・使い方マニュアル](docs/manual.md)
 - [詳細設計](docs/design.md)
 - [本番運用・セキュリティ](docs/operations.md)
+- [Cloudflare対応とセットアップの設計案](docs/cloudflare.md)
 - [検証結果と限界](docs/validation.md)
 - [先行する6件のJev実測](experiments/adobe-ja/README.md)
 

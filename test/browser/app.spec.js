@@ -79,6 +79,7 @@ test("management UI authenticates, drafts, edits and persists a campaign", async
   await page.locator("#token").fill(token);
   await page.getByRole("button", { name: "設定を読み込む" }).click();
   await expect(page.locator("#title")).toHaveValue("導入ガイド");
+  await page.locator(".assistant-details > summary").click();
   await page.locator("#intent").fill("通勤ランに関心を示す人に案内したい");
   await page.locator("#subject").fill("通勤ラン");
   await page.getByRole("button", { name: "質問案を作る", exact: true }).click();
@@ -95,4 +96,42 @@ test("management UI authenticates, drafts, edits and persists a campaign", async
   await page.getByRole("button", { name: "設定を読み込む" }).click();
   await expect(page.locator("#title")).toHaveValue("新しいガイド");
   expect(calls).toBe(0);
+});
+test("management layout previews content and fits desktop and mobile", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("https://api.example.com/admin");
+  await page.locator("#token").fill(token);
+  await page.getByRole("button", { name: "設定を読み込む" }).click();
+  await expect(page.locator("#connectionLabel")).toHaveText("接続済み");
+  await page.locator("#title").fill("はじめての導入ガイド");
+  await page
+    .locator("#body")
+    .fill(
+      "導入までのステップを、わかりやすくまとめました。あなたのチームに合う進め方を見つけましょう。",
+    );
+  await expect(page.locator("#previewTitle")).toHaveText(
+    "はじめての導入ガイド",
+  );
+  await expect(page.locator("#saveState")).toContainText("編集中");
+  await page.locator("#token").fill("");
+  await page.screenshot({
+    path: testInfo.outputPath("admin-desktop.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.locator("#title").fill("モバイルでも編集できるオファー");
+  await expect(page.locator("#previewTitle")).toHaveText(
+    "モバイルでも編集できるオファー",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("admin-mobile.png"),
+    fullPage: true,
+  });
 });
