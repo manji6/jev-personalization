@@ -56,20 +56,18 @@ export async function buildApp({
       error.statusCode >= 400 && error.statusCode < 500
         ? error.statusCode
         : 500;
-    reply
-      .code(code)
-      .send({
-        error:
-          code === 413
-            ? "payload_too_large"
-            : code === 429
-              ? "rate_limited"
-              : code === 409
-                ? "config_changed_reload"
-                : code === 400
-                  ? "invalid_request"
-                  : "internal_error",
-      });
+    reply.code(code).send({
+      error:
+        code === 413
+          ? "payload_too_large"
+          : code === 429
+            ? "rate_limited"
+            : code === 409
+              ? "config_changed_reload"
+              : code === 400
+                ? "invalid_request"
+                : "internal_error",
+    });
   });
   app.get("/health", async () => ({ ok: true }));
   app.get("/sdk.js", async (req, reply) =>
@@ -113,15 +111,13 @@ export async function buildApp({
   app.put("/admin/api/config", async (req, reply) => {
     const parsed = configSchema.safeParse(req.body);
     if (!parsed.success)
-      return reply
-        .code(400)
-        .send({
-          error: "invalid_config",
-          issues: parsed.error.issues.map((i) => ({
-            path: i.path,
-            message: i.message,
-          })),
-        });
+      return reply.code(400).send({
+        error: "invalid_config",
+        issues: parsed.error.issues.map((i) => ({
+          path: i.path,
+          message: i.message,
+        })),
+      });
     // Optimistic concurrency prevents one operator overwriting another's work.
     const revision = createHash("sha256")
       .update(JSON.stringify(store.get()))
