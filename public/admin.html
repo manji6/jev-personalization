@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width"
+  /><title>Jev施策管理</title
+  ><link rel="stylesheet" href="/admin.css" />
+  <body>
+    <main>
+      <h1>Jev施策管理</h1>
+      <p>
+        施策は質問案を確認してから有効化してください。閲覧者の履歴は保存・表示しません。
+      </p>
+      <label
+        >管理トークン<input
+          id="token"
+          type="password"
+          autocomplete="off" /></label
+      ><button id="load">設定を読み込む</button>
+      <h2>文章から質問案を作る</h2>
+      <label
+        >誰に、何を伝えたいですか<textarea
+          id="intent"
+          maxlength="1000"
+        ></textarea></label
+      ><label
+        >関心のテーマ<input
+          id="subject"
+          maxlength="120"
+          placeholder="例：通勤ラン" /></label
+      ><button id="draft">質問案を作る</button>
+      <pre id="suggestion"></pre>
+      <h2>施策を編集する</h2>
+      <label>サイト<select id="site"></select></label
+      ><label>施策<select id="campaign"></select></label
+      ><button id="new">施策を追加</button>
+      <label
+        >対象者と伝えたいこと<textarea
+          id="campaignIntent"
+          maxlength="1000"
+        ></textarea>
+      </label>
+      <label>表示タイトル<input id="title" maxlength="120" /></label
+      ><label>本文<textarea id="body" maxlength="500"></textarea></label
+      ><label>リンク文言<input id="linkLabel" maxlength="60" /></label
+      ><label>リンク先HTTPS URL<input id="url" type="url" /></label>
+      <label
+        >判定する質問（1行に1問。確認して編集できます）<textarea
+          id="questions"
+          rows="5"
+        ></textarea></label
+      ><button id="useDraft">上の質問案を取り込む</button>
+      <label
+        >質問の組み合わせ<select id="combination">
+          <option value="all">すべて満たす</option>
+          <option value="any">いずれかを満たす</option>
+        </select></label
+      >
+      <label
+        >優先順位（大きいほど優先）<input
+          id="priority"
+          type="number"
+          min="0"
+          max="100" /></label
+      ><label
+        >表示回数の上限<input
+          id="maxShows"
+          type="number"
+          min="1"
+          max="10" /></label
+      ><label
+        >確率の閾値<input
+          id="threshold"
+          type="number"
+          min="0.5"
+          max="0.99"
+          step="0.01"
+      /></label>
+      <label
+        >配信状態<select id="enabled">
+          <option value="false">停止</option>
+          <option value="true">有効</option>
+        </select></label
+      ><button id="apply">編集を設定に反映</button>
+      <details>
+        <summary>導入担当者向け：サイト・施策の詳細設定</summary>
+        <p>
+          許可経路とメタデータの個人情報を確認してください。施策編集後は「編集を設定に反映」を押してから保存します。
+        </p>
+        <label
+          >設定JSON<textarea
+            id="config"
+            rows="28"
+            spellcheck="false"
+          ></textarea>
+        </label>
+      </details>
+      <button id="save">確認した設定を保存して配信に反映</button>
+      <p id="status" role="status"></p>
+    </main>
+    <script src="/admin.js" defer></script>
+  </body>
+</html>

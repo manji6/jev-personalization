@@ -1,0 +1,47 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #162338;
+  background: #f5f7fb;
+}
+main {
+  max-width: 900px;
+  margin: 3rem auto;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+}
+label {
+  display: block;
+  margin: 1rem 0;
+}
+input,
+textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.7rem;
+  margin-top: 0.4rem;
+  border: 1px solid #8b98ad;
+  border-radius: 4px;
+  font: inherit;
+}
+#config,
+pre {
+  font: 14px monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+button {
+  padding: 0.7rem 1.2rem;
+  background: #163c89;
+  color: white;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+}
+#status {
+  overflow-wrap: anywhere;
+}

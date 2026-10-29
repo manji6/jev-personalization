@@ -1,0 +1,29 @@
+{
+  "name": "jev-personalization",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "start": "node src/server.js",
+    "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js",
+    "check": "npm run build && npm test",
+    "test:browser": "playwright test",
+    "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js",
+    "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.6.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "esbuild": "^0.25.11",
+    "jsdom": "^27.1.0",
+    "prettier": "^3.9.10"
+  }
+}

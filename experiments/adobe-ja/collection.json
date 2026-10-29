@@ -1,0 +1,6 @@
+{
+  "recorded_at_utc": "2026-10-29T16:36:19.812543+00:00",
+  "source": "Public HTML fetched using curl with redirects; not rendered-browser inspection",
+  "request_data": "Only extracted names/descriptions and synthetic visit order/visible seconds",
+  "jsonld_observation": "No application/ld+json scripts in six fetched HTML documents; dynamic injection untested"
+}

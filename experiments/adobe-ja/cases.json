@@ -1,0 +1,266 @@
+[
+  {
+    "case": "positive",
+    "review_expectation": "両問yes寄り",
+    "provenance": "Page metadata is fetched; order and visible seconds are synthetic. No real visitor.",
+    "synthetic_delivery_state": {
+      "already_shown": false,
+      "dismissed": false
+    },
+    "request": {
+      "model": "jev-latest",
+      "state": {
+        "current_page": {
+          "name": "コミュートランニングシューズ | WKDY",
+          "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+        },
+        "browsing_history_oldest_first": [
+          {
+            "page": {
+              "name": "初心者ランナー応援キャンペーン | WKDY",
+              "description": "通勤ランからはじめる、ビジネスパーソンのための最初の一歩。WKDY Sportsが初心者ランナーを応援します。"
+            },
+            "visible_seconds": 60
+          },
+          {
+            "page": {
+              "name": "コミュートランニングシューズ | WKDY",
+              "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+            },
+            "visible_seconds": 45
+          },
+          {
+            "page": {
+              "name": "初心者ランナー応援キャンペーン | WKDY",
+              "description": "通勤ランからはじめる、ビジネスパーソンのための最初の一歩。WKDY Sportsが初心者ランナーを応援します。"
+            },
+            "visible_seconds": 30
+          },
+          {
+            "page": {
+              "name": "コミュートランニングシューズ | WKDY",
+              "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+            },
+            "visible_seconds": 20
+          }
+        ]
+      },
+      "questions": {
+        "commute_running_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、通勤ランに関心があることを示す行動がありますか？"
+        },
+        "beginner_information_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、ランニング初心者向けの情報に関心があることを示す行動がありますか？"
+        }
+      }
+    }
+  },
+  {
+    "case": "out_of_scope",
+    "review_expectation": "両問no寄り",
+    "provenance": "Page metadata is fetched; order and visible seconds are synthetic. No real visitor.",
+    "synthetic_delivery_state": {
+      "already_shown": false,
+      "dismissed": false
+    },
+    "request": {
+      "model": "jev-latest",
+      "state": {
+        "current_page": {
+          "name": "吸汗速乾ポロシャツ | WKDY",
+          "description": "ビジネスカジュアルにも対応できる、上品な光沢感のある吸汗速乾ポロシャツ。"
+        },
+        "browsing_history_oldest_first": [
+          {
+            "page": {
+              "name": "ストレッチスーツジャケット | WKDY",
+              "description": "動きやすさと着心地を両立した、ビジネスシーンでも違和感のないストレッチ素材のテーラードジャケット。"
+            },
+            "visible_seconds": 60
+          },
+          {
+            "page": {
+              "name": "吸汗速乾ポロシャツ | WKDY",
+              "description": "ビジネスカジュアルにも対応できる、上品な光沢感のある吸汗速乾ポロシャツ。"
+            },
+            "visible_seconds": 45
+          }
+        ]
+      },
+      "questions": {
+        "commute_running_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、通勤ランに関心があることを示す行動がありますか？"
+        },
+        "beginner_information_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、ランニング初心者向けの情報に関心があることを示す行動がありますか？"
+        }
+      }
+    }
+  },
+  {
+    "case": "insufficient",
+    "review_expectation": "特定テーマの根拠不足",
+    "provenance": "Page metadata is fetched; order and visible seconds are synthetic. No real visitor.",
+    "synthetic_delivery_state": {
+      "already_shown": false,
+      "dismissed": false
+    },
+    "request": {
+      "model": "jev-latest",
+      "state": {
+        "current_page": {
+          "name": "WKDY",
+          "description": "平日の通勤・オフィスワークに効く、機能素材のアパレル・ギアブランド WKDY(ウィークデイ)"
+        },
+        "browsing_history_oldest_first": [
+          {
+            "page": {
+              "name": "WKDY",
+              "description": "平日の通勤・オフィスワークに効く、機能素材のアパレル・ギアブランド WKDY(ウィークデイ)"
+            },
+            "visible_seconds": 2
+          }
+        ]
+      },
+      "questions": {
+        "commute_running_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、通勤ランに関心があることを示す行動がありますか？"
+        },
+        "beginner_information_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、ランニング初心者向けの情報に関心があることを示す行動がありますか？"
+        }
+      }
+    }
+  },
+  {
+    "case": "brief_boundary",
+    "review_expectation": "短時間だけでは関心の根拠が弱い",
+    "provenance": "Page metadata is fetched; order and visible seconds are synthetic. No real visitor.",
+    "synthetic_delivery_state": {
+      "already_shown": false,
+      "dismissed": false
+    },
+    "request": {
+      "model": "jev-latest",
+      "state": {
+        "current_page": {
+          "name": "コミュートランニングシューズ | WKDY",
+          "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+        },
+        "browsing_history_oldest_first": [
+          {
+            "page": {
+              "name": "コミュートランニングシューズ | WKDY",
+              "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+            },
+            "visible_seconds": 2
+          }
+        ]
+      },
+      "questions": {
+        "commute_running_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、通勤ランに関心があることを示す行動がありますか？"
+        },
+        "beginner_information_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、ランニング初心者向けの情報に関心があることを示す行動がありますか？"
+        }
+      }
+    }
+  },
+  {
+    "case": "product_only",
+    "review_expectation": "通勤ランと初心者向け関心を区別できるか",
+    "provenance": "Page metadata is fetched; order and visible seconds are synthetic. No real visitor.",
+    "synthetic_delivery_state": {
+      "already_shown": false,
+      "dismissed": false
+    },
+    "request": {
+      "model": "jev-latest",
+      "state": {
+        "current_page": {
+          "name": "コミュートランニングシューズ | WKDY",
+          "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+        },
+        "browsing_history_oldest_first": [
+          {
+            "page": {
+              "name": "コミュートランニングシューズ | WKDY",
+              "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+            },
+            "visible_seconds": 60
+          }
+        ]
+      },
+      "questions": {
+        "commute_running_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、通勤ランに関心があることを示す行動がありますか？"
+        },
+        "beginner_information_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、ランニング初心者向けの情報に関心があることを示す行動がありますか？"
+        }
+      }
+    }
+  },
+  {
+    "case": "mixed_interest",
+    "review_expectation": "通勤全般と通勤ランへの関心の境界",
+    "provenance": "Page metadata is fetched; order and visible seconds are synthetic. No real visitor.",
+    "synthetic_delivery_state": {
+      "already_shown": false,
+      "dismissed": false
+    },
+    "request": {
+      "model": "jev-latest",
+      "state": {
+        "current_page": {
+          "name": "コミューターブリーフケース | WKDY",
+          "description": "撥水加工を施した高耐久ナイロン製のビジネスブリーフケース。13インチノートPC収納可。"
+        },
+        "browsing_history_oldest_first": [
+          {
+            "page": {
+              "name": "コミューターブリーフケース | WKDY",
+              "description": "撥水加工を施した高耐久ナイロン製のビジネスブリーフケース。13インチノートPC収納可。"
+            },
+            "visible_seconds": 60
+          },
+          {
+            "page": {
+              "name": "コミュートランニングシューズ | WKDY",
+              "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+            },
+            "visible_seconds": 20
+          },
+          {
+            "page": {
+              "name": "コミューターブリーフケース | WKDY",
+              "description": "撥水加工を施した高耐久ナイロン製のビジネスブリーフケース。13インチノートPC収納可。"
+            },
+            "visible_seconds": 45
+          }
+        ]
+      },
+      "questions": {
+        "commute_running_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、通勤ランに関心があることを示す行動がありますか？"
+        },
+        "beginner_information_interest": {
+          "type": "noul",
+          "instructions": "閲覧履歴には、ランニング初心者向けの情報に関心があることを示す行動がありますか？"
+        }
+      }
+    }
+  }
+]

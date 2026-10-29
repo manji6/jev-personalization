@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://adobe.customer-experience.dev/ja/commerce/detail/commute-running-shoes/",
+    "source_file": "sources/commute-running-shoes.html",
+    "sha256": "1406e58190b8468a0d32deeb529974d85db6bbac5c6ea34ea1345bd4fe1faa6f",
+    "jsonld_count_in_fetched_html": 0,
+    "name_source": "og:title",
+    "description_source": "og:description",
+    "page": {
+      "name": "コミュートランニングシューズ | WKDY",
+      "description": "通勤ラン需要に応える軽量設計。かかと部にリフレクター素材を使用し夜間の視認性を高めています。"
+    }
+  },
+  {
+    "url": "https://adobe.customer-experience.dev/ja/commerce/detail/commuter-briefcase/",
+    "source_file": "sources/commuter-briefcase.html",
+    "sha256": "576183e2be9621fe19442485363017af3518d060547818632d20d60b5a5b1f49",
+    "jsonld_count_in_fetched_html": 0,
+    "name_source": "og:title",
+    "description_source": "og:description",
+    "page": {
+      "name": "コミューターブリーフケース | WKDY",
+      "description": "撥水加工を施した高耐久ナイロン製のビジネスブリーフケース。13インチノートPC収納可。"
+    }
+  },
+  {
+    "url": "https://adobe.customer-experience.dev/ja/",
+    "source_file": "sources/ja.html",
+    "sha256": "7110893dfee719e423a75b918f620857dc73e34edcc47416171982703e5b24ae",
+    "jsonld_count_in_fetched_html": 0,
+    "name_source": "og:title",
+    "description_source": "og:description",
+    "page": {
+      "name": "WKDY",
+      "description": "平日の通勤・オフィスワークに効く、機能素材のアパレル・ギアブランド WKDY(ウィークデイ)"
+    }
+  },
+  {
+    "url": "https://adobe.customer-experience.dev/ja/commerce/detail/quick-dry-polo/",
+    "source_file": "sources/quick-dry-polo.html",
+    "sha256": "224aafdefce65d433084e2003d84cca262a1bd291733f52217776b54ec61adf2",
+    "jsonld_count_in_fetched_html": 0,
+    "name_source": "og:title",
+    "description_source": "og:description",
+    "page": {
+      "name": "吸汗速乾ポロシャツ | WKDY",
+      "description": "ビジネスカジュアルにも対応できる、上品な光沢感のある吸汗速乾ポロシャツ。"
+    }
+  },
+  {
+    "url": "https://adobe.customer-experience.dev/ja/commerce/campaign/running-beginner/",
+    "source_file": "sources/running-beginner.html",
+    "sha256": "483dfe65b57dfdb697d350585e94237e633fed205124cb91d40ebcd38a6086b4",
+    "jsonld_count_in_fetched_html": 0,
+    "name_source": "og:title",
+    "description_source": "og:description",
+    "page": {
+      "name": "初心者ランナー応援キャンペーン | WKDY",
+      "description": "通勤ランからはじめる、ビジネスパーソンのための最初の一歩。WKDY Sportsが初心者ランナーを応援します。"
+    }
+  },
+  {
+    "url": "https://adobe.customer-experience.dev/ja/commerce/detail/stretch-suit-jacket/",
+    "source_file": "sources/stretch-suit-jacket.html",
+    "sha256": "4ecd794fc18a43a65f59cbc73b532f98f36b8caa236dd81c5ae09368bb108e02",
+    "jsonld_count_in_fetched_html": 0,
+    "name_source": "og:title",
+    "description_source": "og:description",
+    "page": {
+      "name": "ストレッチスーツジャケット | WKDY",
+      "description": "動きやすさと着心地を両立した、ビジネスシーンでも違和感のないストレッチ素材のテーラードジャケット。"
+    }
+  }
+]

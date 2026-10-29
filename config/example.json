@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "sites": [
+    {
+      "id": "demo",
+      "origins": ["https://www.example.com"],
+      "allowedPathPrefixes": ["/products/", "/guides/"],
+      "excludedPathPrefixes": ["/account", "/checkout", "/search"],
+      "metadataEnabled": false,
+      "actionNames": ["guide_download"],
+      "factNames": ["registered"],
+      "minVisibleMs": 5000,
+      "minQualifiedVisits": 2,
+      "campaigns": [
+        {
+          "id": "guide",
+          "enabled": false,
+          "intent": "導入方法に関心を示す人へ導入ガイドを紹介したい",
+          "priority": 10,
+          "questions": [
+            {
+              "key": "implementation_interest",
+              "instructions": "閲覧履歴には、サービスの導入方法に関心があることを示す行動がありますか？"
+            }
+          ],
+          "combination": "all",
+          "threshold": 0.7,
+          "maxShows": 1,
+          "content": {
+            "title": "導入ガイド",
+            "body": "導入の進め方をご紹介します。",
+            "linkLabel": "ガイドを見る",
+            "url": "https://www.example.com/guides/start"
+          }
+        }
+      ]
+    }
+  ]
+}

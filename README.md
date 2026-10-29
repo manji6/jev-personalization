@@ -1,0 +1,34 @@
+# Jev Personalization
+
+サイト共通のscriptタグで取得した閲覧情報を、自前APIで加工し、Jevの判断に基づいて登録済みコンテンツを表示する参照実装です。BtoB、メディア、採用、教育、予約、ECなどで利用できます。Node.js 24以上。
+
+ブラウザが履歴を保持し、サーバーには閲覧者ID・セッションストア・履歴DBを持ちません。判断時に許可されたページ情報と必要な行動履歴が自前APIとJevへ送信されます。
+
+## ドキュメント
+
+- [導入・使い方マニュアル](docs/manual.md)
+- [詳細設計](docs/design.md)
+- [本番運用・セキュリティ](docs/operations.md)
+- [検証結果と限界](docs/validation.md)
+- [先行する6件のJev実測](experiments/adobe-ja/README.md)
+
+## 起動
+
+```sh
+npm ci
+npm run build
+mkdir -p data
+cp config/example.json data/config.json
+# ADMIN_TOKEN（ランダムな32文字以上）とJEV_API_KEYを秘密管理サービスから設定
+npm start
+```
+
+既定は127.0.0.1:3000。HTTPSのリバースプロキシ経由で提供してください。管理画面は`/admin`です。サンプルはメタデータ送信・施策とも無効で、実サイトの許可経路を確認してから有効化します。環境変数の値や本番設定はGitへ保存しません。
+
+```sh
+npm run check
+npx playwright install chromium
+npm run test:browser
+```
+
+単一プロセス・単一管理者向けの初期リリースです。任意の口語の完全自動コンパイル、組織別の認証・課金、分散運用は提供していません。質問案は人が確認します。本番公開前にサイト固有のプライバシー審査、外部APIの保持条件確認、TLS・アクセス制御・費用上限の設定と実環境の負荷試験が必要です。公開準備の具体的な範囲は運用文書に記載しています。
