@@ -22,13 +22,8 @@ export function prepare(site, input) {
     return { reason: "insufficient_observation" };
   if (!input.visits.length || !pathAllowed(input.visits.at(-1).page.path, site))
     return { reason: "excluded_page" };
-  const candidates = site.campaigns.filter(
-    (c) =>
-      c.enabled &&
-      targetMatches(c.target, input.visits.at(-1).page.path) &&
-      !input.delivery[c.id]?.dismissed &&
-      (input.delivery[c.id]?.shown ?? 0) < c.maxShows &&
-      (!c.excludeFact || input.facts[c.excludeFact] === false),
+  const candidates = site.campaigns.filter((c) =>
+    campaignChecks(c, input).every((check) => check.passed),
   );
   if (!candidates.length) return { reason: "no_eligible_campaign" };
   const state = {
@@ -51,6 +46,24 @@ export function prepare(site, input) {
     ),
   );
   return { candidates, state, questions };
+}
+export function campaignChecks(c, input) {
+  return [
+    { key: "enabled", passed: c.enabled },
+    {
+      key: "target",
+      passed: targetMatches(c.target, input.visits.at(-1)?.page.path ?? ""),
+    },
+    { key: "not_dismissed", passed: !input.delivery[c.id]?.dismissed },
+    {
+      key: "show_limit",
+      passed: (input.delivery[c.id]?.shown ?? 0) < c.maxShows,
+    },
+    {
+      key: "fact",
+      passed: !c.excludeFact || input.facts[c.excludeFact] === false,
+    },
+  ];
 }
 export function targetMatches(target = { mode: "all", paths: [] }, path) {
   if (target.mode === "all") return true;

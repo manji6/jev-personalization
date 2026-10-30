@@ -249,3 +249,60 @@ test("setup configures D1 locally and deploy refuses an unconfigured database", 
   );
   assert.ok(!JSON.stringify(result).includes("ADMIN_TOKEN"));
 });
+
+test("Workers issues scoped debug authorization and returns trace only on authorized decisions", async (t) => {
+  const { dispatch, decision, calls, sent } = await setup(t);
+  const launch = {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      siteId: "demo",
+      url: "https://www.example.com/guides/a?omit=x#omit",
+    }),
+  };
+  assert.equal(
+    (
+      await dispatch("/admin/api/debug-session", {
+        ...launch,
+        headers: { "Content-Type": "application/json" },
+      })
+    ).status,
+    401,
+  );
+  const issued = await dispatch("/admin/api/debug-session", launch);
+  assert.equal(issued.status, 200);
+  const session = await issued.json();
+  assert.equal(session.url, "https://www.example.com/guides/a");
+  const verify = await dispatch("/v1/debug-session?siteId=demo", {
+    headers: {
+      Origin: "https://www.example.com",
+      "X-JevSense-Debug": session.token,
+    },
+  });
+  assert.equal(verify.status, 200);
+  const result = await decision(input(), { "X-JevSense-Debug": session.token });
+  assert.equal(result.status, 200);
+  const body = await result.json();
+  assert.deepEqual(body.debug.model.state, sent().state);
+  assert.deepEqual(body.debug.model.questions, sent().questions);
+  assert.equal(body.debug.model.actualModel, "mock-jev");
+  assert.equal(body.debug.campaigns[0].questions[0].probability, 0.95);
+  assert.equal((await (await decision()).json()).debug, undefined);
+  const before = calls();
+  assert.equal(
+    (await decision(input(), { "X-JevSense-Debug": session.token + "x" }))
+      .status,
+    401,
+  );
+  assert.equal(calls(), before);
+  const brief = input();
+  brief.visits[0].visibleMs = 0;
+  const hold = await (
+    await decision(brief, { "X-JevSense-Debug": session.token })
+  ).json();
+  assert.equal(hold.debug.model.called, false);
+  assert.equal(hold.reason, "insufficient_observation");
+});

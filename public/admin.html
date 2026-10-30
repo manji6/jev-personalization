@@ -114,6 +114,29 @@
             <span aria-hidden="true">＋</span> 施策を追加
           </button>
         </section>
+        <section class="panel debug-launcher" aria-labelledby="debugTitle">
+          <div class="panel-body">
+            <h2 id="debugTitle">実サイトで動作確認</h2>
+            <p class="field-hint">
+              選択中のサイトを開いて、計測・送信・判定・表示を診断します。保存済みの設定と通常の配信を観察し、追加のJev問い合わせは行いません。
+            </p>
+            <label for="debugTarget"
+              >確認するページのURL<input
+                id="debugTarget"
+                type="url"
+                placeholder="https://example.com/"
+              /><span class="field-hint"
+                >登録済みオリジンのHTTPSページを指定。URLのクエリ・ハッシュは除いて開きます。</span
+              ></label
+            >
+            <button id="startDebug" class="button button-outline">
+              このサイトで動作確認
+            </button>
+            <p id="debugStatus" class="field-hint" role="status">
+              サイト設定を読み込んでから開始してください。診断は15分間有効です。
+            </p>
+          </div>
+        </section>
         <div class="settings-tabs" role="tablist" aria-label="設定の種類">
           <button
             id="campaignTab"

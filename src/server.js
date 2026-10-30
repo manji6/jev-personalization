@@ -9,11 +9,22 @@ import { ALGORITHM_VERSION, prepare, select, draftIntent } from "./engine.js";
 import { Store } from "./store.js";
 import { createJev } from "./jev.js";
 import { publicOffer, customModule } from "./offer-response.js";
+import {
+  DEBUG_HEADER,
+  issueDebugSession,
+  verifyDebugSession,
+} from "./debug-auth.js";
+import {
+  createDebugTrace,
+  startModelTrace,
+  finishModelTrace,
+} from "./debug-trace.js";
 
 export async function buildApp({
   store,
   jev,
   adminToken,
+  modelName = "jev-1.14.0",
   maxConcurrent = 10,
   dailyRequestBudget = 1000,
 }) {
@@ -155,6 +166,21 @@ export async function buildApp({
       return reply.code(400).send({ error: "invalid_request" });
     return draftIntent(parsed.data.intent, parsed.data.subject);
   });
+  app.post("/admin/api/debug-session", async (req, reply) => {
+    const parsed = z
+      .object({ siteId: z.string().max(64), url: z.string().max(2048) })
+      .strict()
+      .safeParse(req.body);
+    const site =
+      parsed.success &&
+      store.get().sites.find((s) => s.id === parsed.data.siteId);
+    if (!site) return reply.code(400).send({ error: "invalid_debug_target" });
+    try {
+      return await issueDebugSession(adminToken, site, parsed.data.url);
+    } catch {
+      return reply.code(400).send({ error: "invalid_debug_target" });
+    }
+  });
   function siteFor(req, reply, id) {
     const site = store.get().sites.find((s) => s.id === id);
     if (!site || !site.origins.includes(req.headers.origin)) {
@@ -185,9 +211,29 @@ export async function buildApp({
     if (!siteFor(req, reply, req.query.siteId)) return;
     return reply
       .header("Access-Control-Allow-Methods", "POST")
-      .header("Access-Control-Allow-Headers", "Content-Type")
+      .header("Access-Control-Allow-Headers", "Content-Type, X-JevSense-Debug")
       .code(204)
       .send();
+  });
+  app.options("/v1/debug-session", async (req, reply) => {
+    if (!siteFor(req, reply, req.query.siteId)) return;
+    return reply
+      .header("Access-Control-Allow-Methods", "GET")
+      .header("Access-Control-Allow-Headers", DEBUG_HEADER)
+      .code(204)
+      .send();
+  });
+  app.get("/v1/debug-session", async (req, reply) => {
+    if (!siteFor(req, reply, req.query.siteId)) return;
+    const session = await verifyDebugSession(
+      adminToken,
+      req.headers[DEBUG_HEADER.toLowerCase()],
+      req.query.siteId,
+      req.headers.origin,
+    );
+    return session
+      ? { expiresAt: session.expiresAt }
+      : reply.code(401).send({ error: "debug_session_invalid" });
   });
   app.get("/v1/sites/:siteId", async (req, reply) => {
     const s = siteFor(req, reply, req.params.siteId);
@@ -211,45 +257,67 @@ export async function buildApp({
       return reply.code(400).send({ error: "site_mismatch" });
     const site = siteFor(req, reply, input.siteId);
     if (!site) return;
+    const debugToken = req.headers[DEBUG_HEADER.toLowerCase()];
+    if (
+      debugToken &&
+      !(await verifyDebugSession(
+        adminToken,
+        debugToken,
+        site.id,
+        req.headers.origin,
+      ))
+    )
+      return reply.code(401).send({ error: "debug_session_invalid" });
+    const trace = debugToken ? createDebugTrace(site, input) : null;
+    const respond = (body, status = 200) =>
+      reply.code(status).send(trace ? { ...body, debug: trace } : body);
     const configVersion = createHash("sha256")
       .update(JSON.stringify(site))
       .digest("hex")
       .slice(0, 16);
     const base = { algorithmVersion: ALGORITHM_VERSION, configVersion };
     if (!site.metadataEnabled)
-      return { ...base, decision: "hold", reason: "metadata_not_approved" };
+      return respond({
+        ...base,
+        decision: "hold",
+        reason: "metadata_not_approved",
+      });
     const prepared = prepare(site, input);
     if (prepared.reason)
-      return { ...base, decision: "hold", reason: prepared.reason };
+      return respond({ ...base, decision: "hold", reason: prepared.reason });
     const today = new Date().toISOString().slice(0, 10);
     if (day !== today) {
       day = today;
       dailyCalls = 0;
     }
     if (dailyCalls >= dailyRequestBudget)
-      return reply
-        .code(503)
-        .send({ ...base, decision: "hold", reason: "budget_exhausted" });
+      return respond(
+        { ...base, decision: "hold", reason: "budget_exhausted" },
+        503,
+      );
     if (active >= maxConcurrent)
-      return reply
-        .code(503)
-        .send({ ...base, decision: "hold", reason: "busy" });
+      return respond({ ...base, decision: "hold", reason: "busy" }, 503);
     active++;
     dailyCalls++;
+    const modelStart = performance.now();
+    startModelTrace(trace, prepared, modelName);
     try {
       const result = await jev(prepared);
+      finishModelTrace(trace, prepared, result, performance.now() - modelStart);
       const selected = select(prepared, result);
-      return {
+      return respond({
         ...base,
         model: result.model,
         decision: selected ? "show" : "hold",
         reason: selected ? "qualified" : "no_match_or_uncertain",
         campaign: await publicOffer(site, selected),
-      };
+      });
     } catch {
-      return reply
-        .code(502)
-        .send({ ...base, decision: "hold", reason: "model_error" });
+      if (trace) {
+        trace.model.elapsedMs = Math.round(performance.now() - modelStart);
+        trace.model.error = "model_error";
+      }
+      return respond({ ...base, decision: "hold", reason: "model_error" }, 502);
     } finally {
       active--;
     }
@@ -266,6 +334,7 @@ if (
   const app = await buildApp({
     store,
     adminToken: process.env.ADMIN_TOKEN,
+    modelName: process.env.JEV_MODEL ?? "jev-1.14.0",
     jev: createJev({
       apiKey: process.env.JEV_API_KEY,
       model: process.env.JEV_MODEL ?? "jev-1.14.0",

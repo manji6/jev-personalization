@@ -5,6 +5,16 @@ import { createJev } from "../jev.js";
 import { D1Store, revisionOf } from "./store.js";
 export { ModelBudget } from "./budget.js";
 import { publicOffer, customModule } from "../offer-response.js";
+import {
+  DEBUG_HEADER,
+  issueDebugSession,
+  verifyDebugSession,
+} from "../debug-auth.js";
+import {
+  createDebugTrace,
+  startModelTrace,
+  finishModelTrace,
+} from "../debug-trace.js";
 
 const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
@@ -115,6 +125,7 @@ export default {
       const publicApi =
         scriptMatch ||
         path === "/v1/decision" ||
+        path === "/v1/debug-session" ||
         /^\/v1\/sites\/[^/]+$/.test(path);
       if (!admin && !publicApi)
         return finish(json({ error: "not_found" }, 404), headers);
@@ -143,6 +154,29 @@ export default {
       }
       const store = new D1Store(env.DB);
       if (admin) {
+        if (path === "/admin/api/debug-session" && request.method === "POST") {
+          const parsed = z
+            .object({ siteId: z.string().max(64), url: z.string().max(2048) })
+            .strict()
+            .safeParse(await readJSON(request));
+          const site =
+            parsed.success &&
+            (await store.load()).config.sites.find(
+              (s) => s.id === parsed.data.siteId,
+            );
+          if (!site) fail("invalid_debug_target", 400);
+          let session;
+          try {
+            session = await issueDebugSession(
+              env.ADMIN_TOKEN,
+              site,
+              parsed.data.url,
+            );
+          } catch {
+            fail("invalid_debug_target", 400);
+          }
+          return finish(json(session), headers);
+        }
         if (path === "/admin/api/config" && request.method === "GET")
           return finish(json(await store.load()), headers);
         if (path === "/admin/api/revision" && request.method === "GET")
@@ -211,10 +245,33 @@ export default {
           headers,
         );
       }
-      if (path === "/v1/decision" && request.method === "OPTIONS") {
-        headers.set("Access-Control-Allow-Methods", "POST");
-        headers.set("Access-Control-Allow-Headers", "Content-Type");
+      if (
+        ["/v1/decision", "/v1/debug-session"].includes(path) &&
+        request.method === "OPTIONS"
+      ) {
+        headers.set(
+          "Access-Control-Allow-Methods",
+          path === "/v1/decision" ? "POST" : "GET",
+        );
+        headers.set(
+          "Access-Control-Allow-Headers",
+          "Content-Type, X-JevSense-Debug",
+        );
         return finish(new Response(null, { status: 204 }), headers);
+      }
+      if (path === "/v1/debug-session" && request.method === "GET") {
+        const session = await verifyDebugSession(
+          env.ADMIN_TOKEN,
+          request.headers.get(DEBUG_HEADER),
+          siteId,
+          origin,
+        );
+        return finish(
+          session
+            ? json({ expiresAt: session.expiresAt })
+            : json({ error: "debug_session_invalid" }, 401),
+          headers,
+        );
       }
       if (path.startsWith("/v1/sites/") && request.method === "GET") {
         const {
@@ -244,28 +301,32 @@ export default {
       const parsed = inputSchema.safeParse(await readJSON(request));
       if (!parsed.success) fail("invalid_request", 400);
       if (parsed.data.siteId !== siteId) fail("site_mismatch", 400);
+      const debugToken = request.headers.get(DEBUG_HEADER);
+      if (
+        debugToken &&
+        !(await verifyDebugSession(env.ADMIN_TOKEN, debugToken, siteId, origin))
+      )
+        fail("debug_session_invalid", 401);
+      const trace = debugToken ? createDebugTrace(site, parsed.data) : null;
+      const respond = (body, status = 200) =>
+        finish(json(trace ? { ...body, debug: trace } : body, status), headers);
       const base = {
         algorithmVersion: ALGORITHM_VERSION,
         configVersion: (await revisionOf(site)).slice(0, 16),
       };
       if (!site.metadataEnabled)
-        return finish(
-          json({ ...base, decision: "hold", reason: "metadata_not_approved" }),
-          headers,
-        );
+        return respond({
+          ...base,
+          decision: "hold",
+          reason: "metadata_not_approved",
+        });
       const prepared = prepare(site, parsed.data);
       if (prepared.reason)
-        return finish(
-          json({ ...base, decision: "hold", reason: prepared.reason }),
-          headers,
-        );
+        return respond({ ...base, decision: "hold", reason: prepared.reason });
       if (!env.JEV_API_KEY)
-        return finish(
-          json(
-            { ...base, decision: "hold", reason: "model_not_configured" },
-            503,
-          ),
-          headers,
+        return respond(
+          { ...base, decision: "hold", reason: "model_not_configured" },
+          503,
         );
       const budget = env.MODEL_BUDGET.get(
         env.MODEL_BUDGET.idFromName("global"),
@@ -275,30 +336,39 @@ export default {
         maxConcurrent: integer(env.MAX_CONCURRENT, 10, 1, 100),
       });
       if (!permit.token)
-        return finish(
-          json({ ...base, decision: "hold", reason: permit.reason }, 503),
-          headers,
+        return respond(
+          { ...base, decision: "hold", reason: permit.reason },
+          503,
         );
+      const modelStart = performance.now();
+      startModelTrace(trace, prepared, env.JEV_MODEL ?? "jev-1.14.0");
       try {
         const result = await createJev({
           apiKey: env.JEV_API_KEY,
           model: env.JEV_MODEL ?? "jev-1.14.0",
         })(prepared);
-        const selected = select(prepared, result);
-        return finish(
-          json({
-            ...base,
-            model: result.model,
-            decision: selected ? "show" : "hold",
-            reason: selected ? "qualified" : "no_match_or_uncertain",
-            campaign: await publicOffer(site, selected),
-          }),
-          headers,
+        finishModelTrace(
+          trace,
+          prepared,
+          result,
+          performance.now() - modelStart,
         );
+        const selected = select(prepared, result);
+        return respond({
+          ...base,
+          model: result.model,
+          decision: selected ? "show" : "hold",
+          reason: selected ? "qualified" : "no_match_or_uncertain",
+          campaign: await publicOffer(site, selected),
+        });
       } catch {
-        return finish(
-          json({ ...base, decision: "hold", reason: "model_error" }, 502),
-          headers,
+        if (trace) {
+          trace.model.elapsedMs = Math.round(performance.now() - modelStart);
+          trace.model.error = "model_error";
+        }
+        return respond(
+          { ...base, decision: "hold", reason: "model_error" },
+          502,
         );
       } finally {
         await budget.release(permit.token);

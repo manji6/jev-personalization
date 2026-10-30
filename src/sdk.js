@@ -1,12 +1,13 @@
 import { pathAllowed } from "./engine.js";
 import { renderOffer } from "./offer-renderer.js";
+import { createDebugger } from "./debug-panel.js";
 const clean = (v, max) =>
   typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
 const safeText = (v, max) => {
   const s = clean(v, max);
   return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?:\d[ -]?){9,}/i.test(s) ? "" : s;
 };
-export function extractPage(doc, location) {
+export function extractPage(doc, location, provenance) {
   const url = new URL(location.href);
   url.search = "";
   url.hash = "";
@@ -102,6 +103,29 @@ export function extractPage(doc, location) {
     .filter(Boolean)
     .slice(0, 8);
   if (themes.length) page.themes = themes;
+  if (provenance)
+    Object.assign(provenance, {
+      name:
+        entity?.name != null ||
+        entity?.headline != null ||
+        entity?.title != null
+          ? "JSON-LD"
+          : meta("og:title") != null
+            ? "OGP"
+            : "title",
+      ...(description
+        ? {
+            description:
+              entity?.description != null
+                ? "JSON-LD"
+                : meta("og:description") != null
+                  ? "OGP"
+                  : "meta",
+          }
+        : {}),
+      ...(page.type ? { type: "JSON-LD" } : {}),
+      ...(themes.length ? { themes: "JSON-LD" } : {}),
+    });
   return page;
 }
 export function restoreState(saved, config) {
@@ -218,6 +242,35 @@ export function install(win, script) {
     delivery: {},
     updated: Date.now(),
   };
+  const debug = createDebugger(win, {
+    siteId,
+    endpoint,
+    snapshot() {
+      const sources = {};
+      if (enabled && current) extractPage(win.document, win.location, sources);
+      const visibleMs = current
+        ? Math.min(
+            86400000,
+            current.visibleMs +
+              (start ? Math.max(0, win.performance.now() - start) : 0),
+          )
+        : 0;
+      return {
+        enabled,
+        hidden: suspended || win.document.visibilityState === "hidden",
+        offerVisible: !!overlay,
+        minVisibleMs: qualificationMs(),
+        current: current ? { path: current.page.path, visibleMs } : null,
+        sources,
+        state: {
+          ...state,
+          visits: state.visits.map((v) =>
+            v === current ? { ...v, visibleMs } : v,
+          ),
+        },
+      };
+    },
+  });
   const allowed = (path) => config && pathAllowed(path, config);
   const qualificationMs = () => config?.minVisibleMs ?? 5000;
   // Continuous dwell time is still sent raw, but is not a reason to query again.
@@ -228,9 +281,9 @@ export function install(win, script) {
       observationVersion,
       state.visits.map((v) => v.visibleMs >= qualificationMs()),
     ]);
-  function requestDecision() {
+  function requestDecision(reason = "queued") {
     win.clearTimeout(decisionTimer);
-    decisionTimer = win.setTimeout(decide, 100);
+    decisionTimer = win.setTimeout(() => decide(reason), 100);
   }
   function persist() {
     state.updated = Date.now();
@@ -257,11 +310,11 @@ export function install(win, script) {
           accrue();
           resume();
           persist();
-          requestDecision();
+          requestDecision("qualification");
         }, Math.ceil(remaining));
     }
   }
-  function capture() {
+  function capture(reason = "initial") {
     if (!enabled || !config?.metadataEnabled) return;
     accrue();
     const path = win.location.pathname;
@@ -276,7 +329,8 @@ export function install(win, script) {
     state.visits = state.visits.slice(-50);
     resume();
     persist();
-    void decide();
+    debug.record("page", { page: current.page, reason });
+    void decide(reason);
   }
   let navigationTimer;
   function navigate() {
@@ -287,7 +341,7 @@ export function install(win, script) {
     win.clearTimeout(qualificationTimer);
     removeOverlay();
     win.clearTimeout(navigationTimer);
-    navigationTimer = win.setTimeout(capture, 200);
+    navigationTimer = win.setTimeout(() => capture("navigation"), 200);
   }
   for (const method of ["pushState", "replaceState"]) {
     const original = win.history[method];
@@ -304,7 +358,7 @@ export function install(win, script) {
     if (enabled) {
       resume();
       persist();
-      requestDecision();
+      requestDecision("visible");
     }
   });
   win.addEventListener("pagehide", () => {
@@ -320,7 +374,7 @@ export function install(win, script) {
     if (enabled) {
       accrue();
       resume();
-      requestDecision();
+      requestDecision("visible");
     }
   });
   // Keep asynchronously updated standard metadata current, without starting a new visit.
@@ -330,7 +384,8 @@ export function install(win, script) {
       if (JSON.stringify(page) !== JSON.stringify(current.page)) {
         current.page = page;
         observationVersion++;
-        requestDecision();
+        debug.record("metadata", { page });
+        requestDecision("metadata");
       }
     }
   });
@@ -342,6 +397,7 @@ export function install(win, script) {
       characterData: true,
     });
   function removeOverlay() {
+    if (overlay) debug.record("removed");
     overlay?.destroy();
     overlay = null;
   }
@@ -352,6 +408,7 @@ export function install(win, script) {
     try {
       handle = renderOffer(win, campaign, {
         onShown() {
+          debug.record("shown", { campaignId: campaign.id });
           const prev = state.delivery[campaign.id] ?? {
             shown: 0,
             dismissed: false,
@@ -368,6 +425,7 @@ export function install(win, script) {
           );
         },
         onClose() {
+          debug.record("closed", { campaignId: campaign.id });
           const prev = state.delivery[campaign.id] ?? {
             shown: 0,
             dismissed: false,
@@ -392,13 +450,15 @@ export function install(win, script) {
       });
       overlay = handle;
       handle.ready.then((ok) => {
+        if (!ok) debug.record("render_failed", { campaignId: campaign.id });
         if (!ok && overlay === handle) overlay = null;
       });
     } catch {
+      debug.record("render_failed", { campaignId: campaign.id });
       handle?.destroy();
     }
   }
-  async function decide() {
+  async function decide(reason = "manual") {
     if (
       !enabled ||
       !current ||
@@ -430,6 +490,8 @@ export function install(win, script) {
     if (new TextEncoder().encode(body).length > 64000) return;
     inflight = true;
     lastDecisionKey = key;
+    const requestStarted = win.performance.now();
+    debug.record("request", { reason, body: JSON.parse(body) });
     try {
       const r = await win.fetch(
         `${endpoint}/v1/decision?siteId=${encodeURIComponent(siteId)}`,
@@ -437,13 +499,20 @@ export function install(win, script) {
           method: "POST",
           mode: "cors",
           credentials: "omit",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...debug.headers() },
           body,
           signal: AbortSignal.timeout(3000),
         },
       );
-      if (!r.ok) return;
       const result = await r.json();
+      if (generation === epoch)
+        debug.record("response", {
+          status: r.status,
+          elapsedMs: Math.round(win.performance.now() - requestStarted),
+          reason: result.reason ?? result.error,
+          result,
+        });
+      if (!r.ok) return;
       if (
         enabled &&
         generation === epoch &&
@@ -454,8 +523,12 @@ export function install(win, script) {
         if (suspended || win.document.visibilityState === "hidden")
           deferredOffer = { key, campaign: result.campaign };
         else display(result.campaign);
-      }
+      } else if (result.decision === "show")
+        debug.record("stale", {
+          reason: "ページ・同意・判断材料が更新されたため表示しません",
+        });
     } catch {
+      if (generation === epoch) debug.record("network_error");
     } finally {
       inflight = false;
       if (enabled && current && decisionKey() !== lastDecisionKey)
@@ -480,9 +553,11 @@ export function install(win, script) {
         delivery: {},
         updated: Date.now(),
       };
+      debug.clear();
       try {
         win.sessionStorage.removeItem(key);
       } catch {}
+      debug.record("consent", { granted: false });
       return;
     }
     const generation = epoch;
@@ -502,6 +577,7 @@ export function install(win, script) {
         if (saved) state = saved;
       } catch {}
       enabled = true;
+      debug.record("consent", { granted: true });
       capture();
     } catch {}
   }
@@ -519,7 +595,8 @@ export function install(win, script) {
         state.actions = state.actions.slice(-30);
         observationVersion++;
         persist();
-        requestDecision();
+        debug.record("action", { name, value });
+        requestDecision("action");
       }
     },
     setFact(name, value) {
@@ -533,7 +610,8 @@ export function install(win, script) {
         state.facts[name] = value;
         observationVersion++;
         persist();
-        requestDecision();
+        debug.record("fact", { name, value });
+        requestDecision("fact_changed");
       }
     },
   };

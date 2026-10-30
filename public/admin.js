@@ -12,6 +12,7 @@ let revision,
   rawDirty = false,
   preview,
   fullPreview;
+let debugLaunch, debugSite;
 const lines = (value) =>
   value
     .split("\n")
@@ -135,6 +136,8 @@ function errorMessage(data) {
         "ほかの保存が先行しました。設定を読み込み直してください。",
       server_not_configured: "CloudflareのSecrets設定を確認してください。",
       rate_limited: "要求回数の上限です。1分ほど待って再試行してください。",
+      invalid_debug_target:
+        "登録済みオリジンのHTTPSページを指定してください。サイト設定の変更は先に保存してください。",
     }[data.error] ??
     data.error ??
     "処理に失敗しました"
@@ -220,6 +223,12 @@ function fillDesign(value) {
 function fillSite() {
   const s = site();
   if (!s) return;
+  if (debugSite !== s.id) {
+    debugSite = s.id;
+    $("debugTarget").value = s.origins[0]
+      ? s.origins[0] + (s.allowedPathPrefixes[0] ?? "/")
+      : "";
+  }
   $("currentSiteId").value = s.id;
   for (const [field, v] of Object.entries({
     origins: s.origins.join("\n"),
@@ -599,4 +608,97 @@ bind("addSite", async () => {
   sync();
   render();
   dirty();
+});
+
+$("startDebug").onclick = async () => {
+  if (!site()) {
+    $("debugStatus").textContent = "先に設定を読み込んでください。";
+    return;
+  }
+  let target;
+  try {
+    target = new URL($("debugTarget").value);
+    if (
+      target.protocol !== "https:" ||
+      target.username ||
+      target.password ||
+      !site().origins.includes(target.origin)
+    )
+      throw new Error();
+  } catch {
+    $("debugStatus").textContent =
+      "登録済みオリジンのHTTPSページを指定してください。";
+    return;
+  }
+  const tab = window.open(
+    "about:blank",
+    "jevsense-debug-" + crypto.randomUUID(),
+  );
+  if (!tab) {
+    $("debugStatus").textContent =
+      "ポップアップを許可して、もう一度開始してください。";
+    return;
+  }
+  $("startDebug").disabled = true;
+  $("debugStatus").textContent = "診断の認可を発行しています…";
+  try {
+    const session = await api("debug-session", {
+      method: "POST",
+      body: JSON.stringify({ siteId: siteId, url: target.href }),
+    });
+    debugLaunch = { ...session, tab, connected: false };
+    window.setTimeout(
+      () => {
+        if (debugLaunch?.tab === tab) {
+          debugLaunch = null;
+          $("debugStatus").textContent =
+            "診断の有効期限が切れました。必要なら再度開始してください。";
+        }
+      },
+      Math.max(0, session.expiresAt - Date.now()),
+    );
+    tab.location.href = session.url;
+    $("debugStatus").textContent =
+      "サイト側のSDKに接続しています。管理画面も開いたままにしてください。";
+    window.setTimeout(() => {
+      if (debugLaunch?.tab === tab && !debugLaunch.connected)
+        $("debugStatus").textContent =
+          "SDKへ接続できません。最新版のタグ、キャッシュ、ポップアップ・CSP・Cross-Origin-Opener-Policyを確認してください。拡張機能は不要です。";
+    }, 8000);
+  } catch (e) {
+    tab.close();
+    $("debugStatus").textContent = e.message;
+  } finally {
+    $("startDebug").disabled = false;
+  }
+};
+window.addEventListener("message", (event) => {
+  const session = debugLaunch;
+  if (
+    !session ||
+    Date.now() >= session.expiresAt ||
+    event.source !== session.tab ||
+    event.origin !== session.origin ||
+    event.data?.siteId !== session.siteId
+  )
+    return;
+  if (event.data.type === "jevsense:debug-ready")
+    session.tab.postMessage(
+      {
+        type: "jevsense:debug-start",
+        siteId: session.siteId,
+        token: session.token,
+      },
+      session.origin,
+    );
+  if (event.data.type === "jevsense:debug-stopped") {
+    debugLaunch = null;
+    $("debugStatus").textContent =
+      "診断を終了しました。必要なら再度開始してください。";
+  }
+  if (event.data.type === "jevsense:debug-connected") {
+    session.connected = true;
+    $("debugStatus").textContent =
+      "接続しました。サイト側の「JevSense 診断」で確認できます。15分間有効。ページ移動中も管理画面を開いたままにしてください。";
+  }
 });

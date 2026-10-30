@@ -136,3 +136,20 @@ test("restore revalidates stored history against current policy and expires old 
   saved.updated -= 1800001;
   assert.equal(restoreState(saved, config), null);
 });
+
+test("metadata provenance is available locally without changing the wire page schema", () => {
+  const dom = new JSDOM(
+    '<title>Fallback</title><meta property="og:description" content="OG description"><script type="application/ld+json">{"@type":"Product","name":"Polo","keywords":"sports"}</script>',
+    { url: "https://www.example.com/products/polo" },
+  );
+  const sources = {};
+  const page = extractPage(dom.window.document, dom.window.location, sources);
+  assert.deepEqual(sources, {
+    name: "JSON-LD",
+    description: "OGP",
+    type: "JSON-LD",
+    themes: "JSON-LD",
+  });
+  assert.equal(page.sources, undefined);
+  dom.window.close();
+});
