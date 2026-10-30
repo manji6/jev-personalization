@@ -90,6 +90,10 @@ test("Workers decision uses real D1, filters state, composes response and enforc
     },
   });
   assert.equal(preflight.status, 204);
+  const publicConfig = await dispatch("/v1/sites/demo", {
+    headers: { Origin: "https://www.example.com" },
+  });
+  assert.equal((await publicConfig.json()).minVisibleMs, 5000);
   const result = await decision();
   assert.equal(result.status, 200);
   assert.equal((await result.json()).decision, "show");

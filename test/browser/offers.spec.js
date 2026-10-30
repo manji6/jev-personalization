@@ -44,6 +44,7 @@ async function visit(page) {
   await expect
     .poll(() => page.evaluate(() => !!window.JevPersonalization))
     .toBe(true);
+  await page.locator("#before").focus();
   await page.evaluate(() => window.JevPersonalization.consent(true));
   await page.waitForTimeout(1100);
 }

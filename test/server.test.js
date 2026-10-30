@@ -37,6 +37,14 @@ test("HTTP pipeline sends bounded state and returns safe registered content", as
     "https://www.example.com",
   );
   assert.equal(calls, 1);
+  const publicConfig = await app.inject({
+    url: "/v1/sites/demo",
+    headers: { origin: "https://www.example.com" },
+  });
+  assert.equal(
+    publicConfig.json().minVisibleMs,
+    fixture().sites[0].minVisibleMs,
+  );
   const q = request();
   q.payload.visits[0].visibleMs = 0;
   assert.equal((await app.inject(q)).json().reason, "insufficient_observation");

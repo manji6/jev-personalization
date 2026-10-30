@@ -197,6 +197,7 @@ export async function buildApp({
       allowedPathPrefixes: s.allowedPathPrefixes,
       excludedPathPrefixes: s.excludedPathPrefixes,
       metadataEnabled: s.metadataEnabled,
+      minVisibleMs: s.minVisibleMs,
       actionNames: s.actionNames,
       factNames: s.factNames,
     };

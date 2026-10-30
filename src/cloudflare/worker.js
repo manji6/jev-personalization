@@ -222,6 +222,7 @@ export default {
           allowedPathPrefixes,
           excludedPathPrefixes,
           metadataEnabled,
+          minVisibleMs,
           actionNames,
           factNames,
         } = site;
@@ -231,6 +232,7 @@ export default {
             allowedPathPrefixes,
             excludedPathPrefixes,
             metadataEnabled,
+            minVisibleMs,
             actionNames,
             factNames,
           }),

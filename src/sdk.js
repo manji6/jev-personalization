@@ -205,8 +205,12 @@ export function install(win, script) {
     start = 0,
     inflight = false,
     epoch = 0,
-    lastRequest = 0,
+    observationVersion = 0,
+    lastDecisionKey = null,
+    suspended = false,
+    deferredOffer = null,
     overlay = null;
+  let qualificationTimer, decisionTimer;
   let state = {
     visits: [],
     actions: [],
@@ -215,6 +219,19 @@ export function install(win, script) {
     updated: Date.now(),
   };
   const allowed = (path) => config && pathAllowed(path, config);
+  const qualificationMs = () => config?.minVisibleMs ?? 5000;
+  // Continuous dwell time is still sent raw, but is not a reason to query again.
+  // Only crossing the configured qualification boundary changes this key.
+  const decisionKey = () =>
+    JSON.stringify([
+      epoch,
+      observationVersion,
+      state.visits.map((v) => v.visibleMs >= qualificationMs()),
+    ]);
+  function requestDecision() {
+    win.clearTimeout(decisionTimer);
+    decisionTimer = win.setTimeout(decide, 100);
+  }
   function persist() {
     state.updated = Date.now();
     try {
@@ -231,8 +248,18 @@ export function install(win, script) {
     }
   }
   function resume() {
-    if (current && win.document.visibilityState !== "hidden")
+    win.clearTimeout(qualificationTimer);
+    if (current && !suspended && win.document.visibilityState !== "hidden") {
       start = win.performance.now() || 0.001;
+      const remaining = qualificationMs() - current.visibleMs;
+      if (remaining > 0)
+        qualificationTimer = win.setTimeout(() => {
+          accrue();
+          resume();
+          persist();
+          requestDecision();
+        }, Math.ceil(remaining));
+    }
   }
   function capture() {
     if (!enabled || !config?.metadataEnabled) return;
@@ -244,15 +271,20 @@ export function install(win, script) {
       return;
     }
     current = { page: extractPage(win.document, win.location), visibleMs: 0 };
+    observationVersion++;
     state.visits.push(current);
     state.visits = state.visits.slice(-50);
     resume();
     persist();
+    void decide();
   }
   let navigationTimer;
   function navigate() {
     accrue();
+    observationVersion++;
     current = null;
+    deferredOffer = null;
+    win.clearTimeout(qualificationTimer);
     removeOverlay();
     win.clearTimeout(navigationTimer);
     navigationTimer = win.setTimeout(capture, 200);
@@ -272,23 +304,35 @@ export function install(win, script) {
     if (enabled) {
       resume();
       persist();
+      requestDecision();
     }
   });
   win.addEventListener("pagehide", () => {
     accrue();
+    suspended = true;
+    win.clearTimeout(qualificationTimer);
+    win.clearTimeout(decisionTimer);
     removeOverlay();
     if (enabled) persist();
   });
   win.addEventListener("pageshow", () => {
+    suspended = false;
     if (enabled) {
       accrue();
       resume();
+      requestDecision();
     }
   });
   // Keep asynchronously updated standard metadata current, without starting a new visit.
   const observer = new win.MutationObserver(() => {
-    if (enabled && current && allowed(win.location.pathname))
-      current.page = extractPage(win.document, win.location);
+    if (enabled && current && allowed(win.location.pathname)) {
+      const page = extractPage(win.document, win.location);
+      if (JSON.stringify(page) !== JSON.stringify(current.page)) {
+        current.page = page;
+        observationVersion++;
+        requestDecision();
+      }
+    }
   });
   if (win.document.head)
     observer.observe(win.document.head, {
@@ -359,7 +403,8 @@ export function install(win, script) {
       !enabled ||
       !current ||
       inflight ||
-      Date.now() - lastRequest < 15000 ||
+      suspended ||
+      overlay ||
       win.document.visibilityState === "hidden"
     )
       return;
@@ -367,6 +412,16 @@ export function install(win, script) {
     resume();
     persist();
     if (!allowed(win.location.pathname)) return;
+    const key = decisionKey();
+    if (deferredOffer) {
+      const saved = deferredOffer;
+      deferredOffer = null;
+      if (saved.key === key) {
+        display(saved.campaign);
+        return;
+      }
+    }
+    if (key === lastDecisionKey) return;
     const generation = epoch,
       path = win.location.pathname;
     const payload = { siteId, ...state };
@@ -374,7 +429,7 @@ export function install(win, script) {
     let body = JSON.stringify(payload);
     if (new TextEncoder().encode(body).length > 64000) return;
     inflight = true;
-    lastRequest = Date.now();
+    lastDecisionKey = key;
     try {
       const r = await win.fetch(
         `${endpoint}/v1/decision?siteId=${encodeURIComponent(siteId)}`,
@@ -393,18 +448,28 @@ export function install(win, script) {
         enabled &&
         generation === epoch &&
         path === win.location.pathname &&
+        key === decisionKey() &&
         result.decision === "show"
-      )
-        display(result.campaign);
+      ) {
+        if (suspended || win.document.visibilityState === "hidden")
+          deferredOffer = { key, campaign: result.campaign };
+        else display(result.campaign);
+      }
     } catch {
     } finally {
       inflight = false;
+      if (enabled && current && decisionKey() !== lastDecisionKey)
+        requestDecision();
     }
   }
   async function consent(value) {
     epoch++;
     enabled = false;
     accrue();
+    win.clearTimeout(qualificationTimer);
+    win.clearTimeout(decisionTimer);
+    lastDecisionKey = null;
+    deferredOffer = null;
     current = null;
     removeOverlay();
     if (!value) {
@@ -452,7 +517,9 @@ export function install(win, script) {
       ) {
         state.actions.push(value === undefined ? { name } : { name, value });
         state.actions = state.actions.slice(-30);
+        observationVersion++;
         persist();
+        requestDecision();
       }
     },
     setFact(name, value) {
@@ -460,22 +527,24 @@ export function install(win, script) {
         enabled &&
         config.factNames.includes(name) &&
         ["boolean", "number"].includes(typeof value) &&
-        Number.isFinite(typeof value === "number" ? value : 0)
+        Number.isFinite(typeof value === "number" ? value : 0) &&
+        state.facts[name] !== value
       ) {
         state.facts[name] = value;
+        observationVersion++;
         persist();
+        requestDecision();
       }
     },
   };
   win.JevPersonalization = api;
   win.setInterval(() => {
-    if (enabled && win.document.visibilityState !== "hidden") {
+    if (enabled && !suspended && win.document.visibilityState !== "hidden") {
       accrue();
       resume();
       persist();
     }
   }, 5000);
-  win.setInterval(decide, 15000);
   if (script.dataset.consent === "granted") consent(true);
   return api;
 }
