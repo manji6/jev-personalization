@@ -2,7 +2,7 @@
 
 Cloudflare Workers版を実装しています。管理画面・SDK・判断APIを1つのWorkerで提供し、施策設定はD1へ保存します。閲覧者の履歴・表示状態はブラウザ内に保持します。初回セットアップ後、GitHubへのPushから自動でコードを更新できます。
 
-この作業ではCloudflareへの実デプロイ、D1の本番作成、Secrets登録は行っていません。以下は利用するCloudflareアカウントで実行してください。Node.js版も引き続き使用できます。
+本リポジトリの運用先には初回デプロイを実施済みです。[初回配備記録](deployment.md)を参照してください。以下は新しい運用先を作る場合の手順です。Secretsの値は利用者がCloudflareで登録します。Node.js版も引き続き使用できます。
 
 ## 構成
 
@@ -20,7 +20,7 @@ D1は管理用設定DBです。閲覧者ID・閲覧者セッション・行動�
 ## 先に用意するもの
 
 - CloudflareアカウントとWorkers/D1/Durable Objectsを使えるプラン。SQLite-backed Durable Objectsを使用します。プラン別の料金・上限は契約時に確認してください。
-- このコードが入っているGitHubリポジトリと、デプロイするブランチ。本リポジトリでは`feature/personalization-engine`です。自分のアカウントで運用する場合はForkまたは複製してください。
+- このコードが入っているGitHubリポジトリと、デプロイするブランチ。本リポジトリでは`main`です。自分のアカウントで運用する場合はForkまたは複製してください。
 - JevのAPIキー。Cloudflare側で名前を`JEV_API_KEY`にします。
 - ランダムな32文字以上の管理トークン。Cloudflare側で名前を`ADMIN_TOKEN`にします。
 
@@ -31,12 +31,12 @@ D1は管理用設定DBです。閲覧者ID・閲覧者セッション・行動�
 ### 1. コードを取得する
 
 ```sh
-git clone --branch feature/personalization-engine https://github.com/manji6/jev-personalization.git
+git clone --branch main https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 ```
 
-Forkした場合は取得先を自分のリポジトリに置き換えます。
+Forkした場合は取得先を自分のリポジトリに置き換えます。`wrangler.json`には本リポジトリの運用先のaccount_idとdatabase_idが入っています。別アカウントで使う場合はaccount_idを自分のCloudflareアカウントIDへ変更し、以降の手順で自分のD1 IDとWorker名を設定してください。
 
 ### 2. D1データベースを作る
 
@@ -76,14 +76,14 @@ CLIを使いたくない場合は、GitHub上で`wrangler.json`に次のよう�
 
 CloudflareのWorkers & PagesからGitHubリポジトリを接続してWorkerを作成するか、作成済みWorkerのBuilds設定からGitHubを接続します。ダッシュボードの名称は更新される場合があります。
 
-| 設定               | 値                                                         |
-| ------------------ | ---------------------------------------------------------- |
-| Worker名           | `wrangler.json`のnameと同じ                                |
-| リポジトリ         | このコードを保存したリポジトリ                             |
-| 本番ブランチ       | `feature/personalization-engine`、または自分の運用ブランチ |
-| ルートディレクトリ | リポジトリのルート                                         |
-| ビルドコマンド     | `npm run build:cloudflare`                                 |
-| デプロイコマンド   | `node scripts/deploy-cloudflare.js`                        |
+| 設定               | 値                                  |
+| ------------------ | ----------------------------------- |
+| Worker名           | `wrangler.json`のnameと同じ         |
+| リポジトリ         | このコードを保存したリポジトリ      |
+| 本番ブランチ       | `main`、または自分の運用ブランチ    |
+| ルートディレクトリ | リポジトリのルート                  |
+| ビルドコマンド     | `npm run build:cloudflare`          |
+| デプロイコマンド   | `node scripts/deploy-cloudflare.js` |
 
 依存関係のインストールにはコミット済みのpackage-lock.jsonを使用します。ビルド環境はNode.js 24に合わせてください。
 
@@ -206,4 +206,4 @@ Cloudflare統合テストはworkerd、実D1エミュレーター、実Durable Ob
 - [D1 API](https://developers.cloudflare.com/d1/worker-api/d1-database/)
 - [Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
 
-確認日：2026-10-30（日本時間）。本番のCloudflareアカウントへの配備と権限設定は未検証です。エミュレーターでの成功を本番アカウントでのデプロイ成功とは扱っていません。
+確認日：2026-10-30（日本時間）。本リポジトリの運用先で初回デプロイと公開URLの疎通を確認済みです。GitHub Buildsによる自動デプロイの連携と、Secrets登録後の実Jev呼び出しは別途確認が必要です。

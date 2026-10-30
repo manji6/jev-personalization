@@ -38,7 +38,7 @@
 ## 未検証・制限
 
 - Dockerfileのコンテナビルド・起動、本番のTLSプロキシ・永続ボリュームは未実施。
-- Cloudflareの本番アカウントでのリソース作成、API権限、GitHub Buildsからの実デプロイ、Secrets登録は未実施。Workers版はローカルworkerdとWrangler dry-runまで確認した。
+- CloudflareのD1作成、リモートマイグレーション、Wranglerでの初回デプロイ、公開health・管理画面・SDKのHTTP 200を確認済み。GitHub Buildsによる自動デプロイと、利用者が行うSecrets登録後の実Jev呼び出しは未確認。[初回配備記録](deployment.md)を参照。
 - Firefox/Safari、実CMP、実サイトへのSDK設置、モバイル、BFCacheの実ブラウザ往復や大量の動的JSON-LDは追加確認が必要。
 - 同時実行・費用・レート制限の機能テストは実施したが、長時間の負荷試験・SLO評価ではない。
 - 合成履歴での成功は、利用者の心理の正解率・施策効果・コンバージョン改善を証明しない。
