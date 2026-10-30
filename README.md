@@ -1,8 +1,8 @@
-# Jev Personalization
+# JevSense（ジェブセンス）
 
 運用先の[管理画面](https://jev-personalization.manji6.workers.dev/admin)。初回利用にはCloudflare側のSecrets登録が必要です。[配備記録](docs/deployment.md)を参照してください。
 
-サイト共通のscriptタグで取得した閲覧情報を、自前APIで加工し、Jevの判断に基づいて登録済みコンテンツを表示する参照実装です。BtoB、メディア、採用、教育、予約、ECなどで利用できます。Node.js 24以上。
+JevSenseは、ユーザーの意図や文脈を察知・判定し、ふさわしい体験を届けるパーソナライズ基盤です。サイト共通のscriptタグで取得した閲覧情報を、自前APIで加工し、Jevの判断に基づいて登録済みコンテンツを表示する参照実装です。BtoB、メディア、採用、教育、予約、ECなどで利用できます。Node.js 24以上。
 
 ブラウザが履歴を保持し、サーバーには閲覧者ID・セッションストア・履歴DBを持ちません。判断時に許可されたページ情報と必要な行動履歴が自前APIとJevへ送信されます。
 
@@ -10,6 +10,7 @@
 
 - [導入・使い方マニュアル](docs/manual.md)
 - [詳細設計](docs/design.md)
+- [オファー表示・共通デザイン設計](docs/offers.md)
 - [本番運用・セキュリティ](docs/operations.md)
 - [Cloudflareセットアップ手順](docs/cloudflare.md)
 - [検証結果と限界](docs/validation.md)

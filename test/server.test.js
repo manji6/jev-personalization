@@ -185,3 +185,44 @@ test("parallel saves reject a competing stale revision inside write queue", asyn
   assert.equal(result[1].status, "rejected");
   assert.equal(store.get().sites[0].minVisibleMs, 10000);
 });
+test("custom code endpoint enforces origin, permission and current source hash", async (t) => {
+  const { codeHash } = await import("../src/offer-response.js");
+  const { app, store } = await setup(async () => {});
+  t.after(() => app.close());
+  const config = store.get(),
+    s = config.sites[0],
+    c = s.campaigns[0];
+  s.allowCustomJavaScript = true;
+  c.presentation.type = "custom";
+  c.custom = { code: "export function render() {}", variables: {} };
+  await store.save(config);
+  const hash = await codeHash(c.custom.code),
+    path = `/v1/offer-script/demo/guide/${hash}.js`;
+  const r = await app.inject({
+    url: path,
+    headers: { origin: "https://www.example.com" },
+  });
+  assert.equal(r.statusCode, 200);
+  assert.match(r.headers["content-type"], /javascript/);
+  assert.equal(r.body, c.custom.code);
+  assert.equal(
+    (
+      await app.inject({
+        url: path,
+        headers: { origin: "https://evil.example" },
+      })
+    ).statusCode,
+    403,
+  );
+  c.enabled = false;
+  await store.save(config);
+  assert.equal(
+    (
+      await app.inject({
+        url: path,
+        headers: { origin: "https://www.example.com" },
+      })
+    ).statusCode,
+    404,
+  );
+});

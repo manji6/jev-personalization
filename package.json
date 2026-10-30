@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "start": "node src/server.js",
-    "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js",
+    "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js && node test/offers.test.js",
     "check": "npm run build && npm test",
     "test:browser": "playwright test",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js wrangler.json",
@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@fastify/rate-limit": "^10.3.0",
+    "acorn": "^8.19.0",
     "fastify": "^5.6.2",
     "zod": "^4.1.12"
   },

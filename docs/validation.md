@@ -4,18 +4,22 @@
 
 ## 自動テスト
 
-`npm run check`：SDKビルドと21件の単体・HTTP統合・DOMテスト。
+`npm run check`：SDKビルドと27件の単体・HTTP統合・DOMテスト。
 
 - 判断エンジン7件：短時間除外、生履歴の維持、未確定事実、配信上限、all/any、確率閾値境界、優先順位、不正応答、経路制限、入力制限、要確認の質問案、短時間の現在ページが判断材料へ混入しないこと。
-- API・永続化8件：許可Origin、CORS preflight、未知フィールド、本文制限、管理認証、Jev障害・不正確率の保留、設定再読込、古い編集と並列編集の競合拒否、Bearerアダプター、同時実行上限、費用上限、レート制限。
+- API・永続化9件：許可Origin、CORS preflight、未知フィールド、本文制限、管理認証、Jev障害・不正確率の保留、設定再読込、古い編集と並列編集の競合拒否、Bearerアダプター、同時実行上限、費用上限、レート制限。
 - SDK6件：JSON-LD @graph/mainEntity/@id、単一型と曖昧な候補、壊れたJSON-LDのフォールバック、簡易個人情報抑制、同意前の無通信、同意撤回、許可された事実・操作だけの保存、SPAとquery除去、経路除外、保存データの再検証と期限切れ。
 
-`npm run test:browser`：Chromiumで4件。
+`npm run test:browser`：Chromiumで15件。
 
 - 配布ビルド済みscriptから同意・実時間計測・判断要求・Shadow DOM表示・表示回数更新・同意撤回まで。
 - CSP付き管理画面での認証、口語から質問案の生成、取り込み、フォーム編集、保存、再読込。
 - 刷新した管理画面のデスクトップ・スマートフォン表示、入力に連動するプレビュー、接続・編集状態、横方向のはみ出しがないこと。
 - Workersで配信した管理画面をブラウザから操作し、編集内容がD1経由で保存・再読込できること。
+
+オファーの単体テスト5件では、旧設定の補完とサイトごとの独立したデザイン、CSS/URL/画像設定の検証、表示対象ページ、共通テーマ、独自コードの許可・構文・ハッシュ配信を確認。Node.jsのAPIテストにもモジュール配信のOrigin・停止状態の検証を追加。
+
+ブラウザのオファーテスト11件では、標準3形式、モーダルのフォーカス・Escape、画像成功/失敗、テーマ継承、同意撤回・遅延モジュール、管理画面で独自コードを実行しないこと、JSONの未保存変更保護、サイト追加を確認。
 
 `npm run test:cloudflare`：workerd上で7件。
 
@@ -25,7 +29,7 @@
 - 共有の日次クォータ、モデル障害時の保留、Durable Objectでの同時実行制御とランタイム再起動後のカウンター保持。
 - 初回D1設定コマンドと、D1 IDが未設定のときリモートデプロイを開始しないこと。
 
-`npm run cf:migrate:local`で初期マイグレーションが適用できることを確認。`npm run cf:dry-run`でWorker、4つの静的ファイル、D1・Durable Objects・Rate Limiting・AssetsのバインディングがWranglerで検証できることを確認。アップロード・本番リソース作成は行っていない。
+`npm run cf:migrate:local`で初期マイグレーションが適用できることを確認。`npm run cf:dry-run`でWorker、5つの静的ファイル、D1・Durable Objects・Rate Limiting・AssetsのバインディングがWranglerで検証できることを確認。アップロード・本番リソース作成は行っていない。
 
 ブラウザは実Chromiumで、Node.js版はFastifyのHTTP注入、Workers版はMiniflareのworkerdへ接続し、Jev応答はモック。TLS配備、外部ネットワーク、本番負荷の再現ではない。通常サンドボックスではChromium起動がEPERMとなったため、許可された実行モードで再実施した。
 

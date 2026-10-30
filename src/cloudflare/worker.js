@@ -4,15 +4,17 @@ import { prepare, select, draftIntent, ALGORITHM_VERSION } from "../engine.js";
 import { createJev } from "../jev.js";
 import { D1Store, revisionOf } from "./store.js";
 export { ModelBudget } from "./budget.js";
+import { publicOffer, customModule } from "../offer-response.js";
 
 const CSP =
-  "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 const assets = new Map([
   ["/admin", "/admin.html"],
   ["/admin/", "/admin.html"],
   ["/admin.js", "/admin.js"],
   ["/admin.css", "/admin.css"],
   ["/sdk.js", "/sdk.js"],
+  ["/offer-renderer.js", "/offer-renderer.js"],
 ]);
 function json(body, status = 200, headers = {}) {
   return Response.json(body, { status, headers });
@@ -107,8 +109,13 @@ export default {
       if (path === "/")
         return finish(Response.redirect(new URL("/admin", url), 302), headers);
       const admin = path.startsWith("/admin/api/");
+      const scriptMatch = path.match(
+        /^\/v1\/offer-script\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)\/([a-f0-9]{64})\.js$/,
+      );
       const publicApi =
-        path === "/v1/decision" || /^\/v1\/sites\/[^/]+$/.test(path);
+        scriptMatch ||
+        path === "/v1/decision" ||
+        /^\/v1\/sites\/[^/]+$/.test(path);
       if (!admin && !publicApi)
         return finish(json({ error: "not_found" }, 404), headers);
       // Missing bindings/secrets fail closed, never use example credentials.
@@ -180,15 +187,30 @@ export default {
         }
         return finish(json({ error: "not_found" }, 404), headers);
       }
-      const siteId = path.startsWith("/v1/sites/")
-        ? decodeURIComponent(path.slice(10))
-        : url.searchParams.get("siteId");
+      const siteId = scriptMatch
+        ? scriptMatch[1]
+        : path.startsWith("/v1/sites/")
+          ? decodeURIComponent(path.slice(10))
+          : url.searchParams.get("siteId");
       const { config } = await store.load();
       const site = config.sites.find((s) => s.id === siteId);
       const origin = request.headers.get("Origin");
       if (!site || !site.origins.includes(origin)) fail("origin_rejected", 403);
       headers.set("Access-Control-Allow-Origin", origin);
       headers.set("Vary", "Origin");
+      if (scriptMatch && request.method === "GET") {
+        const source = await customModule(site, scriptMatch[2], scriptMatch[3]);
+        return finish(
+          source === null
+            ? json({ error: "not_found" }, 404)
+            : new Response(source, {
+                headers: {
+                  "Content-Type": "application/javascript; charset=utf-8",
+                },
+              }),
+          headers,
+        );
+      }
       if (path === "/v1/decision" && request.method === "OPTIONS") {
         headers.set("Access-Control-Allow-Methods", "POST");
         headers.set("Access-Control-Allow-Headers", "Content-Type");
@@ -267,9 +289,7 @@ export default {
             model: result.model,
             decision: selected ? "show" : "hold",
             reason: selected ? "qualified" : "no_match_or_uncertain",
-            campaign: selected
-              ? { id: selected.id, content: selected.content }
-              : null,
+            campaign: await publicOffer(site, selected),
           }),
           headers,
         );

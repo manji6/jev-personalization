@@ -55,7 +55,7 @@ export async function cloudflareFixture(options = {}) {
       .replace(/^--.*$/gm, "")
       .trim(),
   );
-  const config = fixture();
+  const config = options.config ?? fixture();
   await db
     .prepare("UPDATE app_config SET body = ?, revision = ? WHERE id = 1")
     .bind(JSON.stringify(config), "test-initial")

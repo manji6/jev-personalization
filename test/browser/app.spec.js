@@ -79,19 +79,17 @@ test("management UI authenticates, drafts, edits and persists a campaign", async
   await page.locator("#token").fill(token);
   await page.getByRole("button", { name: "設定を読み込む" }).click();
   await expect(page.locator("#title")).toHaveValue("導入ガイド");
-  await page.locator(".assistant-details > summary").click();
+  await page
+    .locator("#campaignSettingsPanel .assistant-details > summary")
+    .click();
   await page.locator("#intent").fill("通勤ランに関心を示す人に案内したい");
   await page.locator("#subject").fill("通勤ラン");
   await page.getByRole("button", { name: "質問案を作る", exact: true }).click();
   await expect(page.locator("#suggestion")).toContainText("requiresReview");
   await page.getByRole("button", { name: "上の質問案を取り込む" }).click();
   await page.locator("#title").fill("新しいガイド");
-  await page
-    .getByRole("button", { name: "編集を設定に反映", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "確認した設定を保存して配信に反映" })
-    .click();
+
+  await page.getByRole("button", { name: "保存して配信に反映" }).click();
   await expect(page.locator("#status")).toHaveText("完了しました");
   await page.getByRole("button", { name: "設定を読み込む" }).click();
   await expect(page.locator("#title")).toHaveValue("新しいガイド");
@@ -114,7 +112,7 @@ test("management layout previews content and fits desktop and mobile", async ({
   await expect(page.locator("#previewTitle")).toHaveText(
     "はじめての導入ガイド",
   );
-  await expect(page.locator("#saveState")).toContainText("編集中");
+  await expect(page.locator("#saveState")).toContainText("未保存");
   await page.locator("#token").fill("");
   await page.screenshot({
     path: testInfo.outputPath("admin-desktop.png"),

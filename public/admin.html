@@ -4,15 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <title>施策管理 — Jev</title>
+    <title>施策管理 — JevSense</title>
     <link rel="stylesheet" href="/admin.css" />
   </head>
   <body>
     <a class="skip-link" href="#main">メインコンテンツへ</a>
     <aside class="sidebar" aria-label="ワークスペース">
-      <a class="brand" href="/admin" aria-label="Jev 管理画面"
+      <a class="brand" href="/admin" aria-label="JevSense 管理画面"
         ><span class="brand-mark" aria-hidden="true">j.</span
-        ><span>jev<span class="brand-dot">.</span></span></a
+        ><span class="brand-name"
+          >JevSense<span class="brand-dot">.</span></span
+        ></a
       >
       <div class="workspace-label">PERSONALIZATION</div>
       <nav aria-label="画面内ナビゲーション">
@@ -112,179 +114,532 @@
             <span aria-hidden="true">＋</span> 施策を追加
           </button>
         </section>
+        <div class="settings-tabs" role="tablist" aria-label="設定の種類">
+          <button
+            id="campaignTab"
+            role="tab"
+            aria-selected="true"
+            aria-controls="campaignSettingsPanel"
+          >
+            施策を編集する
+          </button>
+          <button
+            id="siteTab"
+            role="tab"
+            aria-selected="false"
+            aria-controls="siteSettingsPanel"
+          >
+            サイト設定・共通デザイン
+          </button>
+        </div>
         <div class="editor-layout" id="editor">
           <div class="editor-main">
-            <section class="panel" aria-labelledby="audienceTitle">
-              <header class="panel-heading">
-                <span class="step-number">01</span>
-                <div>
-                  <h2 id="audienceTitle">誰に届けますか？</h2>
-                  <p>届けたい相手を、いつもの言葉で。</p>
-                </div>
-                <span class="section-tag">AUDIENCE</span>
-              </header>
-              <div class="panel-body">
-                <label for="campaignIntent"
-                  >対象者と伝えたいこと<textarea
-                    id="campaignIntent"
-                    maxlength="1000"
-                    rows="3"
-                    placeholder="例：導入方法に関心を示している人に、導入ガイドを紹介したい"
-                  ></textarea>
-                </label>
-                <details class="assistant-details">
-                  <summary>
-                    <span
-                      ><span aria-hidden="true">✳︎</span>
-                      文章から質問案を作る</span
-                    ><span class="details-chevron" aria-hidden="true">＋</span>
-                  </summary>
-                  <div class="assistant-body">
-                    <p class="field-hint">
-                      施策の意図と関心のテーマから、判断に使う質問案を作成します。
+            <section
+              id="siteSettingsPanel"
+              role="tabpanel"
+              aria-labelledby="siteTab"
+              hidden
+            >
+              <section class="panel">
+                <header class="panel-heading">
+                  <span class="step-number">01</span>
+                  <div>
+                    <h2>サイトの接続・収集設定</h2>
+                    <p>
+                      サイト全体に適用されます。タグのサイトIDと一致させてください。
                     </p>
-                    <label for="intent"
-                      >誰に、何を伝えたいですか<textarea
-                        id="intent"
-                        maxlength="1000"
-                        rows="3"
-                        placeholder="例：通勤ランに関心のある人に、キャンペーンを紹介したい"
-                      ></textarea></label
-                    ><label for="subject"
-                      >判断する関心のテーマ<input
-                        id="subject"
-                        maxlength="120"
-                        placeholder="例：通勤ラン"
-                    /></label>
-                    <p class="field-hint">
-                      オファー名ではなく、閲覧者の関心を判断したいテーマを入力します。
-                    </p>
-                    <button id="draft" class="button button-outline">
-                      質問案を作る
-                      <svg
-                        class="arrow-icon"
-                        viewBox="0 0 14 14"
-                        aria-hidden="true"
-                      >
-                        <path d="M3 11 11 3M3 3h8v8" />
-                      </svg>
-                    </button>
-                    <pre id="suggestion" aria-live="polite"></pre>
-                    <button id="useDraft" class="button button-soft">
-                      上の質問案を取り込む
-                    </button>
                   </div>
-                </details>
-                <label for="questions"
-                  >判定する質問<span class="label-note">1行に1問</span
-                  ><textarea
-                    id="questions"
-                    rows="3"
-                    placeholder="閲覧履歴には、サービスの導入方法に関心があることを示す行動がありますか？"
-                  ></textarea></label
-                ><label for="combination"
-                  >条件の組み合わせ<select id="combination">
-                    <option value="all">すべての質問の条件を満たす</option>
-                    <option value="any">いずれかの質問の条件を満たす</option>
-                  </select></label
-                >
-              </div>
-            </section>
-            <section class="panel" aria-labelledby="offerTitle">
-              <header class="panel-heading">
-                <span class="step-number">02</span>
-                <div>
-                  <h2 id="offerTitle">何を届けますか？</h2>
-                  <p>表示するオファーの内容を整えましょう。</p>
-                </div>
-                <span class="section-tag">OFFER</span>
-              </header>
-              <div class="panel-body">
-                <label for="title"
-                  >表示タイトル<input
-                    id="title"
-                    maxlength="120"
-                    placeholder="例：はじめての導入ガイド" /></label
-                ><label for="body"
-                  >メッセージ<textarea
-                    id="body"
-                    maxlength="500"
-                    rows="3"
-                    placeholder="例：導入までのステップを、わかりやすくまとめました。"
-                  ></textarea>
-                </label>
-                <div class="field-grid offer-links">
-                  <label for="linkLabel"
-                    >リンク文言<input
-                      id="linkLabel"
-                      maxlength="60"
-                      placeholder="ガイドを見る" /></label
-                  ><label for="url"
-                    >リンク先URL<input
-                      id="url"
-                      type="url"
-                      placeholder="https://example.com/guide"
-                  /></label>
-                </div>
-              </div>
-            </section>
-            <section class="panel" aria-labelledby="rulesTitle">
-              <header class="panel-heading">
-                <span class="step-number">03</span>
-                <div>
-                  <h2 id="rulesTitle">配信ルール</h2>
-                  <p>表示の頻度と、判断の基準を設定します。</p>
-                </div>
-                <span class="section-tag">DELIVERY</span>
-              </header>
-              <div class="panel-body">
-                <div class="field-grid rules-grid">
-                  <label for="priority"
-                    >優先順位<input
-                      id="priority"
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="10"
-                    /><span class="field-hint"
-                      >大きい数値の施策を優先</span
+                </header>
+                <div class="panel-body">
+                  <label for="currentSiteId"
+                    >サイトID<input id="currentSiteId" readonly /><span
+                      class="field-hint"
+                      >設置するタグの data-site と同じ値です。</span
                     ></label
-                  ><label for="maxShows"
-                    >表示回数の上限<input
-                      id="maxShows"
-                      type="number"
-                      min="1"
-                      max="10"
-                      placeholder="1"
-                    /><span class="field-hint"
-                      >同じタブ内での上限回数</span
+                  >
+                  <details class="assistant-details">
+                    <summary>別のサイトを追加する</summary>
+                    <div class="assistant-body">
+                      <label for="newSiteId"
+                        >新しいサイトID<input
+                          id="newSiteId"
+                          maxlength="64"
+                          placeholder="例：my-media" /></label
+                      ><button id="addSite" class="button button-outline">
+                        サイトを追加
+                      </button>
+                      <p class="field-hint">
+                        英数字・ハイフン・アンダースコアで指定。追加直後は送信・配信とも無効です。
+                      </p>
+                    </div>
+                  </details>
+                  <p class="help-callout">
+                    最初に送信を許可するドメインと経路を設定します。アカウント・検索・フォームなど個人情報を含むページは除外してください。
+                  </p>
+                  <label for="origins"
+                    >対象サイトのオリジン（1行に1つ）<textarea
+                      id="origins"
+                      rows="2"
+                      placeholder="https://adobe.customer-experience.dev"
+                    ></textarea
+                    ><span class="field-hint"
+                      >https://から始め、末尾の / やパスは含めません。</span
                     ></label
-                  ><label for="threshold"
-                    >確率の閾値<input
-                      id="threshold"
-                      type="number"
-                      min="0.5"
-                      max="0.99"
-                      step="0.01"
-                      placeholder="0.7"
-                    /><span class="field-hint"
-                      >この値を超える場合に対象</span
+                  >
+                  <div class="field-grid">
+                    <label for="allowedPaths"
+                      >収集を許可する経路<textarea
+                        id="allowedPaths"
+                        rows="3"
+                        placeholder="/ja/"
+                      ></textarea></label
+                    ><label for="excludedPaths"
+                      >収集しない経路<textarea
+                        id="excludedPaths"
+                        rows="3"
+                        placeholder="/ja/login"
+                      ></textarea>
+                    </label>
+                  </div>
+                  <label for="siteMetadataEnabled"
+                    >同意後のメタデータ送信<select id="siteMetadataEnabled">
+                      <option value="false">
+                        無効 — 収集・判断を開始しない
+                      </option>
+                      <option value="true">
+                        有効 — 許可したページを収集する
+                      </option></select
+                    ><span class="field-hint"
+                      >有効化しても、SDKは訪問者の同意を得るまで収集しません。</span
+                    ></label
+                  >
+                  <div class="field-grid">
+                    <label for="minVisibleMs"
+                      >閲覧として扱う最低表示時間（ミリ秒）<input
+                        id="minVisibleMs"
+                        type="number"
+                        min="1000"
+                        max="300000"
+                        step="1000"
+                      /><span class="field-hint"
+                        >5000 =
+                        5秒。短い表示をJevへの判断材料から除きます。</span
+                      ></label
+                    ><label for="minQualifiedVisits"
+                      >判断に必要な閲覧数<input
+                        id="minQualifiedVisits"
+                        type="number"
+                        min="1"
+                        max="10"
+                      /><span class="field-hint"
+                        >再閲覧も含めた件数です。</span
+                      ></label
+                    >
+                  </div>
+                  <details class="assistant-details">
+                    <summary>高度な連携・独自コードの許可</summary>
+                    <div class="assistant-body">
+                      <label for="actionNames"
+                        >許可する操作名（1行に1つ）<textarea
+                          id="actionNames"
+                          rows="2"
+                        ></textarea></label
+                      ><label for="factNames"
+                        >許可する状態名（1行に1つ）<textarea
+                          id="factNames"
+                          rows="2"
+                        ></textarea></label
+                      ><label for="allowCustomJavaScript"
+                        >独自JavaScript<select id="allowCustomJavaScript">
+                          <option value="false">
+                            許可しない（推奨する初期設定）
+                          </option>
+                          <option value="true">
+                            管理者が登録したコードの実行を許可する
+                          </option></select
+                        ><span class="field-hint"
+                          >独自コードは設置先サイトの権限で動作します。レビュー済みのコードだけ登録してください。管理画面上では実行しません。</span
+                        ></label
+                      >
+                    </div>
+                  </details>
+                  <label for="siteTag"
+                    >共通テンプレートへ設置するタグ<textarea
+                      id="siteTag"
+                      readonly
+                      rows="3"
+                      spellcheck="false"
+                    ></textarea
+                    ><span class="field-hint"
+                      >SDK読み込み後、同意取得時に
+                      JevPersonalization.consent(true) を呼びます。</span
                     ></label
                   >
                 </div>
-                <div class="delivery-status">
+              </section>
+              <section class="panel">
+                <header class="panel-heading">
+                  <span class="step-number">02</span>
                   <div>
-                    <h3>配信状態</h3>
-                    <p>内容を確認してから、有効にしてください。</p>
+                    <h2>サイト共通のベースデザイン</h2>
+                    <p>このサイトのすべての標準オファーへ適用されます。</p>
                   </div>
-                  <label class="sr-only" for="enabled">配信状態</label
-                  ><select id="enabled">
-                    <option value="false">停止</option>
-                    <option value="true">有効</option>
-                  </select>
+                </header>
+                <div class="panel-body">
+                  <p class="help-callout">
+                    施策ごとに色や角丸を設定する必要はありません。見た目はここで一括変更し、文言と画像は施策側で設定します。
+                  </p>
+                  <div class="field-grid design-colors">
+                    <label
+                      >背景色<input id="themeBackground" type="color" /></label
+                    ><label>文字色<input id="themeText" type="color" /></label
+                    ><label
+                      >ボタン色<input id="themeAccent" type="color" /></label
+                    ><label
+                      >ボタン文字色<input id="themeButtonText" type="color"
+                    /></label>
+                  </div>
+                  <div class="field-grid">
+                    <label
+                      >文字の雰囲気<select id="themeFont">
+                        <option value="system">シンプル（ゴシック）</option>
+                        <option value="serif">落ち着いた雰囲気（明朝）</option>
+                      </select></label
+                    ><label
+                      >文字サイズ（px）<input
+                        id="themeFontSize"
+                        type="number"
+                        min="12"
+                        max="24" /></label
+                    ><label
+                      >角丸（px）<input
+                        id="themeRadius"
+                        type="number"
+                        min="0"
+                        max="32" /></label
+                    ><label
+                      >内側の余白（px）<input
+                        id="themePadding"
+                        type="number"
+                        min="12"
+                        max="48"
+                    /></label>
+                  </div>
+                  <h3 class="form-subtitle">モーダル</h3>
+                  <div class="field-grid">
+                    <label
+                      >最大幅（px）<input
+                        id="modalWidth"
+                        type="number"
+                        min="280"
+                        max="800" /></label
+                    ><label
+                      >背景の暗さ（0〜0.9）<input
+                        id="modalOpacity"
+                        type="number"
+                        min="0"
+                        max="0.9"
+                        step="0.05"
+                    /></label>
+                  </div>
+                  <h3 class="form-subtitle">フローティングバナー</h3>
+                  <div class="field-grid">
+                    <label
+                      >表示位置<select id="floatingPosition">
+                        <option value="bottom-right">右下</option>
+                        <option value="bottom-left">左下</option>
+                      </select></label
+                    ><label
+                      >幅（px）<input
+                        id="floatingWidth"
+                        type="number"
+                        min="200"
+                        max="480" /></label
+                    ><label
+                      >画面の端との余白（px）<input
+                        id="floatingOffset"
+                        type="number"
+                        min="8"
+                        max="64"
+                    /></label>
+                  </div>
+                  <h3 class="form-subtitle">アナウンスメントバー</h3>
+                  <label
+                    >表示位置<select id="barPosition">
+                      <option value="top">画面上部に固定</option>
+                      <option value="bottom">画面下部に固定</option>
+                    </select></label
+                  >
+                  <button id="resetDesign" class="button button-outline">
+                    ベースデザインを初期値へ戻す
+                  </button>
+                  <p class="field-hint">
+                    保存するまでは公開サイトに反映されません。右側で表示形式を切り替えて確認できます。
+                  </p>
                 </div>
-              </div>
+              </section>
             </section>
+            <div
+              id="campaignSettingsPanel"
+              role="tabpanel"
+              aria-labelledby="campaignTab"
+            >
+              <section class="panel" aria-labelledby="audienceTitle">
+                <header class="panel-heading">
+                  <span class="step-number">01</span>
+                  <div>
+                    <h2 id="audienceTitle">誰に届けますか？</h2>
+                    <p>届けたい相手を、いつもの言葉で。</p>
+                  </div>
+                  <span class="section-tag">AUDIENCE</span>
+                </header>
+                <div class="panel-body">
+                  <label for="campaignIntent"
+                    >対象者と伝えたいこと<textarea
+                      id="campaignIntent"
+                      maxlength="1000"
+                      rows="3"
+                      placeholder="例：導入方法に関心を示している人に、導入ガイドを紹介したい"
+                    ></textarea>
+                  </label>
+                  <details class="assistant-details">
+                    <summary>
+                      <span
+                        ><span aria-hidden="true">✳︎</span>
+                        文章から質問案を作る</span
+                      ><span class="details-chevron" aria-hidden="true"
+                        >＋</span
+                      >
+                    </summary>
+                    <div class="assistant-body">
+                      <p class="field-hint">
+                        施策の意図と関心のテーマから、判断に使う質問案を作成します。
+                      </p>
+                      <label for="intent"
+                        >誰に、何を伝えたいですか<textarea
+                          id="intent"
+                          maxlength="1000"
+                          rows="3"
+                          placeholder="例：通勤ランに関心のある人に、キャンペーンを紹介したい"
+                        ></textarea></label
+                      ><label for="subject"
+                        >判断する関心のテーマ<input
+                          id="subject"
+                          maxlength="120"
+                          placeholder="例：通勤ラン"
+                      /></label>
+                      <p class="field-hint">
+                        オファー名ではなく、閲覧者の関心を判断したいテーマを入力します。
+                      </p>
+                      <button id="draft" class="button button-outline">
+                        質問案を作る
+                        <svg
+                          class="arrow-icon"
+                          viewBox="0 0 14 14"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 11 11 3M3 3h8v8" />
+                        </svg>
+                      </button>
+                      <pre id="suggestion" aria-live="polite"></pre>
+                      <button id="useDraft" class="button button-soft">
+                        上の質問案を取り込む
+                      </button>
+                    </div>
+                  </details>
+                  <label for="questions"
+                    >判定する質問<span class="label-note">1行に1問</span
+                    ><textarea
+                      id="questions"
+                      rows="3"
+                      placeholder="閲覧履歴には、サービスの導入方法に関心があることを示す行動がありますか？"
+                    ></textarea></label
+                  ><label for="combination"
+                    >条件の組み合わせ<select id="combination">
+                      <option value="all">すべての質問の条件を満たす</option>
+                      <option value="any">いずれかの質問の条件を満たす</option>
+                    </select></label
+                  >
+                </div>
+              </section>
+              <section class="panel" aria-labelledby="offerTitle">
+                <header class="panel-heading">
+                  <span class="step-number">02</span>
+                  <div>
+                    <h2 id="offerTitle">何を届けますか？</h2>
+                    <p>表示するオファーの内容を整えましょう。</p>
+                  </div>
+                  <span class="section-tag">OFFER</span>
+                </header>
+                <div class="panel-body">
+                  <label for="offerType"
+                    >表示形式<select id="offerType">
+                      <option value="modal">モーダル — 画面中央の案内</option>
+                      <option value="floating">
+                        フローティングバナー — 画面の隅に表示
+                      </option>
+                      <option value="bar">
+                        アナウンスメントバー — 画面の上部・下部
+                      </option>
+                      <option value="custom">
+                        独自JavaScript（導入担当者向け）
+                      </option></select
+                    ><span class="field-hint"
+                      >色・文字・角丸・配置は「サイト設定・共通デザイン」を継承します。</span
+                    ></label
+                  >
+                  <label for="imageUrl"
+                    >画像URL（任意）<input
+                      id="imageUrl"
+                      type="url"
+                      placeholder="https://example.com/banner.jpg"
+                    /><span class="field-hint"
+                      >HTTPSの画像URLを指定します。画像を使うサイトのCSPでも画像ホストを許可してください。</span
+                    ></label
+                  >
+                  <label for="imageAlt"
+                    >画像の代替テキスト<input
+                      id="imageAlt"
+                      maxlength="160"
+                      placeholder="例：吸汗速乾ポロシャツの特集"
+                  /></label>
+                  <label for="imageOnly"
+                    >画像のみで表示<select id="imageOnly">
+                      <option value="false">文言・ボタンも表示する</option>
+                      <option value="true">
+                        画像のみ（画像URL・代替テキストが必要）
+                      </option>
+                    </select></label
+                  >
+                  <div id="customFields" hidden class="help-callout">
+                    <p>
+                      サイト側で独自JavaScriptの許可が必要です。文言はcontent、任意の文字列はvariablesから使えます。コードを管理画面上で実行することはありません。
+                    </p>
+                    <label for="customCode"
+                      >JavaScriptモジュール<textarea
+                        id="customCode"
+                        rows="12"
+                        spellcheck="false"
+                      ></textarea></label
+                    ><label for="customVariables"
+                      >コードへ渡す文字列（JSONオブジェクト）<textarea
+                        id="customVariables"
+                        rows="4"
+                        spellcheck="false"
+                        placeholder='{"label": "詳しく見る"}'
+                      ></textarea>
+                    </label>
+                    <p class="field-hint">
+                      export function render({ content, variables, mount,
+                      signal, close, reportShown })
+                      を記述します。描画後にreportShown()を呼び、後片付け関数を返してください。APIキーや個人情報を記述しないでください。
+                    </p>
+                  </div>
+                  <label for="title"
+                    >表示タイトル<input
+                      id="title"
+                      maxlength="120"
+                      placeholder="例：はじめての導入ガイド" /></label
+                  ><label for="body"
+                    >メッセージ<textarea
+                      id="body"
+                      maxlength="500"
+                      rows="3"
+                      placeholder="例：導入までのステップを、わかりやすくまとめました。"
+                    ></textarea>
+                  </label>
+                  <div class="field-grid offer-links">
+                    <label for="linkLabel"
+                      >リンク文言<input
+                        id="linkLabel"
+                        maxlength="60"
+                        placeholder="ガイドを見る" /></label
+                    ><label for="url"
+                      >リンク先URL（任意）<input
+                        id="url"
+                        type="url"
+                        placeholder="https://example.com/guide"
+                    /></label>
+                  </div>
+                </div>
+              </section>
+              <section class="panel" aria-labelledby="rulesTitle">
+                <header class="panel-heading">
+                  <span class="step-number">03</span>
+                  <div>
+                    <h2 id="rulesTitle">配信ルール</h2>
+                    <p>表示の頻度と、判断の基準を設定します。</p>
+                  </div>
+                  <span class="section-tag">DELIVERY</span>
+                </header>
+                <div class="panel-body">
+                  <label for="targetMode"
+                    >オファーを表示するページ<select id="targetMode">
+                      <option value="all">収集を許可したすべてのページ</option>
+                      <option value="exact">
+                        指定したパスと完全一致するページ
+                      </option>
+                      <option value="prefix">指定したパスで始まるページ</option>
+                    </select></label
+                  ><label for="targetPaths"
+                    >対象パス（1行に1つ）<textarea
+                      id="targetPaths"
+                      rows="2"
+                      placeholder="/ja/"
+                    ></textarea
+                    ><span class="field-hint"
+                      >例：トップページだけなら「完全一致」と /ja/
+                      を指定。閲覧履歴の収集範囲とは別の設定です。</span
+                    ></label
+                  >
+                  <div class="field-grid rules-grid">
+                    <label for="priority"
+                      >優先順位<input
+                        id="priority"
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="10"
+                      /><span class="field-hint"
+                        >大きい数値の施策を優先</span
+                      ></label
+                    ><label for="maxShows"
+                      >表示回数の上限<input
+                        id="maxShows"
+                        type="number"
+                        min="1"
+                        max="10"
+                        placeholder="1"
+                      /><span class="field-hint"
+                        >同じタブ内での上限回数</span
+                      ></label
+                    ><label for="threshold"
+                      >確率の閾値<input
+                        id="threshold"
+                        type="number"
+                        min="0.5"
+                        max="0.99"
+                        step="0.01"
+                        placeholder="0.7"
+                      /><span class="field-hint"
+                        >この値を超える場合に対象</span
+                      ></label
+                    >
+                  </div>
+                  <div class="delivery-status">
+                    <div>
+                      <h3>配信状態</h3>
+                      <p>内容を確認してから、有効にしてください。</p>
+                    </div>
+                    <label class="sr-only" for="enabled">配信状態</label
+                    ><select id="enabled">
+                      <option value="false">停止</option>
+                      <option value="true">有効</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+            </div>
             <details class="panel advanced-panel" id="advanced">
               <summary>
                 <span
@@ -294,7 +649,7 @@
               </summary>
               <div class="panel-body">
                 <p class="field-hint">
-                  許可経路とメタデータの個人情報を確認してください。施策編集後は「編集を設定に反映」を押してから保存します。
+                  許可経路とメタデータの個人情報を確認してください。JSONを直接変更した場合は「JSONの変更を取り込む」を押してから保存します。
                 </p>
                 <label for="config"
                   >設定JSON<textarea
@@ -304,6 +659,9 @@
                   ></textarea>
                 </label>
               </div>
+              <button id="importJson" class="button button-outline">
+                JSONの変更を取り込む
+              </button>
             </details>
           </div>
           <aside class="preview-column" aria-label="オファーのプレビュー">
@@ -312,39 +670,31 @@
                 <h2>オファープレビュー</h2>
                 <span class="preview-label">PREVIEW</span>
               </div>
-              <div class="preview-stage">
-                <div class="preview-browser">
-                  <span></span><span></span><span></span>
-                  <div></div>
-                </div>
-                <div class="page-skeleton" aria-hidden="true">
-                  <div class="skeleton-line short"></div>
-                  <div class="skeleton-line"></div>
-                  <div class="skeleton-line medium"></div>
-                  <div class="skeleton-block"></div>
-                </div>
-                <article class="offer-preview">
-                  <span class="offer-eyebrow">FOR YOU</span>
-                  <h3 id="previewTitle">
-                    あなたのオファーが、<br />ここに表示されます。
-                  </h3>
-                  <p id="previewBody">
-                    タイトルとメッセージを入力すると、ここで内容を確認できます。
-                  </p>
-                  <span class="preview-cta"
-                    ><span id="previewLink">リンク文言</span
-                    ><svg
-                      class="arrow-icon"
-                      viewBox="0 0 14 14"
-                      aria-hidden="true"
-                    >
-                      <path d="M3 11 11 3M3 3h8v8" /></svg
-                  ></span>
-                </article>
-              </div>
-              <p class="preview-caption">
-                表示内容のイメージです。<br />実際の表示はサイトのデザインにより異なります。
+              <label for="previewType"
+                >プレビュー形式<select id="previewType">
+                  <option value="campaign">編集中の施策に合わせる</option>
+                  <option value="modal">モーダル</option>
+                  <option value="floating">フローティングバナー</option>
+                  <option value="bar">アナウンスメントバー</option>
+                </select></label
+              >
+              <label for="previewDevice"
+                >表示幅<select id="previewDevice">
+                  <option value="desktop">PC</option>
+                  <option value="mobile">スマートフォン</option>
+                </select></label
+              >
+              <div id="offerPreview" class="live-offer-preview"></div>
+              <p id="previewHelp" class="preview-caption">
+                本番と同じ描画コードを使用します。Jevへの問い合わせや表示回数への加算はありません。
               </p>
+              <button id="openPreview" class="button button-outline">
+                画面全体でプレビュー
+              </button>
+              <div class="sr-only">
+                <span id="previewTitle"></span><span id="previewBody"></span
+                ><span id="previewLink"></span>
+              </div>
               <div class="review-note">
                 <span aria-hidden="true">↳</span>
                 <div>
@@ -369,15 +719,13 @@
             <div>
               <strong id="saveState">設定を読み込んで編集を始めましょう</strong>
               <p id="status" role="status" aria-live="polite">
-                変更は、反映して保存した後に配信へ適用されます。
+                フォームの変更は「保存して配信に反映」でまとめて保存されます。
               </p>
             </div>
           </div>
           <div class="save-actions">
-            <button id="apply" class="button button-outline">
-              編集を設定に反映</button
-            ><button id="save" class="button button-primary">
-              確認した設定を保存して配信に反映
+            <button id="save" class="button button-primary">
+              保存して配信に反映
               <svg class="arrow-icon" viewBox="0 0 14 14" aria-hidden="true">
                 <path d="M3 11 11 3M3 3h8v8" />
               </svg>
@@ -385,11 +733,11 @@
           </div>
         </footer>
         <div class="page-footer">
-          <span>Jev Personalization</span
-          ><span>意味のある関心を、次のアクションへ。</span>
+          <span>JevSense</span
+          ><span>意図と文脈を察知し、ふさわしい体験へ。</span>
         </div>
       </main>
     </div>
-    <script src="/admin.js" defer></script>
+    <script src="/admin.js" type="module"></script>
   </body>
 </html>

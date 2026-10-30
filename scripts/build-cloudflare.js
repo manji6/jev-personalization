@@ -5,6 +5,7 @@ await mkdir("dist/assets", { recursive: true });
 for (const file of ["admin.html", "admin.css", "admin.js"])
   await copyFile(`public/${file}`, `dist/assets/${file}`);
 await copyFile("dist/sdk.js", "dist/assets/sdk.js");
+await copyFile("dist/offer-renderer.js", "dist/assets/offer-renderer.js");
 // The same source is bundled by Wrangler for deploy, and by esbuild for workerd tests.
 await build({
   entryPoints: ["src/cloudflare/worker.js"],

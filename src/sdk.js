@@ -1,4 +1,5 @@
 import { pathAllowed } from "./engine.js";
+import { renderOffer } from "./offer-renderer.js";
 const clean = (v, max) =>
   typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
 const safeText = (v, max) => {
@@ -252,6 +253,7 @@ export function install(win, script) {
   function navigate() {
     accrue();
     current = null;
+    removeOverlay();
     win.clearTimeout(navigationTimer);
     navigationTimer = win.setTimeout(capture, 200);
   }
@@ -274,6 +276,7 @@ export function install(win, script) {
   });
   win.addEventListener("pagehide", () => {
     accrue();
+    removeOverlay();
     if (enabled) persist();
   });
   win.addEventListener("pageshow", () => {
@@ -295,53 +298,61 @@ export function install(win, script) {
       characterData: true,
     });
   function removeOverlay() {
-    overlay?.remove();
+    overlay?.destroy();
     overlay = null;
   }
   function display(campaign) {
     if (overlay || !campaign?.id || state.delivery[campaign.id]?.dismissed)
       return;
-    let link;
+    let handle;
     try {
-      link = new URL(campaign.content.url);
-      if (link.protocol !== "https:" || link.username || link.password) return;
+      handle = renderOffer(win, campaign, {
+        onShown() {
+          const prev = state.delivery[campaign.id] ?? {
+            shown: 0,
+            dismissed: false,
+          };
+          state.delivery[campaign.id] = {
+            ...prev,
+            shown: Math.min(1000, prev.shown + 1),
+          };
+          persist();
+          win.dispatchEvent(
+            new win.CustomEvent("jev:shown", {
+              detail: { campaignId: campaign.id },
+            }),
+          );
+        },
+        onClose() {
+          const prev = state.delivery[campaign.id] ?? {
+            shown: 0,
+            dismissed: false,
+          };
+          state.delivery[campaign.id] = { ...prev, dismissed: true };
+          persist();
+          overlay = null;
+        },
+        async loadModule(path) {
+          const url = new URL(path, endpoint);
+          if (
+            url.origin !== endpoint ||
+            !/^\/v1\/offer-script\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/[a-f0-9]{64}\.js$/.test(
+              url.pathname,
+            ) ||
+            url.search ||
+            url.hash
+          )
+            throw new Error("Invalid module URL");
+          return import(url.href);
+        },
+      });
+      overlay = handle;
+      handle.ready.then((ok) => {
+        if (!ok && overlay === handle) overlay = null;
+      });
     } catch {
-      return;
+      handle?.destroy();
     }
-    const host = win.document.createElement("aside");
-    const shadow = host.attachShadow({ mode: "closed" });
-    const box = win.document.createElement("section");
-    box.setAttribute("role", "region");
-    box.setAttribute("aria-label", "おすすめ情報");
-    const title = win.document.createElement("h2");
-    title.textContent = campaign.content.title;
-    const body = win.document.createElement("p");
-    body.textContent = campaign.content.body;
-    const a = win.document.createElement("a");
-    a.textContent = campaign.content.linkLabel;
-    a.href = link.href;
-    a.rel = "noopener noreferrer";
-    const close = win.document.createElement("button");
-    close.textContent = "閉じる";
-    close.type = "button";
-    close.onclick = () => {
-      state.delivery[campaign.id].dismissed = true;
-      persist();
-      removeOverlay();
-    };
-    box.append(title, body, a, close);
-    shadow.append(box);
-    win.document.body.append(host);
-    overlay = host;
-    const prev = state.delivery[campaign.id] ?? { shown: 0, dismissed: false };
-    state.delivery[campaign.id] = {
-      ...prev,
-      shown: Math.min(1000, prev.shown + 1),
-    };
-    persist();
-    win.dispatchEvent(
-      new win.CustomEvent("jev:shown", { detail: { campaignId: campaign.id } }),
-    );
   }
   async function decide() {
     if (

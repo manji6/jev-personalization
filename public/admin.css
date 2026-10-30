@@ -1259,3 +1259,167 @@ details[open] > summary .details-chevron {
   margin-left: auto;
   color: #b6d28c;
 }
+[hidden] {
+  display: none !important;
+}
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 22px;
+  padding-bottom: 10px;
+}
+.settings-tabs button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 10px 16px;
+  color: #71806c;
+  font-size: 12px;
+}
+.settings-tabs [aria-selected="true"] {
+  background: #e6eddd;
+  color: #264b30;
+  border-color: #d7e0cc;
+  font-weight: 600;
+}
+#siteSettingsPanel,
+#campaignSettingsPanel {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.help-callout {
+  background: #f1f5eb;
+  border-left: 3px solid #8ca47b;
+  padding: 13px 16px;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #5a6b50;
+  margin: 0 0 20px;
+}
+.help-callout label {
+  margin-bottom: 14px;
+}
+.form-subtitle {
+  font-size: 12px;
+  color: #42573a;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.design-colors {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+.design-colors input {
+  padding: 3px;
+  height: 40px;
+}
+.panel-body > .field-grid {
+  margin-bottom: 20px;
+}
+.panel-body .field-grid:not(.rules-grid):not(.design-colors):not(.offer-links) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#siteTag,
+#customCode,
+#customVariables {
+  font:
+    12px/1.8 ui-monospace,
+    monospace;
+}
+#importJson {
+  margin: 0 22px 18px;
+}
+.live-offer-preview {
+  border: 1px solid #dce2d2;
+  border-radius: 10px;
+  background: repeating-linear-gradient(
+    135deg,
+    #edf0e6,
+    #edf0e6 12px,
+    #e8edde 12px,
+    #e8edde 24px
+  );
+  margin: 14px 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.preview-sticky > label {
+  margin-bottom: 10px;
+}
+.preview-column .button {
+  width: 100%;
+  margin-top: 14px;
+}
+#customFields {
+  margin-top: 16px;
+}
+.field-grid label {
+  min-width: 0;
+}
+.save-actions .button {
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .preview-sticky {
+    display: block;
+  }
+  .live-offer-preview {
+    max-width: 500px;
+    margin: 16px auto;
+  }
+  .preview-sticky > label {
+    display: inline-block;
+    width: 48%;
+  }
+}
+@media (max-width: 600px) {
+  .settings-tabs button {
+    padding: 9px 10px;
+    font-size: 10px;
+  }
+  .design-colors {
+    grid-template-columns: 1fr 1fr;
+  }
+  .panel-body
+    .field-grid:not(.rules-grid):not(.design-colors):not(.offer-links) {
+    grid-template-columns: 1fr;
+  }
+  .help-callout {
+    font-size: 10px;
+  }
+  .preview-column {
+    margin: 5px 0;
+  }
+}
+.live-offer-preview[data-device="mobile"] {
+  max-width: 260px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.live-offer-preview[data-device="desktop"] {
+  width: 100%;
+}
+#openPreview {
+  white-space: normal;
+}
+
+.brand-name {
+  font-size: 24px;
+  letter-spacing: -1px;
+}
+.brand {
+  gap: 9px;
+}
+@media (max-width: 900px) {
+  .brand-name {
+    font-size: 20px;
+  }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    font-size: 22px;
+  }
+}

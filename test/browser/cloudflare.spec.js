@@ -28,12 +28,8 @@ test("Cloudflare assets and management UI persist edited content through D1", as
     await expect(page.locator("#previewTitle")).toHaveText(
       "Cloudflareで配信するガイド",
     );
-    await page
-      .getByRole("button", { name: "編集を設定に反映", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "確認した設定を保存して配信に反映" })
-      .click();
+
+    await page.getByRole("button", { name: "保存して配信に反映" }).click();
     await expect(page.locator("#saveState")).toHaveText("設定を保存しました");
     await page.getByRole("button", { name: "設定を読み込む" }).click();
     await expect(page.locator("#title")).toHaveValue(
@@ -41,6 +37,7 @@ test("Cloudflare assets and management UI persist edited content through D1", as
     );
     expect(fixture.calls()).toBe(0);
   } finally {
+    await page.unrouteAll({ behavior: "wait" });
     await fixture.mf.dispose();
   }
 });

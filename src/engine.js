@@ -25,6 +25,7 @@ export function prepare(site, input) {
   const candidates = site.campaigns.filter(
     (c) =>
       c.enabled &&
+      targetMatches(c.target, input.visits.at(-1).page.path) &&
       !input.delivery[c.id]?.dismissed &&
       (input.delivery[c.id]?.shown ?? 0) < c.maxShows &&
       (!c.excludeFact || input.facts[c.excludeFact] === false),
@@ -50,6 +51,18 @@ export function prepare(site, input) {
     ),
   );
   return { candidates, state, questions };
+}
+export function targetMatches(target = { mode: "all", paths: [] }, path) {
+  if (target.mode === "all") return true;
+  let decoded;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    return false;
+  }
+  return target.paths.some((p) =>
+    target.mode === "exact" ? decoded === p : decoded.startsWith(p),
+  );
 }
 export function select(prepared, response) {
   const eligible = prepared.candidates.filter((c, i) => {

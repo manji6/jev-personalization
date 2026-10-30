@@ -34,3 +34,15 @@ CLOUDFLARE_API_TOKENをWorkerのSecretsへ登録する必要はない。キー�
 ## コード更新
 
 実装と運用先の設定はmainへ反映する。今回の配備はWranglerからの直接デプロイであり、GitHubとの自動連携を作成したものではない。CloudflareのBuilds設定でリポジトリとmainブランチを接続すれば、以降はPushから自動デプロイできる。設定値は[Cloudflareセットアップ手順](cloudflare.md)を参照。
+
+## 2026-10-30：JevSense・オファー表示機能の更新
+
+- サービス名をJevSense（ジェブセンス）に統一。既存のURL、タグ、JevPersonalization API名は維持。
+- サイト共通デザイン、標準3形式、独自JavaScript、表示対象ページ、説明付きの管理フォームと共通プレビューを配備。
+- Worker Version ID：5ed5b60b-ed45-4356-8f9a-fc7038a9d0e3。
+- DBマイグレーションは追加なし。配備前後でapp_configのbody・revisionが一致し、既存設定を変更していないことを確認。
+- ADMIN_TOKEN、JEV_API_KEYのSecret名を確認し、両方維持されていることを確認。値は取得していない。
+- health・管理画面・SDK・描画モジュール・許可Originからのサイト設定取得はHTTP 200。未認証の管理APIは401。
+- 自動テスト49件、Wrangler dry-run、依存監査を実施。実サイトの履歴を使った有料Jev要求は送っていない。
+
+更新確認時は管理画面を再読込し、サイト側もSDKキャッシュ（最大5分）に注意して再読込する。既存施策に表示形式がない場合はフローティング形式を既定として補完し、サイト共通デザインは初期値を使う。デザインや形式の変更は利用者が管理画面から保存する。

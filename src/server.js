@@ -8,6 +8,7 @@ import { configSchema, inputSchema } from "./schema.js";
 import { ALGORITHM_VERSION, prepare, select, draftIntent } from "./engine.js";
 import { Store } from "./store.js";
 import { createJev } from "./jev.js";
+import { publicOffer, customModule } from "./offer-response.js";
 
 export async function buildApp({
   store,
@@ -80,7 +81,7 @@ export async function buildApp({
     reply
       .header(
         "Content-Security-Policy",
-        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
       )
       .type("text/html")
       .send(
@@ -95,6 +96,16 @@ export async function buildApp({
       .type("application/javascript")
       .send(
         await readFile(new URL("../public/admin.js", import.meta.url), "utf8"),
+      ),
+  );
+  app.get("/offer-renderer.js", async (req, reply) =>
+    reply
+      .type("application/javascript")
+      .send(
+        await readFile(
+          new URL("../dist/offer-renderer.js", import.meta.url),
+          "utf8",
+        ),
       ),
   );
   app.get("/admin.css", async (req, reply) =>
@@ -155,6 +166,20 @@ export async function buildApp({
       .header("Vary", "Origin");
     return site;
   }
+  app.get(
+    "/v1/offer-script/:siteId/:campaignId/:hash.js",
+    async (req, reply) => {
+      const site = siteFor(req, reply, req.params.siteId);
+      if (!site) return;
+      const source = await customModule(
+        site,
+        req.params.campaignId,
+        req.params.hash,
+      );
+      if (source === null) return reply.code(404).send({ error: "not_found" });
+      return reply.type("application/javascript").send(source);
+    },
+  );
   app.options("/v1/decision", async (req, reply) => {
     // The requested site is in the query for preflight; body site must match.
     if (!siteFor(req, reply, req.query.siteId)) return;
@@ -218,9 +243,7 @@ export async function buildApp({
         model: result.model,
         decision: selected ? "show" : "hold",
         reason: selected ? "qualified" : "no_match_or_uncertain",
-        campaign: selected
-          ? { id: selected.id, content: selected.content }
-          : null,
+        campaign: await publicOffer(site, selected),
       };
     } catch {
       return reply
