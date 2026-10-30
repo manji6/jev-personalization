@@ -123,7 +123,7 @@ test("Jev adapter uses configured key, rejects redirects/errors and malformed re
   });
   await call({ state: {}, questions: {} });
   assert.equal(sent.headers.Authorization, "Bearer fake");
-  assert.equal(sent.redirect, "error");
+  assert.equal(sent.redirect, "manual");
   assert.equal(JSON.parse(sent.body).model, "jev-1.14.0");
   await assert.rejects(
     createJev({

@@ -14,6 +14,8 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run check
+      - run: npm run test:cloudflare
+      - run: npm run cf:dry-run
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm audit --omit=dev --audit-level=high

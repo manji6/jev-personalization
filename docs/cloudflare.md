@@ -1,53 +1,209 @@
-# Cloudflareでのセットアップ案
+# Cloudflareセットアップ手順
 
-この文書はCloudflare対応の設計案です。現在のコードはNode.js版であり、GitHubをCloudflareへ接続するだけでWorkers上で動く状態にはなっていません。Cloudflareへのデプロイやリソース作成は行っていません。
+Cloudflare Workers版を実装しています。管理画面・SDK・判断APIを1つのWorkerで提供し、施策設定はD1へ保存します。閲覧者の履歴・表示状態はブラウザ内に保持します。初回セットアップ後、GitHubへのPushから自動でコードを更新できます。
 
-## 目指す導入体験
+この作業ではCloudflareへの実デプロイ、D1の本番作成、Secrets登録は行っていません。以下は利用するCloudflareアカウントで実行してください。Node.js版も引き続き使用できます。
 
-初回にCloudflareでGitHubリポジトリを接続し、施策設定用データベースと秘密情報を設定する。その後は対象ブランチへのPushでビルド・自動デプロイする。サイト側には配信されたSDKのscriptを1つ設置し、同意管理と連携する。
+## 構成
 
-Cloudflare側へのアプリのデプロイと、パーソナライズ対象サイトへのタグ設置は別の作業。Cloudflareへデプロイしても、対象サイトへ自動でタグが挿入されるわけではない。
+| 部品                       | Cloudflareサービス           | 保存するもの                                    |
+| -------------------------- | ---------------------------- | ----------------------------------------------- |
+| 管理画面・SDK              | Workers Static Assets        | 配布用HTML・CSS・JavaScript                     |
+| 判断・管理API              | Workers                      | 要求中の処理だけ。履歴の永続保存なし            |
+| 施策・サイト設定           | D1（DBバインディング）       | サイト設定、質問、配信条件、コンテンツ          |
+| 外部APIキーと管理認証      | Workers Secrets              | JEV_API_KEY、ADMIN_TOKEN                        |
+| 日次費用上限・同時実行制御 | SQLite-backed Durable Object | UTC日単位の要求件数、短時間のサーバー要求許可票 |
+| 要求頻度の制限             | Rate Limiting binding        | エッジの短期要求カウンター                      |
 
-## 推奨構成
+D1は管理用設定DBです。閲覧者ID・閲覧者セッション・行動履歴DBは作りません。共有クォータにも閲覧者やページ情報を渡しません。
 
-| 部品                   | Cloudflareでの配置          | 保存するデータ                                         |
-| ---------------------- | --------------------------- | ------------------------------------------------------ |
-| 管理画面・SDK          | Workers Static Assets       | 配布用HTML・CSS・JavaScript                            |
-| 判断API・管理API       | Workers                     | 要求中の処理だけ。閲覧履歴は永続化しない               |
-| 施策・サイト設定       | D1                          | 許可オリジン、送信範囲、質問、配信条件、登録コンテンツ |
-| APIキー・管理トークン  | Workers Secrets             | JEV_API_KEY、ADMIN_TOKEN                               |
-| 費用上限・同時実行制御 | Durable Objects等の共有制御 | 日付、要求カウンターなど。閲覧者IDや履歴を保存しない   |
+## 先に用意するもの
 
-D1は管理用の設定DBであり、閲覧者の行動履歴DBではない。履歴と表示済み状態は引き続きブラウザ内に置く。クライアントからのOrigin制限だけで費用攻撃は防げないため、エッジ側のレート制限と共有クォータも合わせて設計する。
+- CloudflareアカウントとWorkers/D1/Durable Objectsを使えるプラン。SQLite-backed Durable Objectsを使用します。プラン別の料金・上限は契約時に確認してください。
+- このコードが入っているGitHubリポジトリと、デプロイするブランチ。本リポジトリでは`feature/personalization-engine`です。自分のアカウントで運用する場合はForkまたは複製してください。
+- JevのAPIキー。Cloudflare側で名前を`JEV_API_KEY`にします。
+- ランダムな32文字以上の管理トークン。Cloudflare側で名前を`ADMIN_TOKEN`にします。
 
-## 現在のコードから必要になる対応
+キーや管理トークンをGitHubのファイルへ書かないでください。この開発環境に設定されたキーはCloudflareへ自動転送されません。
 
-- Fastifyの起動・Node.jsのHTTPサーバーを、Workersのfetchハンドラーへ置き換える。入力スキーマ、判断前処理、質問、配信判定、管理画面は再利用する。
-- ローカルファイルの設定ストアをD1アダプターへ置き換える。設定ハッシュによる競合検出はDBでの条件付き更新として保つ。Workersのローカルファイルへ設定を永続保存する構成にしない。
-- 管理画面・SDKの配信をStatic Assetsへ切り替える。/adminと/admin/api/*を区別して、APIが静的ファイルへ誤ってフォールバックしないようルーティングする。
-- 複数のWorkerインスタンスにまたがる費用・要求数制限を実装する。現在のプロセス内カウンターをそのまま移植しない。
-- Wrangler設定、D1マイグレーション、ローカル開発用設定、Workers向け統合テストを追加する。
-- SecretsはWorkerの環境から受け取り、Gitやブラウザへ埋め込まない。この開発環境のJEV_API_KEYがCloudflareに自動移行されることはない。
+## A. 初回：D1を作ってリポジトリを設定する
 
-## 初回セットアップの流れ（対応実装後）
+### 1. コードを取得する
 
-1. Cloudflare Workers BuildsからGitHubを接続し、対象リポジトリとデプロイ用ブランチを指定する。
-2. D1データベースを作成し、Workerへバインドして、初期マイグレーションを適用する。
-3. Cloudflare側のSecretsへJEV_API_KEYとADMIN_TOKENを登録する。管理トークンはランダムな32文字以上。開発用と本番用の値を分ける。
-4. ビルドとデプロイのコマンド、Static Assets、D1、クォータ用リソースの設定を確認する。具体的なコマンドはWorkers対応実装で用意する。
-5. 初回デプロイ後、Cloudflare Access等で管理画面・管理APIのアクセスを制限する。公開サイトから使う判断APIとSDKは、管理用の認証ゲートへ巻き込まない。
-6. 管理画面でサイト・施策を設定し、対象サイトの共通テンプレートへSDKタグを設置する。送信範囲と同意連携を確認する。
-7. ステージングで動作を確認してから本番の配信を有効にする。
+```sh
+git clone --branch feature/personalization-engine https://github.com/manji6/jev-personalization.git
+cd jev-personalization
+npm ci
+```
 
-## 日常の更新
+Forkした場合は取得先を自分のリポジトリに置き換えます。
 
-コード変更はGitHubへPushして自動デプロイする。施策の条件やコンテンツは管理画面からD1へ保存するため、日常の施策変更にGitHubへのPushは不要。デプロイで施策データをサンプルに初期化してはいけない。
+### 2. D1データベースを作る
 
-プレビュー用Workerには本番とは別のD1とSecretsを割り当てる。ブランチのプレビューが本番設定を変更したり、本番のJev費用枠を使ったりしないようにする。
+CloudflareダッシュボードのD1から、設定用の空データベースを作成し、Database ID（UUID）を控えます。CLIからなら次の方法も使えます。
+
+```sh
+npx wrangler login
+npx wrangler d1 create jev-personalization-config
+```
+
+この操作は実際のCloudflareリソースを作成します。運用先のアカウントで実行してください。
+
+### 3. D1のIDとWorker名を設定する
+
+```sh
+npm run cf:configure -- YOUR_D1_DATABASE_UUID your-jev-worker
+```
+
+`YOUR_D1_DATABASE_UUID`を実際のDatabase IDへ、`your-jev-worker`をアカウント内で重複しないWorker名へ置き換えます。このコマンドは`wrangler.json`だけを変更し、リソース作成やデプロイはしません。
+
+`wrangler.json`の`d1_databases[0].database_id`と`name`を確認し、変更をGitHubへcommit・Pushします。Database IDは秘密情報ではありません。IDを未設定のまま`cf:deploy`を実行すると、誤ったDBを作らず、手順を示して停止します。
+
+Rate Limitingの`namespace_id`はサンプルで`1001`です。同じアカウントでほかのアプリが使っている場合は、重複しない数値文字列へ変更してください。
+
+CLIを使いたくない場合は、GitHub上で`wrangler.json`に次のように`database_id`を追加しても同じです。既存の項目は維持します。
+
+```json
+{
+  "binding": "DB",
+  "database_name": "jev-personalization-config",
+  "database_id": "実際のD1のUUID",
+  "migrations_dir": "migrations"
+}
+```
+
+## B. GitHubとCloudflareを連携する
+
+CloudflareのWorkers & PagesからGitHubリポジトリを接続してWorkerを作成するか、作成済みWorkerのBuilds設定からGitHubを接続します。ダッシュボードの名称は更新される場合があります。
+
+| 設定               | 値                                                         |
+| ------------------ | ---------------------------------------------------------- |
+| Worker名           | `wrangler.json`のnameと同じ                                |
+| リポジトリ         | このコードを保存したリポジトリ                             |
+| 本番ブランチ       | `feature/personalization-engine`、または自分の運用ブランチ |
+| ルートディレクトリ | リポジトリのルート                                         |
+| ビルドコマンド     | `npm run build:cloudflare`                                 |
+| デプロイコマンド   | `node scripts/deploy-cloudflare.js`                        |
+
+依存関係のインストールにはコミット済みのpackage-lock.jsonを使用します。ビルド環境はNode.js 24に合わせてください。
+
+デプロイスクリプトは、まず`wrangler d1 migrations apply DB --remote`を実行し、成功した場合だけ`wrangler deploy`を実行します。初期マイグレーションは施策とメタデータ送信が無効なサンプルを1件だけ登録します。2回目以降のデプロイで既存設定は上書きしません。
+
+Buildsのデプロイ用トークンには、対象アカウントのWorkersスクリプト更新とD1編集が必要です。ビルドでD1に対する403が出た場合は、Buildsのトークン権限と対象アカウントを確認してください。Jevのキーはこのデプロイトークンとは別です。
+
+**最初は本番ブランチだけをデプロイ対象にし、非本番ブランチの自動デプロイは無効にしてください。** 本設定ではVersion Preview URLsを無効にしています。ブランチプレビューを後から作る場合は、Worker名、D1、Secrets、クォータを別環境に分離します。同じD1やDurable Objectを本番と共有させないでください。
+
+## C. Secretsを登録する
+
+Workerの環境設定で、以下を**Secret**として追加します。ビルド時の変数ではなく、Worker実行時に使う秘密情報です。
+
+管理トークンはCloudflareが自動発行するものではなく、自分で作る管理画面用のパスワードです。例えば手元で次を実行すると、64文字のランダム値を作れます。生成した値は秘密として保管し、管理画面にも同じ値を入力します。
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+| 名前        | 値                                 |
+| ----------- | ---------------------------------- |
+| JEV_API_KEY | 利用するJevのAPIキー               |
+| ADMIN_TOKEN | ランダムな32文字以上の管理トークン |
+
+CLIでも、初回デプロイ後に対話入力で登録できます。
+
+```sh
+npx wrangler secret put JEV_API_KEY
+npx wrangler secret put ADMIN_TOKEN
+```
+
+値をコマンドの引数に書かず、入力プロンプトから登録します。ダッシュボードで変更した場合は、その変更の保存・デプロイを完了してください。Secrets未設定でも管理画面のHTMLは開けますが、管理APIは`server_not_configured`、Jevキーだけが不足する場合の判断は`model_not_configured`となり保留します。
+
+通常の公開設定は`wrangler.json`のvarsにあります。
+
+| 名前                 | 既定値     | 意味                                      |
+| -------------------- | ---------- | ----------------------------------------- |
+| JEV_MODEL            | jev-1.14.0 | Jevへ指定する固定バージョン               |
+| DAILY_REQUEST_BUDGET | 1000       | UTC日単位で許可するJev要求数。0で全件停止 |
+| MAX_CONCURRENT       | 10         | 同時に許可するJev要求数                   |
+
+これらは秘密情報ではありません。リポジトリ側の設定を変更してデプロイします。日次クォータはWorker再起動や通常のデプロイでも保持されます。モデル障害も要求数に算入し、自動再試行しません。Durable Objectのクラス削除・名前変更やリソースの作り直しでは状態が変わるため、運用中は行わないでください。
+
+## D. デプロイ後の確認とタグ設置
+
+1. デプロイ先の`https://your-jev-worker.<subdomain>.workers.dev/health`が`{"ok":true}`を返すことを確認します。これはプロセスの応答確認であり、Jev残高やSecretsの確認ではありません。
+2. 同じホストの`/admin`を開き、ADMIN_TOKENの値を入力して設定を読み込みます。
+3. [使い方マニュアル](manual.md)に従ってサイトのorigins、許可経路、施策を設定します。サンプルは配信停止状態です。
+4. 管理画面と`/admin/api/*`には、Cloudflare Access等で追加のアクセス制限を設けることを推奨します。`/sdk.js`と`/v1/*`は公開サイトのSDKが使うため、管理者向け認証で塞がないでください。
+5. 対象サイトの共通テンプレートへタグを1つ設置します。
+
+```html
+<script
+  defer
+  src="https://your-jev-worker.<subdomain>.workers.dev/sdk.js"
+  data-site="my-site"
+></script>
+```
+
+`data-site`は管理画面のサイトIDと一致させます。同意取得後に`window.JevPersonalization.consent(true)`を呼び出します。対象サイトにCSPがある場合は、このWorkerのホストをscript-srcとconnect-srcに追加します。
+
+サイト自体のタグ設置はCloudflareへのアプリ配備とは別作業です。GitHub連携だけで他のWebサイトへタグが挿入されることはありません。
+
+## CLIだけで配備する場合
+
+D1作成と`cf:configure`の完了後、次のコマンドで初回・通常のデプロイを行えます。
+
+```sh
+npm run cf:deploy
+```
+
+これはビルド、リモートD1マイグレーション、Workerデプロイを実行するため、本番への変更操作です。検証だけの場合は`npm run cf:dry-run`を使います。dry-runはアップロードやリソース作成をしません。
+
+## ローカル開発
+
+```sh
+npm ci
+npm run cf:migrate:local
+npm run dev:cloudflare
+```
+
+ローカルのD1とDurable Objectsは`.wrangler/`に保存され、本番には接続しません。`.dev.vars`を必要に応じて作り、ADMIN_TOKENとJEV_API_KEYを設定します。このファイルはGitの除外対象です。キーなしなら管理画面のHTML確認まで可能です。APIの利用には管理トークンが必要です。
+
+`http://localhost:8787/admin`で管理画面を開けます。SDK自体はHTTPS用なので、対象サイトまで含むローカル検証には信頼できるHTTPS環境を用意してください。`wrangler dev --remote`はこの手順では使いません。実キーで適格な閲覧を送ると、ローカルでもJevへの実要求が発生します。
+
+```sh
+npm run check
+npm run test:cloudflare
+npm run test:browser
+npm run cf:dry-run
+```
+
+Cloudflare統合テストはworkerd、実D1エミュレーター、実Durable Objectsを使い、Jevだけをモックします。有料のJevリクエストは送りません。
+
+## 日常の更新・停止・復旧
+
+- コードの更新：運用ブランチへPush → Workers Buildsがビルド → マイグレーション → デプロイ。
+- 施策の更新：管理画面で反映・保存。GitHubへのPushやアプリ再デプロイは不要です。
+- 全体のJev要求停止：DAILY_REQUEST_BUDGETを0にしてデプロイ。施策単位なら管理画面で停止して保存します。
+- バックアップ：D1の管理設定をバックアップ。閲覧者履歴のバックアップはありません。
+- ロールバック：Workerの以前のバージョンへ戻す操作と、D1の設定・スキーマを戻す操作は別です。今後のDB変更は旧コードとも互換性を保つ追加的変更から行ってください。
+
+エッジのRate LimitingはIPごと60要求/60秒で、Cloudflareロケーション単位の近似的な制限です。IPはアプリのD1やDurable Objectに保存しません。CORSやIP制限だけでは費用攻撃を完全には防げないため、共有の日次クォータと併用します。管理画面が全利用者を扱う単一管理者向けである点や、Jevのデータ保持条件を確認する必要はNode.js版と同じです。
+
+## 変更したコード
+
+- `src/cloudflare/worker.js`：Workers用ルーティング、認証、CORS、サイズ制限、静的配信と判断API。
+- `src/cloudflare/store.js`：D1からのprimary readと条件付きUPDATEによる保存競合の防止。
+- `src/cloudflare/budget.js`：Durable Objectでの永続日次クォータと短時間の同時実行許可。
+- `wrangler.json`：Assets、D1、Durable Objects、Rate Limiting、公開設定。
+- `migrations/0001_config.sql`：管理設定テーブルと非破壊の初期データ。
+- `scripts/*cloudflare.js`：ビルド、初回設定、デプロイ用コマンド。
+- `test/cloudflare.test.js`：Cloudflare実行環境の統合テスト。
 
 ## 公式資料
 
-- [Workers Builds：Git連携・自動ビルド](https://developers.cloudflare.com/workers/ci-cd/builds/)
-- [D1：WorkerからのDBアクセス](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+- [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
+- [Static Assets binding](https://developers.cloudflare.com/workers/static-assets/binding/)
+- [Wrangler設定](https://developers.cloudflare.com/workers/wrangler/configuration/)
+- [D1 API](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+- [Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
 
-調査日：2026-10-30（日本時間）。プラン別の料金・制限は配備前に最新情報を確認する。
+確認日：2026-10-30（日本時間）。本番のCloudflareアカウントへの配備と権限設定は未検証です。エミュレーターでの成功を本番アカウントでのデプロイ成功とは扱っていません。

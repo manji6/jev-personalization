@@ -10,13 +10,24 @@
 - API・永続化8件：許可Origin、CORS preflight、未知フィールド、本文制限、管理認証、Jev障害・不正確率の保留、設定再読込、古い編集と並列編集の競合拒否、Bearerアダプター、同時実行上限、費用上限、レート制限。
 - SDK6件：JSON-LD @graph/mainEntity/@id、単一型と曖昧な候補、壊れたJSON-LDのフォールバック、簡易個人情報抑制、同意前の無通信、同意撤回、許可された事実・操作だけの保存、SPAとquery除去、経路除外、保存データの再検証と期限切れ。
 
-`npm run test:browser`：Chromiumで3件。
+`npm run test:browser`：Chromiumで4件。
 
 - 配布ビルド済みscriptから同意・実時間計測・判断要求・Shadow DOM表示・表示回数更新・同意撤回まで。
 - CSP付き管理画面での認証、口語から質問案の生成、取り込み、フォーム編集、保存、再読込。
 - 刷新した管理画面のデスクトップ・スマートフォン表示、入力に連動するプレビュー、接続・編集状態、横方向のはみ出しがないこと。
+- Workersで配信した管理画面をブラウザから操作し、編集内容がD1経由で保存・再読込できること。
 
-ブラウザは実Chromiumだが、通信はFastifyのHTTP注入へ接続し、Jev応答はモック。TLS配備、外部ネットワーク、本番負荷の再現ではない。通常サンドボックスではChromium起動がEPERMとなったため、許可された実行モードで再実施した。
+`npm run test:cloudflare`：workerd上で7件。
+
+- Assets配信、CSP・セキュリティヘッダー、APIと静的ページの経路分離。
+- 実D1エミュレーターのprimary read、同時編集のCAS、初期データの再適用で既存設定が戻らないこと。
+- モックしたJevへの判断要求、入力選別、CORSとpreflight、未知フィールド、認証、本文サイズ制限。
+- 共有の日次クォータ、モデル障害時の保留、Durable Objectでの同時実行制御とランタイム再起動後のカウンター保持。
+- 初回D1設定コマンドと、D1 IDが未設定のときリモートデプロイを開始しないこと。
+
+`npm run cf:migrate:local`で初期マイグレーションが適用できることを確認。`npm run cf:dry-run`でWorker、4つの静的ファイル、D1・Durable Objects・Rate Limiting・AssetsのバインディングがWranglerで検証できることを確認。アップロード・本番リソース作成は行っていない。
+
+ブラウザは実Chromiumで、Node.js版はFastifyのHTTP注入、Workers版はMiniflareのworkerdへ接続し、Jev応答はモック。TLS配備、外部ネットワーク、本番負荷の再現ではない。通常サンドボックスではChromium起動がEPERMとなったため、許可された実行モードで再実施した。
 
 `npm audit`：既知の脆弱性0件（開発依存を含む、検証時点）。将来の安全性を保証しない。GitHub Actionsでもビルド、単体/統合テスト、ブラウザテスト、production依存の監査を実施する。
 
@@ -27,6 +38,7 @@
 ## 未検証・制限
 
 - Dockerfileのコンテナビルド・起動、本番のTLSプロキシ・永続ボリュームは未実施。
+- Cloudflareの本番アカウントでのリソース作成、API権限、GitHub Buildsからの実デプロイ、Secrets登録は未実施。Workers版はローカルworkerdとWrangler dry-runまで確認した。
 - Firefox/Safari、実CMP、実サイトへのSDK設置、モバイル、BFCacheの実ブラウザ往復や大量の動的JSON-LDは追加確認が必要。
 - 同時実行・費用・レート制限の機能テストは実施したが、長時間の負荷試験・SLO評価ではない。
 - 合成履歴での成功は、利用者の心理の正解率・施策効果・コンバージョン改善を証明しない。

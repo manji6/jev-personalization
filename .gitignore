@@ -4,3 +4,8 @@ data/
 .env
 coverage/
 test-results/
+.wrangler/
+.dev.vars
+.dev.vars.*
+.env.*
+!.env.example

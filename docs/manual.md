@@ -4,6 +4,8 @@
 
 ## 1. 導入担当者：サーバーを準備する
 
+Cloudflareで使う場合は、先に[Cloudflareセットアップ手順](cloudflare.md)に従ってWorkersとD1を配備してください。管理画面とSDKはWorkerのHTTPSホストから利用します。以下のNode.js起動設定やローカルファイルの永続化はCloudflare版では不要です。施策の作成・タグ設置・同意連携は両版で共通です。
+
 Node.js 24以上でREADMEの手順を実行します。Jevの契約・APIキーを準備し、JEV_API_KEYへ設定します。ADMIN_TOKENは推測困難なランダム値を32文字以上で用意し、秘密管理サービスから渡します。チャット・設定JSON・Gitには書きません。CONFIG_PATHの既定はdata/config.json、PORTは3000、HOSTは127.0.0.1です。外部接続にはapi.typesafe.aiのHTTPS通信を許可してください。
 
 サーバーをHTTPSで提供し、管理画面は社内アクセスやVPN等に制限します。設定用ボリュームは永続化します。起動時に設定が存在しない・不正・キーがない場合は起動に失敗します。サンプルをコピーして初期化してください。

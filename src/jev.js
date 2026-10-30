@@ -14,7 +14,8 @@ export function createJev({
       },
       body: JSON.stringify({ model, state, questions }),
       signal: AbortSignal.timeout(timeoutMs),
-      redirect: "error",
+      // Workers supports manual, not error. Reject 3xx below without forwarding credentials.
+      redirect: "manual",
     });
     if (!response.ok) throw new Error("Model service unavailable");
     // Do not log state, Authorization, or upstream error bodies.

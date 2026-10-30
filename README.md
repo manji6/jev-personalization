@@ -9,11 +9,23 @@
 - [導入・使い方マニュアル](docs/manual.md)
 - [詳細設計](docs/design.md)
 - [本番運用・セキュリティ](docs/operations.md)
-- [Cloudflare対応とセットアップの設計案](docs/cloudflare.md)
+- [Cloudflareセットアップ手順](docs/cloudflare.md)
 - [検証結果と限界](docs/validation.md)
 - [先行する6件のJev実測](experiments/adobe-ja/README.md)
 
-## 起動
+## Cloudflareで使う
+
+Workers＋Static Assets＋D1＋Durable Objectsに対応しています。[セットアップ手順](docs/cloudflare.md)の順にD1作成、wrangler.jsonへのID設定、GitHub連携、Secrets登録を行います。初回設定後はPushから自動デプロイできます。施策設定はD1へ保持され、コードの再デプロイで初期化されません。
+
+```sh
+npm ci
+npm run cf:migrate:local
+npm run dev:cloudflare
+```
+
+上記はローカル起動です。リモートへの本番デプロイは手順書を確認して実施してください。
+
+## Node.jsで使う
 
 ```sh
 npm ci
@@ -28,8 +40,9 @@ npm start
 
 ```sh
 npm run check
+npm run test:cloudflare
 npx playwright install chromium
 npm run test:browser
 ```
 
-単一プロセス・単一管理者向けの初期リリースです。任意の口語の完全自動コンパイル、組織別の認証・課金、分散運用は提供していません。質問案は人が確認します。本番公開前にサイト固有のプライバシー審査、外部APIの保持条件確認、TLS・アクセス制御・費用上限の設定と実環境の負荷試験が必要です。公開準備の具体的な範囲は運用文書に記載しています。
+単一管理者向けの初期リリースです。Node.js版は単一プロセス用、Workers版はD1の条件付き更新と共有クォータで複数の実行インスタンスに対応します。任意の口語の完全自動コンパイル、組織別の認証・課金は提供していません。質問案は人が確認します。本番公開前にサイト固有のプライバシー審査、外部APIの保持条件確認、TLS・アクセス制御・費用上限の設定と実環境の負荷試験が必要です。公開準備の具体的な範囲は運用文書に記載しています。

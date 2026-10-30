@@ -12,8 +12,17 @@
     "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js",
     "check": "npm run build && npm test",
     "test:browser": "playwright test",
-    "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js",
-    "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js"
+    "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js wrangler.json",
+    "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js wrangler.json",
+    "build:cloudflare": "node scripts/build-cloudflare.js",
+    "dev:cloudflare": "npm run build:cloudflare && wrangler dev",
+    "cf:configure": "node scripts/configure-cloudflare.js",
+    "cf:migrate:local": "wrangler d1 migrations apply DB --local",
+    "cf:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "cf:deploy": "npm run build:cloudflare && node scripts/deploy-cloudflare.js",
+    "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run",
+    "test:cloudflare": "npm run build:cloudflare && node test/cloudflare.test.js",
+    "pretest:browser": "npm run build:cloudflare"
   },
   "dependencies": {
     "@fastify/rate-limit": "^10.3.0",
@@ -24,6 +33,8 @@
     "@playwright/test": "^1.64.1",
     "esbuild": "^0.25.11",
     "jsdom": "^27.1.0",
-    "prettier": "^3.9.10"
+    "miniflare": "^5.20261023.3-beta",
+    "prettier": "^3.9.10",
+    "wrangler": "^4.156.0"
   }
 }
