@@ -759,6 +759,52 @@
         border-radius: 0;
         font-size: 11px;
       }
+      .question-preview {
+        background: #f4f7ef;
+        border: 1px solid #dce6d4;
+        border-radius: 8px;
+        padding: 18px;
+        margin: 24px 0;
+      }
+      .question-preview h3 {
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      .question-text {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font:
+          12px/1.95 system-ui,
+          sans-serif;
+        color: #294b38;
+        background: white;
+        padding: 15px;
+        border: 1px solid #e0e7db;
+        border-radius: 6px;
+        margin: 12px 0;
+      }
+      .question-examples {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 12px 15px;
+        margin: 20px 0;
+        font-size: 11px;
+      }
+      .question-examples summary {
+        cursor: pointer;
+        color: #6b805f;
+      }
+      .question-examples .segmented {
+        margin-top: 12px;
+      }
+      .question-warning {
+        color: #8a6d36;
+        background: #fcf8ed;
+        padding: 10px 12px;
+        border-radius: 5px;
+        font-size: 11px;
+        margin: 10px 0;
+      }
       .preview-caption {
         font-size: 10px;
         padding: 14px 20px;
@@ -1489,7 +1535,9 @@
       const blankCampaign = () => ({
         id: "new",
         title: "",
+        displayTitle: "",
         intent: "",
+        offer: "",
         body: "",
         type: "modal",
         status: "draft",
@@ -1508,8 +1556,8 @@
             {
               id: "polo",
               title: "吸汗速乾ポロシャツのご案内",
-              intent:
-                "ポロシャツや夏のスポーツウェアをじっくり見ていて、吸汗速乾の機能に関心がありそうな人。",
+              offer: "吸汗速乾ポロシャツの特集を案内する",
+              intent: "吸汗速乾機能のあるポロシャツに関心がある",
               body: "さらりと、軽やかに。夏を心地よく過ごすポロシャツをご紹介します。",
               type: "floating",
               status: "active",
@@ -1521,7 +1569,8 @@
             {
               id: "guide",
               title: "はじめての方へ、選び方ガイド",
-              intent: "商品を比較していて、選び方に迷っていそうな人。",
+              offer: "商品の選び方ガイドを紹介する",
+              intent: "商品の選び方や比較情報に関心がある",
               body: "あなたに合う一着を、一緒に見つけませんか。",
               type: "modal",
               status: "draft",
@@ -1532,7 +1581,8 @@
             {
               id: "shipping",
               title: "夏のお届けキャンペーン",
-              intent: "商品に関心がある人。",
+              offer: "夏のお届けキャンペーンを案内する",
+              intent: "商品の配送条件に関心がある",
               body: "お届けについてのご案内です。",
               type: "bar",
               status: "paused",
@@ -1551,7 +1601,8 @@
             {
               id: "newsletter",
               title: "読者のためのニュースレター",
-              intent: "デザインの記事を繰り返し読んでいる人。",
+              offer: "デザイン分野のニュースレターを案内する",
+              intent: "デザイン分野の読みものに関心がある",
               body: "読みものを、あなたの受信箱へ。",
               type: "bar",
               status: "active",
@@ -1562,6 +1613,9 @@
           ],
         },
       ];
+      for (const configuredSite of initial)
+        for (const campaign of configuredSite.campaigns)
+          campaign.displayTitle = campaign.title;
       const s = {
         logged: false,
         role: "owner",
@@ -1699,7 +1753,7 @@
           ? list
               .map(
                 (c) =>
-                  `<tr><td>${badge(c)}</td><td class="title"><button class="row-link" data-open="${esc(c.id)}">${esc(c.title)}</button><small>${esc(c.intent.slice(0, 38))}${c.intent.length > 38 ? "…" : ""}</small></td><td><span class="pill">${typeNames[c.type]}</span></td><td>${esc(c.target)}</td><td class="muted">2026/10/31</td><td><div class="row-actions"><button class="button small" data-open="${esc(c.id)}">${canEdit() ? "編集" : "表示"} ↗</button>${canEdit() && c.status !== "draft" ? `<button class="button small" data-toggle="${esc(c.id)}">${c.status === "active" ? "停止" : "再開"}</button>` : ""}</div></td></tr>`,
+                  `<tr><td>${badge(c)}</td><td class="title"><button class="row-link" data-open="${esc(c.id)}">${esc(c.title)}</button><small>${esc(c.intent.slice(0, 38))}${c.intent.length > 38 ? "…" : ""}</small></td><td><span class="pill">${typeNames[c.type]}</span></td><td>${esc(c.target)}</td><td class="muted">2026/10/31</td><td><div class="row-actions"><button class="button small" data-open="${esc(c.id)}">${canEdit() ? "編集" : "表示"} ↗</button>${`<button class="button small" data-page-preview="${esc(c.id)}" ${!canEdit() || (c.type === "custom" && !canManage()) ? "disabled" : ""}>プレビュー</button>`}${canEdit() && c.status !== "draft" ? `<button class="button small" data-toggle="${esc(c.id)}">${c.status === "active" ? "停止" : "再開"}</button>` : ""}</div></td></tr>`,
               )
               .join("")
           : '<tr><td class="empty" colspan="6">該当する施策はありません。</td></tr>';
@@ -1785,12 +1839,41 @@
             )}</div><label class="search">${icon("search")}<input id="campaignSearch" placeholder="施策を検索" aria-label="施策を検索" value="${esc(s.query)}"></label></div>${campaignTable(filtered())}</section>`
         );
       }
+      const writingExamples = {
+        ec: {
+          offer: "吸汗速乾ポロシャツの特集を案内する",
+          intent: "吸汗速乾機能のあるポロシャツに関心がある",
+        },
+        b2b: {
+          offer: "予約管理サービスの導入事例と比較ガイドを紹介する",
+          intent: "予約管理サービスの導入を比較・検討している",
+        },
+        media: {
+          offer: "デザイン分野のニュースレターを案内する",
+          intent: "デザイン分野の読みものに関心がある",
+        },
+        hiring: {
+          offer: "エンジニア職のカジュアル面談を案内する",
+          intent: "エンジニア職の仕事内容に関心がある",
+        },
+      };
+      function judgmentQuestion(c) {
+        const offer = (c.offer || "").trim(),
+          statement = (c.intent || "").trim();
+        if (!offer || !statement) return "";
+        return `今回案内する内容：${offer}\n閲覧履歴と連携された行動・状態の情報に基づき、この閲覧者に「${statement}」が当てはまりますか？`;
+      }
+      function judgmentPreview(c) {
+        const question = judgmentQuestion(c);
+        const compound = /かつ|または|もしくは|なおかつ/.test(c.intent || "");
+        return `<section class="question-preview" aria-label="判定質問のプレビュー"><h3>Jevに送る判定質問</h3><p class="help-note">2つの入力を固定の文章に差し込みます。入力の意味を自動で変えたり、質問を増やしたりしません。</p>${question ? `<pre class="question-text">${esc(question)}</pre>` : '<p class="help-note">訴求内容と判定したい関心・状態を入力すると、質問の全文がここに表示されます。</p>'}${compound ? '<p class="question-warning">複数の判断が含まれている可能性があります。この欄は1つの関心・状態に絞ってください。文章を自動で分割したりAND/ORを決めたりはしません。</p>' : ""}<p class="help-note">${question ? "判定は1問です。閲覧情報をstate、この文章を1つのNoul質問として送る設計です。" : "未入力のまま質問を作ることはありません。"}</p></section>`;
+      }
       function editPage() {
         const c = s.edit;
         if (!c) return "<p>施策一覧から施策を選んでください。</p>";
         const disabled = !canEdit();
         const field = (name, label, value, area = false, hint = "") =>
-          `<label class="field">${label}${area ? `<textarea aria-label="${esc(label)}" aria-describedby="hint-${name}" data-edit="${name}">${esc(value)}</textarea>` : `<input aria-label="${esc(label)}" aria-describedby="hint-${name}" data-edit="${name}" value="${esc(value)}">`}${hint ? `<span class="hint" id="hint-${name}">${hint}</span>` : ""}</label>`;
+          `<label class="field">${label}${area ? `<textarea aria-label="${esc(label)}" aria-describedby="hint-${name}" ${["offer", "intent"].includes(name) ? 'maxlength="400"' : ""} data-edit="${name}">${esc(value)}</textarea>` : `<input aria-label="${esc(label)}" aria-describedby="hint-${name}" data-edit="${name}" value="${esc(value)}">`}${hint ? `<span class="hint" id="hint-${name}">${hint}</span>` : ""}</label>`;
         let fields = "";
         if (s.editTab === "audience")
           fields =
@@ -1802,14 +1885,35 @@
               "一覧で管理するための名前です。サイト上には表示されません。",
             ) +
             field(
+              "offer",
+              "何を伝えたいですか？",
+              c.offer || "",
+              true,
+              "商品・サービス・案内の内容を具体的に。例：吸汗速乾ポロシャツの特集を案内する。画像やHTMLではなく、判断の文脈となる内容を書きます。",
+            ) +
+            field(
               "intent",
-              "どんな人に、どんな状態で届けたいですか？",
+              "どんな関心・状態に当てはまる人ですか？",
               c.intent,
               true,
-              "閲覧から読み取りたい関心や状況を、ふだんの言葉で書いてください。",
+              "そのまま質問の主文になる、1つの関心・状態を書きます。例：吸汗速乾機能のあるポロシャツに関心がある。",
             ) +
+            `<details class="question-examples"><summary>書き方の例を見る</summary><p class="help-note">「誰か」だけでなく「何に、どんな関心・状態か」まで書きます。「買ってくれそう」「施策が効きそう」など効果や将来の行動の予測は避けてください。</p><div class="segmented">${[
+              ["ec", "EC"],
+              ["b2b", "BtoB"],
+              ["media", "メディア"],
+              ["hiring", "採用"],
+            ]
+              .map(
+                ([id, name]) =>
+                  `<button type="button" data-writing-example="${id}" ${disabled ? "disabled" : ""}>${name}の例を入れる</button>`,
+              )
+              .join(
+                "",
+              )}</div><p class="help-note">例を選ぶと上の2つの入力を置き換えます。生成AIや外部APIは使いません。</p></details>` +
+            `<div id="judgmentPreview">${judgmentPreview(c)}</div>` +
             info(
-              "実装済みの質問案作成・質問の確認は、この条件画面にまとめます。口語をそのまま確定条件として扱わず、配信前に確認できる形にします。",
+              "表示するページなどの確定条件は「配信設定」で扱います。判定質問には、Jevに見極めてほしい関心・状態を書いてください。",
             ) +
             field(
               "threshold",
@@ -1821,6 +1925,7 @@
         if (s.editTab === "content")
           fields =
             `<label class="field">表示形式</label><div class="segmented">${["modal", "floating", "bar"].map((t) => `<button type="button" data-type="${t}" class="${c.type === t ? "selected" : ""}" ${disabled ? "disabled" : ""}>${typeNames[t]}</button>`).join("")}</div><div class="section-label">表示するコンテンツ</div>` +
+            field("displayTitle", "表示タイトル", c.displayTitle || "") +
             field("body", "メッセージ", c.body, true) +
             field("label", "ボタンの文言", c.label) +
             field("link", "リンク先URL", c.link || "") +
@@ -1862,7 +1967,7 @@
         );
       }
       function preview(c) {
-        return `<div class="preview-offer ${c.type === "bar" ? "bar" : ""}"><span class="close">×</span><h3>${esc(c.title || "あなたにおすすめの情報")}</h3><p>${esc(c.body || "ここにオファーのメッセージが表示されます。")}</p><span class="cta">${esc(c.label || "詳しく見る")} ↗</span></div>`;
+        return `<div class="preview-offer ${c.type === "bar" ? "bar" : ""}"><span class="close">×</span><h3>${esc(c.displayTitle || "あなたにおすすめの情報")}</h3><p>${esc(c.body || "ここにオファーのメッセージが表示されます。")}</p><span class="cta">${esc(c.label || "詳しく見る")} ↗</span></div>`;
       }
       function settingsPage() {
         let fields =
@@ -2105,7 +2210,109 @@
             : "下書き保存を再現しました。データはこのモックのメモリ内だけです。",
         );
       }
+      function pagePreviewCheck(raw, campaign, targetSite) {
+        try {
+          const url = new URL(raw);
+          const origin = new URL("https://" + targetSite.domain).origin;
+          if (
+            url.protocol !== "https:" ||
+            url.username ||
+            url.password ||
+            url.origin !== origin
+          )
+            return {
+              allowed: false,
+              message:
+                "このサイトに登録されたHTTPSのオリジンを指定してください。",
+            };
+          const path = decodeURIComponent(url.pathname);
+          if (path.includes("..") || /[\\?#%\u0000-\u001f]/.test(path))
+            return {
+              allowed: false,
+              message: "この経路はプレビューできません。",
+            };
+          const excludes = targetSite.excludedPathPrefixes || [
+            "/account",
+            "/checkout",
+            "/search",
+          ];
+          if (excludes.some((prefix) => path.startsWith(prefix)))
+            return {
+              allowed: false,
+              message: "このURLは収集・表示の除外経路です。",
+            };
+          if (!path.startsWith(campaign.target || "/"))
+            return {
+              allowed: false,
+              message: "このURLは施策の表示対象ページに一致しません。",
+            };
+          return {
+            allowed: true,
+            message: "表示先URLの条件に一致しています。",
+            url: url.href,
+            origin,
+            path,
+          };
+        } catch {
+          return {
+            allowed: false,
+            message: "確認したいページの完全なURLを入力してください。",
+          };
+        }
+      }
+      function openPagePreview(campaign) {
+        if (!canEdit() || (campaign.type === "custom" && !canManage())) return;
+        s.pagePreview = {
+          siteId: s.site,
+          campaign: structuredClone(campaign),
+          used: false,
+        };
+        const url = "https://" + site().domain + (campaign.target || "/");
+        dialog(
+          "実ページプレビュー",
+          `<p>「${esc(campaign.title)}」を実際のページ上で確認する操作のモックです。下書き・停止中でも確認できます。</p><label class="field">動作確認するページURL<input id="pagePreviewURL" type="url" value="${esc(url)}"><span class="hint">表示対象：${esc(campaign.target || "/")} 配下。クエリとハッシュは表示先の照合には使いません。</span></label><div class="mock-diagnostic" id="pagePreviewMatch" role="status"></div><p>実装版では、この操作で開くタブに1回だけ指定施策を表示します。対象者判定・閾値・表示回数はテスト用に外し、表示先URLの制限は守ります。</p><p>表示回数・閉じた履歴・効果集計は更新しません。確認先には共通SDKが必要です。</p><p class="help-note">このモックは実際のページを開かず、APIにも接続しません。</p>`,
+          button("閉じる", "cancel", "") +
+            '<button class="button primary" data-action="start-page-preview" id="startPagePreview">プレビューを開始（モック）</button>',
+        );
+        updatePagePreviewMatch();
+      }
+      function updatePagePreviewMatch() {
+        if (!s.pagePreview || !$("pagePreviewURL")) return;
+        const result = pagePreviewCheck(
+          $("pagePreviewURL").value,
+          s.pagePreview.campaign,
+          site(),
+        );
+        $("pagePreviewMatch").textContent = result.message;
+        $("startPagePreview").disabled = !result.allowed || s.pagePreview.used;
+      }
       const actions = {
+        "start-page-preview": () => {
+          const request = s.pagePreview;
+          if (
+            !request ||
+            request.used ||
+            request.siteId !== s.site ||
+            !canEdit()
+          )
+            return;
+          const result = pagePreviewCheck(
+            $("pagePreviewURL")?.value || "",
+            request.campaign,
+            site(),
+          );
+          if (!result.allowed) {
+            toast(result.message);
+            return;
+          }
+          request.used = true;
+          dialog(
+            "実ページで1回だけ表示するイメージ",
+            `<p><strong>プレビューモード · 実配信ではありません</strong></p><div class="mock-diagnostic"><div>対象URL：${esc(result.url)}</div><div>施策：${esc(request.campaign.title)}</div><div>判定：Jevに問い合わせず、対象者に合致したものとして扱う</div><div>有効範囲：この起動で開いたタブの1回だけ</div><div>終了：閉じる・再読み込み・ページ移動で通常動作へ戻る</div></div><div class="preview-stage">${preview(request.campaign)}</div><p>実装版では指定URLを別タブで開き、この内容を実際のページへ重ねて描画します。このモックでは上の表示イメージで流れを確認します。</p><p class="help-note">本実装の1回限りの保証は、サーバー側で使い切る短期チケットで行います。</p>`,
+            '<button class="button" disabled>この起動は使用済みです</button>' +
+              button("一覧へ戻る", "cancel", "primary"),
+          );
+        },
         "save-environment": () => {
           if (s.role !== "owner") return;
           const v = $("environmentName")?.value.trim();
@@ -2180,9 +2387,13 @@
             toast("施策名を入力してください。");
             return;
           }
+          if (!judgmentQuestion(s.edit)) {
+            toast("訴求内容と判定したい関心・状態を入力してください。");
+            return;
+          }
           dialog(
             "配信内容を確認",
-            `<p>「${esc(s.edit.title)}」を${esc(site().name)}で配信する操作を再現します。</p><div class="mock-diagnostic"><div>対象者：${esc(s.edit.intent || "未入力")}</div><div>表示形式：${typeNames[s.edit.type]}</div><div>対象ページ：${esc(s.edit.target)}</div></div><p>本モックから実際の配信は開始されません。</p>`,
+            `<p>「${esc(s.edit.title)}」を${esc(site().name)}で配信する操作を再現します。</p><div class="mock-diagnostic"><div>訴求内容：${esc(s.edit.offer)}</div><div>関心・状態：${esc(s.edit.intent)}</div><div>表示形式：${typeNames[s.edit.type]}</div><div>対象ページ：${esc(s.edit.target)}</div></div>${judgmentPreview(s.edit)}<p>本モックから実際の配信は開始されません。</p>`,
             button("戻る", "cancel", "") +
               button("配信開始を再現", "publish-campaign", "primary"),
           );
@@ -2314,6 +2525,14 @@
           actions[a]?.();
           return;
         }
+        const pagePreview = e.target.closest("[data-page-preview]");
+        if (pagePreview && !pagePreview.disabled) {
+          const campaign = site().campaigns.find(
+            (c) => c.id === pagePreview.dataset.pagePreview,
+          );
+          if (campaign) openPagePreview(campaign);
+          return;
+        }
         const open = e.target.closest("[data-open]");
         if (open) {
           guard(() => {
@@ -2350,6 +2569,17 @@
         if (filter) {
           s.filter = filter.dataset.filter;
           render();
+          return;
+        }
+        const writingExample = e.target.closest("[data-writing-example]");
+        if (writingExample && canEdit()) {
+          const example =
+            writingExamples[writingExample.dataset.writingExample];
+          if (example) {
+            Object.assign(s.edit, example);
+            s.dirty = true;
+            render();
+          }
           return;
         }
         const tab = e.target.closest("[data-edit-tab]");
@@ -2436,6 +2666,10 @@
         }
       });
       document.addEventListener("input", (e) => {
+        if (e.target.id === "pagePreviewURL") {
+          updatePagePreviewMatch();
+          return;
+        }
         if (e.target.id === "campaignSearch") {
           s.query = e.target.value;
           $("campaignRows").innerHTML = campaignRows(filtered());
@@ -2450,6 +2684,8 @@
             dirty.className = "draft-indicator";
           }
           if ($("previewStage")) $("previewStage").innerHTML = preview(s.edit);
+          if ($("judgmentPreview"))
+            $("judgmentPreview").innerHTML = judgmentPreview(s.edit);
         }
         if (e.target.dataset.setting && canManage()) s.dirty = true;
       });

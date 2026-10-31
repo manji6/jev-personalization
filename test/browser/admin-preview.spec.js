@@ -148,8 +148,11 @@ test("new campaign flows through content and delivery confirmation into filtered
   await page.getByRole("button", { name: "新規施策を作成" }).click();
   await page.getByLabel("施策名", { exact: true }).fill("新規レビュー施策");
   await page
-    .getByLabel("どんな人に、どんな状態で届けたいですか？")
-    .fill("ポロシャツに関心がありそうな人");
+    .getByLabel("何を伝えたいですか？")
+    .fill("吸汗速乾ポロシャツの特集を案内する");
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill("吸汗速乾機能のあるポロシャツに関心がある");
   await page
     .getByRole("button", { name: "表示コンテンツ", exact: true })
     .click();
@@ -295,4 +298,199 @@ test("standalone HTML opens directly from disk without a server", async ({
       exact: true,
     }),
   ).toBeVisible();
+});
+
+test("question preview inserts both inputs verbatim with no generation or API access", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await nav(page, "施策一覧");
+  await page.getByRole("button", { name: "新規施策を作成" }).click();
+  await page.getByLabel("施策名", { exact: true }).fill("機能訴求のテスト");
+  const offer = "吸汗速乾ポロシャツの特集を案内する";
+  const statement = "吸汗速乾機能のあるポロシャツに関心がある";
+  await page.getByLabel("何を伝えたいですか？").fill(offer);
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill(statement);
+  const preview = page.locator("#judgmentPreview .question-text");
+  expect(await preview.textContent()).toBe(
+    `今回案内する内容：${offer}\n閲覧履歴と連携された行動・状態の情報に基づき、この閲覧者に「${statement}」が当てはまりますか？`,
+  );
+  await page.getByLabel("施策名", { exact: true }).fill("内部の施策名を変更");
+  expect(await preview.textContent()).not.toContain("内部の施策名");
+  await expect(page.locator("#previewStage")).not.toContainText("内部の施策名");
+  await page
+    .getByLabel("施策名", { exact: true })
+    .fill("吸汗速乾ポロシャツのご案内");
+  await page.getByLabel("何を伝えたいですか？").focus();
+  expect(urls).toEqual(["/"]);
+  expect(await page.evaluate(() => window.violations)).toEqual([]);
+  await page.locator("#toast").evaluate((el) => {
+    el.hidden = true;
+  });
+  await page.screenshot({
+    path: testInfo.outputPath("admin-v2-conditions.png"),
+    fullPage: true,
+  });
+});
+
+test("missing audience or offer does not produce an incomplete question or allow delivery review", async ({
+  page,
+}) => {
+  await login(page);
+  await nav(page, "施策一覧");
+  await page.getByRole("button", { name: "新規施策を作成" }).click();
+  await page.getByLabel("施策名", { exact: true }).fill("未入力の確認");
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill("速乾性に関心がある");
+  await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "配信内容を確認", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("#toast")).toHaveText(
+    "訴求内容と判定したい関心・状態を入力してください。",
+  );
+  await page.getByLabel("何を伝えたいですか？").fill("ポロシャツを紹介する");
+  await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(1);
+  await page.getByLabel("どんな関心・状態に当てはまる人ですか？").fill("   ");
+  await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(0);
+});
+
+test("writing examples and compound warning guide input without rewriting it", async ({
+  page,
+}) => {
+  await login(page);
+  await nav(page, "施策一覧");
+  await page.getByRole("button", { name: "新規施策を作成" }).click();
+  await page.getByText("書き方の例を見る", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "BtoBの例を入れる", exact: true })
+    .click();
+  await expect(page.getByLabel("何を伝えたいですか？")).toHaveValue(
+    "予約管理サービスの導入事例と比較ガイドを紹介する",
+  );
+  await expect(
+    page.getByLabel("どんな関心・状態に当てはまる人ですか？"),
+  ).toHaveValue("予約管理サービスの導入を比較・検討している");
+  const statement = "予約管理に関心がある、かつ導入事例を比較している";
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill(statement);
+  await expect(
+    page.locator("#judgmentPreview .question-warning"),
+  ).toBeVisible();
+  expect(
+    await page.locator("#judgmentPreview .question-text").textContent(),
+  ).toContain(`「${statement}」`);
+  await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(1);
+  expect(urls).toEqual(["/"]);
+});
+
+test("question preview safely displays text and survives draft save and tab changes", async ({
+  page,
+}) => {
+  await login(page);
+  await nav(page, "施策一覧");
+  await page.getByRole("button", { name: "新規施策を作成" }).click();
+  await page.getByLabel("施策名", { exact: true }).fill("文字列の確認");
+  await page
+    .getByLabel("何を伝えたいですか？")
+    .fill('<img src=x onerror="window.unwanted=1">について案内する');
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill("「快適さ」に関心がある");
+  const before = await page
+    .locator("#judgmentPreview .question-text")
+    .textContent();
+  await expect(page.locator("#judgmentPreview img")).toHaveCount(0);
+  expect(await page.evaluate(() => window.unwanted)).toBeUndefined();
+  await page
+    .getByRole("button", { name: "表示コンテンツ", exact: true })
+    .click();
+  await page.getByRole("button", { name: "対象者・条件", exact: true }).click();
+  expect(
+    await page.locator("#judgmentPreview .question-text").textContent(),
+  ).toBe(before);
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await page.getByRole("button", { name: "文字列の確認", exact: true }).click();
+  expect(
+    await page.locator("#judgmentPreview .question-text").textContent(),
+  ).toBe(before);
+});
+
+test("real-page preview checks URL range and simulates one launch without opening a page or calling APIs", async ({
+  page,
+  context,
+}) => {
+  await login(page);
+  await nav(page, "施策一覧");
+  const row = page.getByRole("row").filter({
+    has: page.getByRole("button", {
+      name: "吸汗速乾ポロシャツのご案内",
+      exact: true,
+    }),
+  });
+  await row.getByRole("button", { name: "プレビュー", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "実ページプレビュー", exact: true }),
+  ).toBeVisible();
+  const url = page.getByLabel("動作確認するページURL");
+  const start = page.getByRole("button", {
+    name: "プレビューを開始（モック）",
+    exact: true,
+  });
+  for (const bad of [
+    "https://other.example.com/ja/",
+    "https://atelier.example.com/other/",
+    "https://atelier.example.com/account",
+    "https://user:pass@atelier.example.com/ja/",
+    "http://atelier.example.com/ja/",
+  ]) {
+    await url.fill(bad);
+    await expect(start).toBeDisabled();
+  }
+  await url.fill("https://atelier.example.com/ja/polo/?color=blue#details");
+  await expect(start).toBeEnabled();
+  const pages = context.pages().length;
+  await start.click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "この起動で開いたタブの1回だけ",
+  );
+  await expect(page.getByRole("dialog")).toContainText("Jevに問い合わせず");
+  await expect(
+    page.getByRole("button", { name: "この起動は使用済みです" }),
+  ).toBeDisabled();
+  expect(context.pages().length).toBe(pages);
+  expect(urls).toEqual(["/"]);
+  await page.getByRole("button", { name: "一覧へ戻る", exact: true }).click();
+  await expect(row).toContainText("配信中");
+});
+
+test("draft campaigns can preview but viewers cannot start it", async ({
+  page,
+}) => {
+  await login(page);
+  await nav(page, "施策一覧");
+  const draft = page.getByRole("row").filter({
+    has: page.getByRole("button", {
+      name: "はじめての方へ、選び方ガイド",
+      exact: true,
+    }),
+  });
+  await draft.getByRole("button", { name: "プレビュー", exact: true }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "プレビューを開始（モック）",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "閉じる", exact: true }).click();
+  await page.getByLabel("権限を再現").selectOption("viewer");
+  await nav(page, "施策一覧");
+  const buttons = page.getByRole("button", { name: "プレビュー", exact: true });
+  expect(await buttons.count()).toBeGreaterThan(0);
+  for (const button of await buttons.all()) await expect(button).toBeDisabled();
 });
