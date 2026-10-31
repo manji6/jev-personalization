@@ -1,0 +1,21 @@
+{
+  "recordedDate": "2026-10-31",
+  "library": "@simplewebauthn/server@14.0.3",
+  "runtime": "Miniflare workerd (Web Crypto; no nodejs_compat)",
+  "browser": "156.0.8078.4",
+  "authenticator": "Chromium CDP virtual CTAP2 internal authenticator; synthetic identity",
+  "observations": [
+    "ES256 discoverable credential registration with user verification: passed",
+    "Signed assertion verification in workerd without nodejs_compat: passed",
+    "Consumed challenge replay: rejected",
+    "Unexpected Origin: rejected",
+    "Unexpected RP ID: rejected",
+    "Signed assertion without user verification: rejected"
+  ],
+  "limitations": [
+    "Not a production authentication implementation",
+    "No real hardware, synced passkey, Safari or Firefox validation",
+    "Only ES256 and attestation none tested",
+    "No administrator database, session, invitation, recovery, or email delivery implemented in this spike"
+  ]
+}

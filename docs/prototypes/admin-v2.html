@@ -1,0 +1,2514 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>JevSense — 管理画面v2 操作モック</title>
+    <style>
+      :root {
+        --green: #224f3d;
+        --ink: #233c31;
+        --muted: #7a877f;
+        --line: #e1e7e2;
+        --paper: #f5f6f2;
+        --mint: #e9f1e8;
+        --white: #fff;
+        --accent: #d6e5ac;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          14px/1.65 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "Noto Sans JP",
+          sans-serif;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      button,
+      a,
+      input,
+      select,
+      textarea {
+        outline-offset: 4px;
+      }
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 30px;
+        line-height: 1.5;
+        letter-spacing: -0.04em;
+        font-weight: 650;
+      }
+      h2 {
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+      h3 {
+        font-size: 15px;
+      }
+      small,
+      .muted {
+        color: var(--muted);
+      }
+      svg {
+        width: 19px;
+        height: 19px;
+        vertical-align: middle;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .prototype {
+        min-height: 36px;
+        background: #173a2b;
+        color: #edf4e9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 7px 24px;
+        font-size: 11px;
+        position: relative;
+        z-index: 30;
+      }
+      .prototype strong {
+        color: #d7e8ad;
+        letter-spacing: 0.1em;
+        margin-right: 12px;
+      }
+      .prototype select {
+        background: #294d3c;
+        color: white;
+        border: 1px solid #6a8374;
+        border-radius: 4px;
+        font-size: 11px;
+        padding: 2px 5px;
+        max-width: 160px;
+      }
+      .proto-controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .sidebar {
+        position: fixed;
+        top: 36px;
+        left: 0;
+        bottom: 0;
+        width: 226px;
+        background: #fff;
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        padding: 29px 18px 18px;
+        z-index: 20;
+      }
+      .brand {
+        font-size: 25px;
+        letter-spacing: -0.065em;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+      }
+      .brandmark {
+        width: 32px;
+        height: 32px;
+        border: 1px solid var(--green);
+        border-radius: 9px;
+        display: grid;
+        place-content: center;
+        font: italic 30px Georgia;
+        color: var(--green);
+        line-height: 1;
+      }
+      .brand .dot {
+        color: #94ac69;
+      }
+      .nav-label {
+        font-size: 10px;
+        letter-spacing: 0.17em;
+        color: #8b988e;
+        margin: 35px 12px 12px;
+      }
+      .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .nav a,
+      .nav button {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 0;
+        background: none;
+        border-radius: 7px;
+        padding: 11px 12px;
+        text-align: left;
+        color: #768479;
+        font-size: 13px;
+      }
+      .nav a:hover {
+        background: #f4f6f2;
+      }
+      .nav a.active {
+        background: var(--mint);
+        color: var(--green);
+        font-weight: 650;
+      }
+      .nav .arrow {
+        margin-left: auto;
+        font-size: 14px;
+      }
+      .sidebar-bottom {
+        margin-top: auto;
+      }
+      .sidebar-note {
+        font:
+          italic 18px/1.8 Georgia,
+          "Noto Serif JP",
+          serif;
+        margin: 36px 12px 24px;
+        color: #889782;
+      }
+      .account-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-top: 1px solid var(--line);
+        padding: 16px 8px 0;
+        font-size: 12px;
+      }
+      .account-link small {
+        display: block;
+        font-size: 10px;
+      }
+      .avatar {
+        display: grid;
+        place-content: center;
+        background: #e5ede5;
+        border-radius: 50%;
+        width: 34px;
+        height: 34px;
+        flex-shrink: 0;
+        color: #476847;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .shell {
+        margin-left: 226px;
+      }
+      .topbar {
+        height: 83px;
+        background: #ffffffd9;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 40px;
+        gap: 20px;
+      }
+      .site-picker {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .site-avatar {
+        height: 34px;
+        width: 34px;
+        border-radius: 8px;
+        background: #dce8d7;
+        display: grid;
+        place-content: center;
+        font-family: Georgia;
+        font-size: 19px;
+      }
+      .site-picker small {
+        display: block;
+        line-height: 1.2;
+        font-size: 10px;
+        letter-spacing: 0.05em;
+      }
+      .site-picker select {
+        font-size: 13px;
+        font-weight: 650;
+        background: transparent;
+        border: 0;
+        max-width: 250px;
+        cursor: pointer;
+        margin-left: -4px;
+      }
+      .top-actions {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        font-size: 12px;
+        color: #7c897e;
+      }
+      .role-chip {
+        padding: 4px 9px;
+        background: #f1f4ee;
+        border: 1px solid #e0e8dc;
+        border-radius: 5px;
+        color: #72816b;
+        font-size: 10px;
+      }
+      .main {
+        max-width: 1360px;
+        margin: auto;
+        padding: 33px 40px 70px;
+      }
+      .crumb {
+        font-size: 11px;
+        color: #8a978c;
+        margin-bottom: 22px;
+        display: flex;
+        gap: 9px;
+      }
+      .heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 29px;
+      }
+      .eyebrow {
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        color: #82917b;
+        margin-bottom: 7px;
+      }
+      .desc {
+        font-size: 12px;
+        color: #859080;
+        margin-top: 8px;
+        max-width: 650px;
+      }
+      .button {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 550;
+        white-space: nowrap;
+      }
+      .button.primary {
+        background: var(--green);
+        border-color: var(--green);
+        color: white;
+      }
+      .button.secondary {
+        background: #f0f4e8;
+        border-color: #e2e9d5;
+      }
+      .button.danger {
+        color: #9c3e32;
+        background: #fff8f5;
+        border-color: #efdbd5;
+      }
+      .button.link {
+        border: 0;
+        background: none;
+        color: #6e8172;
+        padding: 6px 0;
+      }
+      .button.wide {
+        width: 100%;
+      }
+      .button.small {
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+      .button svg {
+        width: 15px;
+        height: 15px;
+      }
+      .card {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .card-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #edf0eb;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      .card-body {
+        padding: 24px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        margin-bottom: 26px;
+      }
+      .stat {
+        padding: 21px 24px;
+        position: relative;
+      }
+      .stat label {
+        color: #879281;
+        font-size: 12px;
+      }
+      .stat .number {
+        font-size: 32px;
+        font-weight: 450;
+        letter-spacing: -0.04em;
+        margin-top: 8px;
+      }
+      .stat .number small {
+        font-size: 11px;
+        letter-spacing: 0;
+        margin-left: 5px;
+      }
+      .stat .stat-icon {
+        position: absolute;
+        right: 24px;
+        top: 24px;
+        color: #9caf94;
+      }
+      .badge {
+        font-size: 10px;
+        padding: 4px 9px;
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+      .badge.active {
+        background: #e9f2e7;
+        color: #55794b;
+      }
+      .badge.paused {
+        background: #f3eee4;
+        color: #a1875c;
+      }
+      .badge.draft {
+        background: #f0f2f3;
+        color: #7f8b91;
+      }
+      .badge::before {
+        content: "";
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th {
+        font-weight: 400;
+        font-size: 10px;
+        color: #9aa397;
+        background: #fcfcfa;
+        white-space: nowrap;
+      }
+      th,
+      td {
+        padding: 17px 24px;
+        border-bottom: 1px solid #edf0eb;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td {
+        font-size: 12px;
+      }
+      td.title {
+        min-width: 220px;
+        font-weight: 600;
+      }
+      td.title small {
+        display: block;
+        font-size: 10px;
+        font-weight: 400;
+        margin-top: 4px;
+      }
+      td.empty {
+        text-align: center;
+        color: #879382;
+        padding: 40px;
+      }
+      .row-link {
+        font-weight: 600;
+        border: 0;
+        background: none;
+        padding: 0;
+        text-align: left;
+        cursor: pointer;
+      }
+      .row-link:hover {
+        color: #729450;
+      }
+      .row-actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: flex-end;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .filter-tabs,
+      .tabs {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+      .filter-tabs button,
+      .tabs button {
+        border: 0;
+        background: none;
+        font-size: 12px;
+        color: #8b9587;
+        padding: 7px 0;
+        position: relative;
+        white-space: nowrap;
+      }
+      .filter-tabs button.selected,
+      .tabs button.selected {
+        color: var(--green);
+        font-weight: 650;
+      }
+      .filter-tabs button.selected:after,
+      .tabs button.selected:after {
+        content: "";
+        height: 2px;
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+        background: #5f7d4c;
+      }
+      .search {
+        position: relative;
+      }
+      .search input {
+        background: #f9faf7;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 7px 10px 7px 31px;
+        font-size: 11px;
+        max-width: 210px;
+      }
+      .search svg {
+        position: absolute;
+        left: 10px;
+        top: 10px;
+        width: 13px;
+        height: 13px;
+        color: #97a38e;
+      }
+      .info {
+        border: 1px solid #e5ebda;
+        background: #f4f7ee;
+        border-radius: 7px;
+        padding: 13px 16px;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 11px;
+        color: #78866f;
+        margin-bottom: 22px;
+      }
+      .info svg {
+        width: 15px;
+        height: 15px;
+        margin-top: 2px;
+      }
+      .results-placeholder {
+        min-height: 195px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        flex-direction: column;
+        gap: 10px;
+        color: #9aa491;
+        background: linear-gradient(135deg, #fafbf7, #f4f6ee);
+        border-radius: 0 0 10px 10px;
+      }
+      .placeholder-bars {
+        display: flex;
+        gap: 5px;
+        align-items: flex-end;
+        height: 35px;
+      }
+      .placeholder-bars i {
+        display: block;
+        width: 7px;
+        background: #dce5cf;
+        border-radius: 2px;
+        height: 15px;
+      }
+      .placeholder-bars i:nth-child(2) {
+        height: 26px;
+      }
+      .placeholder-bars i:nth-child(3) {
+        height: 20px;
+      }
+      .placeholder-bars i:nth-child(4) {
+        height: 34px;
+      }
+      .results-placeholder p {
+        font-size: 11px;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 24px;
+      }
+      .tabs {
+        border-bottom: 1px solid var(--line);
+        padding: 0 24px 13px;
+        overflow-x: auto;
+      }
+      .tabs button {
+        padding-top: 15px;
+      }
+      .tabs button.selected:after {
+        bottom: -14px;
+      }
+      .field {
+        display: block;
+        margin-bottom: 22px;
+        font-size: 12px;
+        font-weight: 550;
+      }
+      .field input,
+      .field textarea,
+      .field select {
+        display: block;
+        width: 100%;
+        margin-top: 9px;
+        background: #fff;
+        border: 1px solid #dce3d9;
+        border-radius: 6px;
+        padding: 11px 12px;
+        font-size: 12px;
+        font-weight: 400;
+        min-width: 0;
+      }
+      .field input:focus,
+      .field textarea:focus {
+        border-color: #7c9c71;
+      }
+      .field textarea {
+        resize: vertical;
+        min-height: 105px;
+        line-height: 1.8;
+      }
+      .field .hint {
+        display: block;
+        font-weight: 400;
+        font-size: 10px;
+        color: #96a08f;
+        margin-top: 7px;
+      }
+      .field:last-child {
+        margin-bottom: 0;
+      }
+      .fields2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .section-label {
+        font-size: 11px;
+        font-weight: 600;
+        margin: 26px 0 15px;
+      }
+      .segmented {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .segmented button {
+        padding: 9px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: white;
+        font-size: 11px;
+      }
+      .segmented button.selected {
+        border-color: #709167;
+        background: #eff5e9;
+        color: #557444;
+      }
+      .editor-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 24px;
+        font-size: 11px;
+        color: #91a085;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .preview-card {
+        position: sticky;
+        top: 20px;
+        align-self: start;
+      }
+      .preview-stage {
+        background: #edf0e7;
+        min-height: 310px;
+        padding: 28px 24px;
+        display: grid;
+        place-items: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .preview-offer {
+        background: #fff;
+        border-radius: 9px;
+        padding: 23px;
+        box-shadow: 0 12px 25px #283b2420;
+        max-width: 100%;
+        width: 270px;
+        position: relative;
+      }
+      .preview-offer h3 {
+        font-size: 16px;
+        margin-bottom: 10px;
+        padding-right: 14px;
+      }
+      .preview-offer p {
+        font-size: 11px;
+        color: #8b9583;
+        line-height: 1.9;
+      }
+      .preview-offer .close {
+        position: absolute;
+        right: 13px;
+        top: 11px;
+        color: #96a08c;
+      }
+      .preview-offer .cta {
+        background: var(--green);
+        color: white;
+        font-size: 10px;
+        padding: 9px 13px;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 18px;
+      }
+      .preview-offer.bar {
+        width: 100%;
+        border-radius: 0;
+        font-size: 11px;
+      }
+      .preview-caption {
+        font-size: 10px;
+        padding: 14px 20px;
+        color: #9aa38f;
+      }
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #edf0e8;
+        padding: 13px 0;
+        font-size: 11px;
+      }
+      .meta-row:last-child {
+        border: 0;
+      }
+      .meta-row span:first-child {
+        color: #9aa38f;
+      }
+      .color-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 16px 0;
+        font-size: 12px;
+      }
+      .color-row input {
+        width: 38px;
+        height: 36px;
+        border: 1px solid var(--line);
+        background: white;
+        padding: 3px;
+        border-radius: 5px;
+      }
+      .check {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        font-size: 12px;
+        margin: 14px 0;
+      }
+      .check input {
+        accent-color: var(--green);
+        margin-top: 4px;
+      }
+      .step-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        margin-bottom: 26px;
+      }
+      .step {
+        padding: 24px;
+      }
+      .step .step-n {
+        font-size: 10px;
+        color: #9aac8d;
+        letter-spacing: 0.1em;
+        margin-bottom: 12px;
+      }
+      .step h3 {
+        font-size: 13px;
+        margin-bottom: 7px;
+      }
+      .step p {
+        font-size: 11px;
+        color: #8e9985;
+      }
+      .list-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: center;
+        padding: 19px 24px;
+        border-bottom: 1px solid #edf0e8;
+        font-size: 12px;
+      }
+      .list-row:last-child {
+        border: 0;
+      }
+      .list-row small {
+        display: block;
+        font-size: 10px;
+        margin-top: 3px;
+      }
+      .list-left {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        min-width: 0;
+      }
+      .list-left svg {
+        color: #8b9d7a;
+        width: 25px;
+        height: 25px;
+      }
+      .right-note {
+        font-size: 10px;
+        color: #98a08f;
+      }
+      .login {
+        min-height: calc(100dvh - 36px);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .login-art {
+        background: #e9eddf;
+        position: relative;
+        padding: 58px 64px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden;
+      }
+      .login-art .brand {
+        padding: 0;
+      }
+      .login-art:before {
+        content: "";
+        position: absolute;
+        right: -120px;
+        top: 18%;
+        width: 540px;
+        height: 540px;
+        border: 1px solid #cad5ba;
+        border-radius: 50%;
+      }
+      .login-art:after {
+        content: "";
+        position: absolute;
+        right: -65px;
+        top: 23%;
+        width: 430px;
+        height: 430px;
+        border: 1px solid #d2dbc5;
+        border-radius: 50%;
+      }
+      .login-copy {
+        z-index: 1;
+        margin: 80px 0;
+      }
+      .login-copy h1 {
+        font-family: Georgia, "Noto Serif JP", serif;
+        font-size: 44px;
+        line-height: 1.55;
+        font-weight: 400;
+        letter-spacing: -0.06em;
+      }
+      .login-copy p {
+        font-size: 12px;
+        color: #879779;
+        margin-top: 28px;
+        line-height: 2.1;
+      }
+      .login-bottom {
+        font-size: 10px;
+        color: #98a18d;
+        z-index: 1;
+      }
+      .login-form {
+        padding: 70px 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+      }
+      .login-inner {
+        max-width: 370px;
+        width: 100%;
+      }
+      .login-inner h1 {
+        font-size: 26px;
+        margin: 12px 0;
+      }
+      .login-inner .desc {
+        line-height: 1.9;
+        margin-bottom: 32px;
+      }
+      .fingerprint {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        background: #eff3e8;
+        display: grid;
+        place-content: center;
+        color: #829c6c;
+        margin-bottom: 26px;
+      }
+      .fingerprint svg {
+        width: 29px;
+        height: 29px;
+      }
+      .invite-card {
+        margin-bottom: 25px;
+      }
+      .login-foot {
+        border-top: 1px solid var(--line);
+        margin-top: 30px;
+        padding-top: 20px;
+        font-size: 11px;
+        color: #9aa38e;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .text-button {
+        padding: 0;
+        border: 0;
+        background: none;
+        color: #76866b;
+        font-size: 11px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .help-note {
+        font-size: 10px;
+        color: #9ca58f;
+        margin-top: 16px;
+        line-height: 1.8;
+      }
+      .modal-shade {
+        position: fixed;
+        inset: 0;
+        background: #173a2b66;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        z-index: 60;
+        backdrop-filter: blur(2px);
+      }
+      .modal {
+        background: white;
+        max-width: 480px;
+        width: 100%;
+        border-radius: 13px;
+        padding: 31px;
+        box-shadow: 0 20px 70px #13301f25;
+        max-height: calc(100dvh - 40px);
+        overflow: auto;
+      }
+      .modal h2 {
+        font-size: 21px;
+        margin-bottom: 12px;
+      }
+      .modal p {
+        font-size: 12px;
+        color: #89957e;
+        line-height: 1.9;
+        margin: 10px 0 23px;
+      }
+      .modal .actions {
+        justify-content: flex-end;
+        margin-top: 28px;
+      }
+      .modal .fingerprint {
+        margin: 0 auto 20px;
+      }
+      .modal.auth {
+        text-align: center;
+      }
+      .toast {
+        position: fixed;
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #214c38;
+        color: white;
+        padding: 12px 22px;
+        border-radius: 7px;
+        z-index: 80;
+        font-size: 12px;
+        box-shadow: 0 7px 22px #19382224;
+        max-width: calc(100vw - 36px);
+      }
+      .no-access {
+        padding: 50px;
+        text-align: center;
+        background: white;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+      }
+      .draft-indicator {
+        color: #a48f5a;
+      }
+      .pill {
+        font-size: 10px;
+        border: 1px solid #e6eadd;
+        border-radius: 4px;
+        padding: 3px 7px;
+        color: #87967d;
+      }
+      .mobile-menu {
+        display: none;
+      }
+      fieldset {
+        padding: 0;
+        margin: 0;
+        border: 0;
+        min-width: 0;
+      }
+      .member-role {
+        font-size: 11px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 5px;
+        background: white;
+        max-width: 135px;
+      }
+      .short {
+        max-width: 780px;
+      }
+      .mock-diagnostic {
+        background: #f6f8f1;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 17px;
+        text-align: left;
+      }
+      .mock-diagnostic div {
+        padding: 8px 0;
+        border-bottom: 1px solid #e1e8d8;
+        font-size: 11px;
+      }
+      .mock-diagnostic div:last-child {
+        border: 0;
+      }
+      .notice-label {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        color: #8fa178;
+        margin-bottom: 8px;
+      }
+      .section-gap {
+        margin-top: 26px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (min-width: 1550px) {
+        .main {
+          padding-top: 45px;
+        }
+        .topbar {
+          padding-left: max(40px, calc((100vw - 1320px) / 2));
+        }
+      }
+      @media (max-width: 1100px) {
+        .main {
+          padding: 28px 25px;
+        }
+        .topbar {
+          padding: 0 25px;
+        }
+        .grid2 {
+          grid-template-columns: minmax(0, 1fr) 290px;
+        }
+        .preview-stage {
+          padding: 20px;
+        }
+        .login-art {
+          padding: 50px 36px;
+        }
+        .login-copy h1 {
+          font-size: 36px;
+        }
+        th,
+        td {
+          padding: 16px;
+        }
+        .top-actions .environment-label {
+          display: none;
+        }
+      }
+      @media (max-width: 850px) {
+        .sidebar {
+          width: 76px;
+          padding: 25px 10px;
+        }
+        .sidebar .brand {
+          padding: 0;
+          justify-content: center;
+        }
+        .brand-word,
+        .sidebar .nav-label,
+        .sidebar .nav-text,
+        .sidebar-note,
+        .sidebar .account-text,
+        .sidebar .arrow {
+          display: none;
+        }
+        .nav {
+          margin-top: 26px;
+        }
+        .nav a {
+          justify-content: center;
+          padding: 13px 9px;
+        }
+        .sidebar-bottom .nav {
+          margin: 15px 0;
+        }
+        .account-link {
+          padding: 16px 0 0;
+          justify-content: center;
+        }
+        .shell {
+          margin-left: 76px;
+        }
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        .preview-card {
+          position: static;
+          max-width: 100%;
+        }
+        .preview-stage {
+          min-height: 245px;
+        }
+        .login-art {
+          padding: 42px 30px;
+        }
+        .login-copy h1 {
+          font-size: 31px;
+        }
+        .topbar {
+          height: 75px;
+        }
+        .prototype {
+          padding: 7px 14px;
+        }
+        .prototype .proto-desc {
+          display: none;
+        }
+        .stats {
+          gap: 10px;
+        }
+        .stat {
+          padding: 18px;
+        }
+        .stat .stat-icon {
+          right: 14px;
+          top: 21px;
+        }
+        .step-list {
+          gap: 10px;
+        }
+        .step {
+          padding: 18px;
+        }
+      }
+      @media (max-width: 600px) {
+        .prototype {
+          font-size: 10px;
+          min-height: 54px;
+          align-items: flex-start;
+          padding: 9px 12px;
+        }
+        .prototype strong {
+          margin-right: 4px;
+        }
+        .proto-controls {
+          gap: 6px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+        .proto-controls label {
+          display: none;
+        }
+        .prototype select {
+          max-width: 115px;
+          font-size: 10px;
+        }
+        .sidebar {
+          top: 54px;
+          width: 60px;
+          padding: 22px 7px;
+        }
+        .brandmark {
+          width: 30px;
+          height: 30px;
+        }
+        .shell {
+          margin-left: 60px;
+        }
+        .topbar {
+          padding: 0 17px;
+          height: 78px;
+        }
+        .main {
+          padding: 23px 17px 50px;
+        }
+        .site-picker {
+          gap: 8px;
+        }
+        .site-picker select {
+          max-width: 175px;
+          font-size: 12px;
+        }
+        .top-actions {
+          gap: 5px;
+        }
+        .top-actions > .avatar {
+          display: none;
+        }
+        .top-actions .role-chip {
+          max-width: 75px;
+          font-size: 9px;
+          white-space: nowrap;
+        }
+        .heading {
+          align-items: flex-start;
+          gap: 12px;
+          flex-direction: column;
+          margin-bottom: 23px;
+        }
+        h1 {
+          font-size: 23px;
+        }
+        .heading .button {
+          padding: 9px;
+          font-size: 10px;
+        }
+        .heading .button svg {
+          display: none;
+        }
+        .desc {
+          font-size: 11px;
+        }
+        .crumb {
+          margin-bottom: 18px;
+        }
+        .stats {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        .stat {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 13px 17px;
+        }
+        .stat .number {
+          font-size: 25px;
+          margin: 0;
+          padding-right: 25px;
+        }
+        .stat .stat-icon {
+          display: none;
+        }
+        .card-header,
+        .card-body {
+          padding: 18px;
+        }
+        .card-header h2 {
+          font-size: 15px;
+        }
+        .toolbar {
+          padding: 12px 16px;
+          gap: 14px;
+        }
+        .filter-tabs {
+          gap: 18px;
+        }
+        .filter-tabs button {
+          font-size: 11px;
+        }
+        .search input {
+          max-width: 100%;
+          width: 100%;
+        }
+        .search {
+          width: 100%;
+        }
+        .fields2 {
+          grid-template-columns: 1fr;
+          gap: 0;
+        }
+        .step-list {
+          grid-template-columns: 1fr;
+        }
+        .step {
+          padding: 17px;
+        }
+        .step .step-n {
+          margin-bottom: 6px;
+        }
+        .step h3 {
+          display: inline-block;
+          margin-right: 8px;
+        }
+        .login {
+          grid-template-columns: 1fr;
+          min-height: calc(100dvh - 54px);
+        }
+        .login-art {
+          padding: 25px 26px;
+          background: #edf0e5;
+        }
+        .login-copy,
+        .login-bottom {
+          display: none;
+        }
+        .login-art:before,
+        .login-art:after {
+          display: none;
+        }
+        .login-form {
+          padding: 38px 28px;
+        }
+        .login-inner {
+          max-width: none;
+        }
+        .login-inner h1 {
+          font-size: 24px;
+        }
+        .fingerprint {
+          margin-bottom: 20px;
+        }
+        .list-row {
+          padding: 17px;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .list-left {
+          flex: 1;
+          min-width: 180px;
+        }
+        .editor-footer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .tabs {
+          gap: 23px;
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+        .info {
+          padding: 12px;
+          font-size: 10px;
+        }
+        .no-access {
+          padding: 30px 16px;
+        }
+        .right-note {
+          display: none;
+        }
+        .modal {
+          padding: 24px;
+        }
+        .modal .actions {
+          flex-wrap: wrap;
+        }
+        .account-link .avatar {
+          width: 30px;
+          height: 30px;
+        }
+        .button {
+          font-size: 11px;
+        }
+        .section-gap {
+          margin-top: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype">
+      <div>
+        <strong>UI PROTOTYPE</strong
+        ><span class="proto-desc"
+          >画面とフローの検討用 · 認証・配信・メール送信は実行しません</span
+        >
+      </div>
+      <div class="proto-controls">
+        <label for="scenario">シナリオ</label
+        ><select id="scenario" aria-label="シナリオ">
+          <option value="login">ログイン</option>
+          <option value="setup">初回セットアップ</option>
+          <option value="invite">招待された人</option>
+          <option value="recover">パスキーの復旧</option></select
+        ><label for="demoRole">権限を再現</label
+        ><select id="demoRole" aria-label="権限を再現">
+          <option value="owner">Superuser</option>
+          <option value="admin">サイト管理者</option>
+          <option value="editor">編集者</option>
+          <option value="viewer">閲覧者</option>
+        </select>
+      </div>
+    </div>
+    <div id="app"></div>
+    <div id="modalRoot"></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const esc = (v) =>
+        String(v ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      const paths = {
+        home: "M3 10l7-6 7 6M5 9v8h10V9M8 17v-5h4v5",
+        campaigns: "M3 5h14v12H3zM6 3v4M14 3v4M3 9h14M6 12h3M6 14h6",
+        settings:
+          "M10 3v2M10 15v2M3 10h2M15 10h2M5 5l1 1M14 14l1 1M5 15l1-1M14 6l1-1M13 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
+        debug: "M7 3h6M10 3v4M5 8h10v9H5zM3 10h2M15 10h2M3 14h2M15 14h2M8 11h4",
+        users:
+          "M12 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0M3 17v-2c0-4 12-4 12 0v2M15 4c4 0 4 5 1 6M17 12l1 4",
+        plus: "M10 4v12M4 10h12",
+        arrow: "M4 10h12M11 5l5 5-5 5",
+        search: "M12 12l5 5M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0",
+        key: "M8 12l-5 5M5 15l2 2M11 9a4 4 0 1 1 6-6 4 4 0 0 1-6 6",
+        shield: "M10 2l7 3v5c0 4-4 7-7 8-3-1-7-4-7-8V5zM7 10l2 2 4-4",
+        finger:
+          "M4 12V9a6 6 0 0 1 12 0v3M7 13V9a3 3 0 0 1 6 0v5M10 8v5c0 3-1 5-3 6M4 15l-1 2M13 17l1 2M16 15v2",
+        info: "M10 8v6M10 5v.1M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
+        chart: "M4 16V9M10 16V4M16 16v-5",
+        logout: "M8 3H3v14h5M8 10h10M14 6l4 4-4 4",
+        device: "M4 3h12v10H4zM2 16h16",
+        dots: "M4 10h.1M10 10h.1M16 10h.1",
+      };
+      const icon = (name) =>
+        `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${paths[name] || paths.info}"/></svg>`;
+      const blankCampaign = () => ({
+        id: "new",
+        title: "",
+        intent: "",
+        body: "",
+        type: "modal",
+        status: "draft",
+        target: "/ja/",
+        link: "",
+        label: "詳しく見る",
+        threshold: "0.70",
+      });
+      const initial = [
+        {
+          id: "atelier",
+          name: "Atelier Store",
+          domain: "atelier.example.com",
+          initial: "A",
+          campaigns: [
+            {
+              id: "polo",
+              title: "吸汗速乾ポロシャツのご案内",
+              intent:
+                "ポロシャツや夏のスポーツウェアをじっくり見ていて、吸汗速乾の機能に関心がありそうな人。",
+              body: "さらりと、軽やかに。夏を心地よく過ごすポロシャツをご紹介します。",
+              type: "floating",
+              status: "active",
+              target: "/ja/",
+              link: "https://atelier.example.com/ja/polo/",
+              label: "コレクションを見る",
+              threshold: "0.70",
+            },
+            {
+              id: "guide",
+              title: "はじめての方へ、選び方ガイド",
+              intent: "商品を比較していて、選び方に迷っていそうな人。",
+              body: "あなたに合う一着を、一緒に見つけませんか。",
+              type: "modal",
+              status: "draft",
+              target: "/ja/",
+              label: "ガイドを見る",
+              threshold: "0.70",
+            },
+            {
+              id: "shipping",
+              title: "夏のお届けキャンペーン",
+              intent: "商品に関心がある人。",
+              body: "お届けについてのご案内です。",
+              type: "bar",
+              status: "paused",
+              target: "/ja/",
+              label: "詳しく見る",
+              threshold: "0.75",
+            },
+          ],
+        },
+        {
+          id: "studio",
+          name: "Studio Journal",
+          domain: "journal.example.com",
+          initial: "S",
+          campaigns: [
+            {
+              id: "newsletter",
+              title: "読者のためのニュースレター",
+              intent: "デザインの記事を繰り返し読んでいる人。",
+              body: "読みものを、あなたの受信箱へ。",
+              type: "bar",
+              status: "active",
+              target: "/articles/",
+              label: "ニュースレターを見る",
+              threshold: "0.70",
+            },
+          ],
+        },
+      ];
+      const s = {
+        logged: false,
+        role: "owner",
+        site: "atelier",
+        sites: structuredClone(initial),
+        filter: "all",
+        query: "",
+        edit: null,
+        editTab: "audience",
+        settingsTab: "general",
+        installationTab: "sites",
+        environmentName: "Atelier Workspace",
+        dirty: false,
+        passkeys: [
+          "MacBook Air · iCloud キーチェーン",
+          "セキュリティキー · USB",
+        ],
+        invites: [],
+        registeredEmail: "mika@example.com",
+      };
+      const roleNames = {
+        owner: "Superuser",
+        admin: "サイト管理者",
+        editor: "編集者",
+        viewer: "閲覧者",
+      };
+      const site = () => s.sites.find((v) => v.id === s.site);
+      const effectiveRole = () =>
+        s.role === "admin" && s.site === "studio"
+          ? "editor"
+          : s.role === "editor" && s.site === "studio"
+            ? "viewer"
+            : s.role;
+      const canEdit = () => effectiveRole() !== "viewer";
+      const canManage = () => ["owner", "admin"].includes(effectiveRole());
+      const allowedSites = () =>
+        s.role === "viewer"
+          ? s.sites.filter((v) => v.id === "atelier")
+          : s.sites;
+      const statusNames = {
+          active: "配信中",
+          draft: "下書き",
+          paused: "停止中",
+        },
+        typeNames = {
+          modal: "モーダル",
+          floating: "フローティング",
+          bar: "通知バー",
+          custom: "独自JavaScript",
+        };
+      const badge = (c) =>
+        `<span class="badge ${esc(c.status)}">${statusNames[c.status]}</span>`;
+      const button = (label, action, kind = "primary", disabled = false) =>
+        `<button class="button ${kind}" data-action="${action}" ${disabled ? "disabled" : ""}>${label}</button>`;
+      const brand = () =>
+        `<div class="brand"><span class="brandmark">j.</span><span class="brand-word">JevSense<span class="dot">.</span></span></div>`;
+      const info = (t) =>
+        `<div class="info">${icon("info")}<span>${t}</span></div>`;
+      function toast(t) {
+        $("toast").textContent = t;
+        $("toast").hidden = false;
+        setTimeout(() => ($("toast").hidden = true), 4200);
+      }
+      function dialog(title, body, actions, extra = "") {
+        $("modalRoot").innerHTML =
+          `<div class="modal-shade"><section class="modal ${extra}" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><h2>${title}</h2>${body}<div class="actions">${actions}</div></section></div>`;
+        const m = $("modalRoot").querySelector(".modal");
+        m.focus();
+      }
+      function closeDialog() {
+        $("modalRoot").replaceChildren();
+      }
+      let nextAction = null;
+      function guard(action) {
+        if (!s.dirty) {
+          action();
+          return;
+        }
+        nextAction = action;
+        dialog(
+          "未保存の変更があります",
+          "<p>サイトや画面を切り替えると、保存していない変更は破棄されます。</p>",
+          button("編集を続ける", "cancel", "") +
+            button("破棄して切り替える", "discard", "primary"),
+        );
+      }
+      function go(route) {
+        guard(() => {
+          s.dirty = false;
+          if (location.hash === "#/" + route) render();
+          else location.hash = "/" + route;
+        });
+      }
+      function heading(eyebrow, title, desc, action = "") {
+        return `<div class="heading"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1>${desc ? `<p class="desc">${desc}</p>` : ""}</div>${action}</div>`;
+      }
+      function loginPage(kind) {
+        const normal = kind === "login";
+        const invitation = s.currentInvite || {
+          email: "yui@example.com",
+          site: "atelier",
+          role: "editor",
+        };
+        let content = "";
+        if (normal)
+          content = `<div class="fingerprint">${icon("finger")}</div><p class="eyebrow">WELCOME BACK</p><h1>おかえりなさい。</h1><p class="desc">パスキーで安全にログインして、<br>あなたのサイトの施策を管理しましょう。</p><form data-form="login"><label class="field">メールアドレス<input type="email" name="email" required autocomplete="username webauthn" value="${esc(s.registeredEmail)}" placeholder="you@example.com"></label><button class="button primary wide" type="submit">${icon("key")}パスキーでログイン${icon("arrow")}</button></form><p class="help-note">Face ID・Touch ID・端末のPIN、またはセキュリティキーで本人確認できます。</p><div class="login-foot"><button class="text-button" data-nav="recover">パスキーが使えない場合</button><span>初めての方は、管理者から共有された招待リンクを開いてください。</span></div>`;
+        if (kind === "setup")
+          content = `<div class="fingerprint">${icon("shield")}</div><p class="eyebrow">FIRST-TIME SETUP</p><h1>JevSenseを、はじめる。</h1><p class="desc">この環境の最初の管理者を登録します。実装版では、既存の管理トークンで環境の管理権限を確認して進みます。メール送信サービスは不要です。</p><form data-form="setup"><label class="field">管理者のメールアドレス<input name="email" type="email" required value="owner@example.com"></label><label class="field">環境の名前<input name="environment" value="Atelier Workspace" required></label><button type="submit" class="button primary wide">パスキー登録へ${icon("arrow")}</button></form><p class="help-note">この操作は、まだ管理者が登録されていない環境で一度だけ行えます。</p><div class="login-foot"><button class="text-button" data-nav="login">ログインへ戻る</button></div>`;
+        if (kind === "invite")
+          content = `<div class="fingerprint">${icon("users")}</div><p class="eyebrow">YOU'RE INVITED</p><h1>チームに参加しませんか。</h1><p class="desc">佐藤 美香さんが、あなたをJevSenseに招待しました。</p><div class="card card-body invite-card"><div class="meta-row"><span>招待されたメール</span><strong>${esc(invitation.email)}</strong></div><div class="meta-row"><span>サイト</span><strong>${esc(s.sites.find((v) => v.id === invitation.site)?.name || invitation.site)}</strong></div><div class="meta-row"><span>権限</span><strong>${roleNames[invitation.role]}</strong></div></div>${button(icon("key") + "招待を確認してパスキーを登録", "join", "primary wide")}<p class="help-note">これは手動共有された招待リンクを開いた画面のモックです。実装版では期限付き・1回限りのリンクを確認します。メールの所有確認とは区別します。</p><div class="login-foot"><button class="text-button" data-nav="login">すでにアカウントをお持ちの方</button></div>`;
+        if (kind === "recover")
+          content = `<div class="fingerprint">${icon("key")}</div><p class="eyebrow">ACCOUNT RECOVERY</p><h1>パスキーが使えないとき。</h1><p class="desc">まず、別の端末やセキュリティキーのパスキーをお試しください。</p>${button("別の端末のパスキーを使う", "other-device", "primary wide")}<div class="login-foot"><form data-form="recovery"><label class="field">メールアドレス<input type="email" name="email" required value="${esc(s.registeredEmail)}"></label><label class="field">リカバリーコード<input name="code" required placeholder="事前に保存したコード"></label><button type="submit" class="button wide">リカバリーコードで復旧</button></form><p>どちらも使えない場合は、Superuserへ復旧を依頼してください。メールだけで管理者権限を再発行する設計にはしません。</p><button class="text-button" data-nav="login">ログインへ戻る</button></div>`;
+        return `<div class="login"><section class="login-art">${brand()}<div class="login-copy"><p class="eyebrow">SENSE THE MOMENT.</p><h1>その人の、いまを。<br>ちょうどいい<br>コミュニケーションに。</h1><p>行動の先にある関心や文脈を捉えて、<br>ひとりひとりに、意味のある出会いを。</p></div><p class="login-bottom">JevSense · Personalization, with a sense of purpose.</p></section><section class="login-form"><div class="login-inner">${content}</div></section></div>`;
+      }
+      function shell(route, body) {
+        const nav = [
+          ["home", "ホーム", "home"],
+          ["campaigns", "施策一覧", "campaigns"],
+          ["settings", "サイト設定", "settings"],
+          ["diagnostics", "動作確認", "debug"],
+          ["members", "メンバー", "users"],
+        ];
+        const section = route.startsWith("campaign/") ? "campaigns" : route;
+        return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map(([r, t, i]) => `<a href="#/${r}" data-nav="${r}" class="${section === r ? "active" : ""}" title="${t}">${icon(i)}<span class="nav-text">${t}</span>${section === r ? '<span class="arrow" aria-hidden="true">↗︎</span>' : ""}</a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${s.role === "owner" ? `<p class="nav-label">INSTALLATION</p><nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}" title="JevSense管理">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" title="アカウント・パスキー" aria-label="アカウント・パスキー"><span class="avatar">MS</span><span class="account-text">佐藤 美香<small>${esc(s.registeredEmail)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc(site().initial)}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${allowedSites()
+          .map(
+            (v) =>
+              `<option value="${v.id}" ${v.id === s.site ? "selected" : ""}>${esc(v.name)}</option>`,
+          )
+          .join(
+            "",
+          )}</select></div></div><div class="top-actions"><span class="environment-label">${esc(s.environmentName)}</span><span class="role-chip">${roleNames[effectiveRole()]}</span><span class="avatar">MS</span></div></header><main class="main"><div class="crumb"><span>${esc(["installation", "account"].includes(route) ? s.environmentName : site().name)}</span><span>/</span><span>${{ home: "ホーム", campaigns: "施策一覧", settings: "サイト設定", diagnostics: "動作確認", members: "メンバー", installation: "JevSense管理", account: "アカウント" }[section] || "施策の編集"}</span></div>${body}</main></div>`;
+      }
+      function campaignRows(list) {
+        return list.length
+          ? list
+              .map(
+                (c) =>
+                  `<tr><td>${badge(c)}</td><td class="title"><button class="row-link" data-open="${esc(c.id)}">${esc(c.title)}</button><small>${esc(c.intent.slice(0, 38))}${c.intent.length > 38 ? "…" : ""}</small></td><td><span class="pill">${typeNames[c.type]}</span></td><td>${esc(c.target)}</td><td class="muted">2026/10/31</td><td><div class="row-actions"><button class="button small" data-open="${esc(c.id)}">${canEdit() ? "編集" : "表示"} ↗</button>${canEdit() && c.status !== "draft" ? `<button class="button small" data-toggle="${esc(c.id)}">${c.status === "active" ? "停止" : "再開"}</button>` : ""}</div></td></tr>`,
+              )
+              .join("")
+          : '<tr><td class="empty" colspan="6">該当する施策はありません。</td></tr>';
+      }
+      function campaignTable(list) {
+        return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>最終更新</th><th></th></tr></thead><tbody id="campaignRows">${campaignRows(list)}</tbody></table></div>`;
+      }
+      function homePage() {
+        const cs = site().campaigns;
+        return (
+          heading(
+            "YOUR WORKSPACE",
+            "こんにちは、美香さん。",
+            "今日も、その人にちょうどいいコミュニケーションを。",
+            button(
+              icon("plus") + "新しい施策",
+              "new-campaign",
+              "primary",
+              !canEdit(),
+            ),
+          ) +
+          `<div class="stats">${[
+            [
+              "配信中の施策",
+              cs.filter((c) => c.status === "active").length,
+              "件",
+              "campaigns",
+            ],
+            [
+              "準備中の施策",
+              cs.filter((c) => c.status === "draft").length,
+              "件",
+              "chart",
+            ],
+            ["サイトのメンバー", 3, "人", "users"],
+          ]
+            .map(
+              ([t, n, u, i]) =>
+                `<div class="card stat"><label>${t}</label><div class="number">${n}<small>${u}</small></div><span class="stat-icon">${icon(i)}</span></div>`,
+            )
+            .join(
+              "",
+            )}</div><section class="card"><header class="card-header"><h2>配信中の施策</h2><a class="button link" href="#/campaigns" data-nav="campaigns">すべての施策を見る →</a></header>${campaignTable(cs.filter((c) => c.status === "active"))}</section><section class="card section-gap"><header class="card-header"><h2>施策の実施結果</h2><span class="pill">今後対応</span></header><div class="results-placeholder"><div class="placeholder-bars"><i></i><i></i><i></i><i></i></div><h3>結果を、次のアイデアに。</h3><p>配信実績・効果の集計は、別途設計して追加します。<br>この画面では架空の実績値を表示しません。</p></div></section>`
+        );
+      }
+      function filtered() {
+        return site().campaigns.filter(
+          (c) =>
+            (s.filter === "all" || c.status === s.filter) &&
+            (!s.query || (c.title + c.intent).includes(s.query)),
+        );
+      }
+      function campaignsPage() {
+        return (
+          heading(
+            "CAMPAIGNS",
+            "施策一覧",
+            "配信中・下書き・停止中の施策をまとめて管理します。",
+            button(
+              icon("plus") + "新規施策を作成",
+              "new-campaign",
+              "primary",
+              !canEdit(),
+            ),
+          ) +
+          (canEdit()
+            ? ""
+            : info(
+                "このサイトでは閲覧権限です。施策の作成・変更には編集者以上の権限が必要です。",
+              )) +
+          `<section class="card"><div class="toolbar"><div class="filter-tabs">${[
+            ["all", "すべて"],
+            ["active", "配信中"],
+            ["draft", "下書き"],
+            ["paused", "停止中"],
+          ]
+            .map(
+              ([id, n]) =>
+                `<button class="${s.filter === id ? "selected" : ""}" data-filter="${id}">${n} <small>${id === "all" ? site().campaigns.length : site().campaigns.filter((c) => c.status === id).length}</small></button>`,
+            )
+            .join(
+              "",
+            )}</div><label class="search">${icon("search")}<input id="campaignSearch" placeholder="施策を検索" aria-label="施策を検索" value="${esc(s.query)}"></label></div>${campaignTable(filtered())}</section>`
+        );
+      }
+      function editPage() {
+        const c = s.edit;
+        if (!c) return "<p>施策一覧から施策を選んでください。</p>";
+        const disabled = !canEdit();
+        const field = (name, label, value, area = false, hint = "") =>
+          `<label class="field">${label}${area ? `<textarea aria-label="${esc(label)}" aria-describedby="hint-${name}" data-edit="${name}">${esc(value)}</textarea>` : `<input aria-label="${esc(label)}" aria-describedby="hint-${name}" data-edit="${name}" value="${esc(value)}">`}${hint ? `<span class="hint" id="hint-${name}">${hint}</span>` : ""}</label>`;
+        let fields = "";
+        if (s.editTab === "audience")
+          fields =
+            field(
+              "title",
+              "施策名",
+              c.title,
+              false,
+              "一覧で管理するための名前です。サイト上には表示されません。",
+            ) +
+            field(
+              "intent",
+              "どんな人に、どんな状態で届けたいですか？",
+              c.intent,
+              true,
+              "閲覧から読み取りたい関心や状況を、ふだんの言葉で書いてください。",
+            ) +
+            info(
+              "実装済みの質問案作成・質問の確認は、この条件画面にまとめます。口語をそのまま確定条件として扱わず、配信前に確認できる形にします。",
+            ) +
+            field(
+              "threshold",
+              "判定の閾値",
+              c.threshold,
+              false,
+              "判定値がこの値を超えるときに対象とします。購入確率ではありません。",
+            );
+        if (s.editTab === "content")
+          fields =
+            `<label class="field">表示形式</label><div class="segmented">${["modal", "floating", "bar"].map((t) => `<button type="button" data-type="${t}" class="${c.type === t ? "selected" : ""}" ${disabled ? "disabled" : ""}>${typeNames[t]}</button>`).join("")}</div><div class="section-label">表示するコンテンツ</div>` +
+            field("body", "メッセージ", c.body, true) +
+            field("label", "ボタンの文言", c.label) +
+            field("link", "リンク先URL", c.link || "") +
+            info(
+              "色・フォント・余白などの基本デザインは「サイト設定」で共通管理します。独自JavaScriptの登録・変更はサイト管理者が行います。",
+            );
+        if (s.editTab === "delivery")
+          fields =
+            field(
+              "target",
+              "表示するページ",
+              c.target,
+              false,
+              "例：/ja/。閲覧情報を収集する範囲とは分けて設定します。",
+            ) +
+            `<label class="field">配信状態<select data-edit="status"><option value="draft" ${c.status === "draft" ? "selected" : ""}>下書き</option><option value="active" ${c.status === "active" ? "selected" : ""}>配信中</option><option value="paused" ${c.status === "paused" ? "selected" : ""}>停止中</option></select><span class="hint">配信開始は、保存とは別に内容を確認してから確定します。</span></label>` +
+            info(
+              "表示回数・優先順位・閉じた状態などの詳細条件も、この画面に集約します。",
+            );
+        return (
+          heading(
+            "CAMPAIGN EDITOR",
+            c.id === "new" ? "新しい施策をつくる。" : esc(c.title),
+            "対象者を決めて、伝える内容と配信条件を整えます。",
+            `<a class="button" href="#/campaigns" data-nav="campaigns">一覧へ戻る</a>`,
+          ) +
+          `<div class="grid2"><div><section class="card"><div class="tabs">${[
+            ["audience", "対象者・条件"],
+            ["content", "表示コンテンツ"],
+            ["delivery", "配信設定"],
+          ]
+            .map(
+              ([id, t]) =>
+                `<button data-edit-tab="${id}" class="${s.editTab === id ? "selected" : ""}">${t}</button>`,
+            )
+            .join(
+              "",
+            )}</div><div class="card-body"><fieldset ${disabled ? "disabled" : ""}>${fields}</fieldset></div></section><div class="editor-footer"><span id="dirtyState" class="${s.dirty ? "draft-indicator" : ""}">${s.dirty ? "未保存の変更があります" : "保存済みの内容です"}</span><div class="actions">${button("下書き保存", "save-draft", "", disabled)}${button("配信内容を確認", "review-campaign", "primary", disabled)}</div></div></div><aside class="card preview-card"><header class="card-header"><h3>表示のイメージ</h3><span class="pill">プレビュー</span></header><div class="preview-stage" id="previewStage">${preview(c)}</div><p class="preview-caption">サイトの共通デザインが適用されます。</p><div class="card-body"><div class="meta-row"><span>サイト</span><span>${esc(site().name)}</span></div><div class="meta-row"><span>表示形式</span><span>${typeNames[c.type]}</span></div><div class="meta-row"><span>現在の状態</span>${badge(c)}</div></div></aside></div>`
+        );
+      }
+      function preview(c) {
+        return `<div class="preview-offer ${c.type === "bar" ? "bar" : ""}"><span class="close">×</span><h3>${esc(c.title || "あなたにおすすめの情報")}</h3><p>${esc(c.body || "ここにオファーのメッセージが表示されます。")}</p><span class="cta">${esc(c.label || "詳しく見る")} ↗</span></div>`;
+      }
+      function settingsPage() {
+        let fields =
+          s.settingsTab === "general"
+            ? `<label class="field">サイト名<input value="${esc(site().name)}" data-setting="name"></label><label class="field">対象サイトのオリジン<input value="https://${esc(site().domain)}" data-setting="origin"><span class="hint">タグを設置するサイトのオリジンです。管理画面のパスキーのドメインとは別です。</span></label><div class="fields2"><label class="field">収集する経路<input value="/ja/" data-setting="paths"></label><label class="field">収集しない経路<input value="/account, /checkout" data-setting="excluded"></label></div><label class="check"><input type="checkbox" checked data-setting="metadata">ページのメタデータ送信を有効にする</label><label class="field">サイトに設置する共通タグ<textarea readonly rows="3">&lt;script defer src="https://your-jevsense.example/sdk.js" data-site="${esc(site().id)}"&gt;&lt;/script&gt;</textarea><span class="hint">モック用のURLです。このタグを実サイトへ設置しないでください。</span></label>`
+            : `<label class="field">基本の雰囲気<select data-setting="font"><option>システムフォント · シンプル</option><option>セリフ体 · エディトリアル</option></select></label>${[
+                ["背景色", "#ffffff"],
+                ["文字色", "#233c31"],
+                ["アクセントカラー", "#224f3d"],
+              ]
+                .map(
+                  ([t, c]) =>
+                    `<label class="color-row"><input type="color" value="${c}" data-setting="color"><span>${t}</span><small>${c}</small></label>`,
+                )
+                .join(
+                  "",
+                )}<div class="fields2"><label class="field">角の丸み<input type="number" value="12" data-setting="radius"><span class="hint">px</span></label><label class="field">内側の余白<input type="number" value="24" data-setting="padding"><span class="hint">px</span></label></div>${info("モーダル・フローティング・通知バーの共通設定をここで管理します。個々の施策では内容に集中できます。")}`;
+        return (
+          heading(
+            "SITE SETTINGS",
+            "サイトのらしさを、整える。",
+            "接続・収集範囲と、オファーの共通デザインを管理します。",
+          ) +
+          (!canManage()
+            ? info(
+                "このサイトの設定は閲覧のみ可能です。変更にはサイト管理者の権限が必要です。",
+              )
+            : "") +
+          `<div class="grid2"><div><section class="card"><div class="tabs">${[
+            ["general", "接続・タグ"],
+            ["design", "共通デザイン"],
+          ]
+            .map(
+              ([id, t]) =>
+                `<button data-settings-tab="${id}" class="${s.settingsTab === id ? "selected" : ""}">${t}</button>`,
+            )
+            .join(
+              "",
+            )}</div><div class="card-body"><fieldset ${canManage() ? "" : "disabled"}>${fields}</fieldset></div></section><div class="editor-footer"><span>このサイト全体に適用されます。</span>${button("サイト設定を保存", "save-settings", "primary", !canManage())}</div></div><aside class="card preview-card"><header class="card-header"><h3>共通デザイン</h3><span class="pill">Preview</span></header><div class="preview-stage">${preview(site().campaigns[0] || blankCampaign())}</div><p class="preview-caption">見た目のカスタマイズは既存機能を引き継ぎます。</p></aside></div>`
+        );
+      }
+      function diagnosticsPage() {
+        return (
+          heading(
+            "DIAGNOSTICS",
+            "実際の動きを、確かめる。",
+            "実サイトの計測から表示まで、ひとつずつ確認しましょう。",
+          ) +
+          `<div class="step-list">${[
+            [
+              "01",
+              "ページを指定",
+              "共通タグを設置した、確認したいページのURLを入力します。",
+            ],
+            [
+              "02",
+              "いつもどおり閲覧",
+              "ページを開き、同意取得後にサイトを操作します。",
+            ],
+            [
+              "03",
+              "理由を確認",
+              "計測情報・送信内容・Jevの判定・表示結果を確認します。",
+            ],
+          ]
+            .map(
+              ([n, t, d]) =>
+                `<div class="card step"><p class="step-n">STEP ${n}</p><h3>${t}</h3><p>${d}</p></div>`,
+            )
+            .join(
+              "",
+            )}</div><section class="card short"><header class="card-header"><h2>動作確認をはじめる</h2><span class="pill">15分間</span></header><div class="card-body"><label class="field">確認するページのURL<input id="diagnosticUrl" type="url" value="https://${esc(site().domain)}/ja/"><span class="hint">選択中のサイトに登録したオリジンのページを指定してください。</span></label>${info("通常の配信を観察します。診断開始による追加のJev問い合わせや、同意の迂回は行いません。")}${button(icon("debug") + "このサイトで動作確認", "start-diagnostic", "primary", !canEdit())}<p class="help-note">このモックでは接続イメージだけを表示します。実サイトを開いたり、APIを呼び出したりしません。</p></div></section>`
+        );
+      }
+      function membersPage() {
+        if (!canManage())
+          return (
+            heading(
+              "SITE MEMBERS",
+              "このサイトの所属と権限。",
+              "メンバーの招待・管理はサイト管理者が行います。",
+            ) +
+            `<section class="card"><div class="list-row"><div>${esc(s.registeredEmail)}<small>あなたのログインID</small></div><span class="pill">${roleNames[effectiveRole()]}</span></div></section>`
+          );
+        return (
+          heading(
+            "SITE MEMBERS",
+            "同じサイトを、チームで。",
+            "サイトへの所属と権限を管理します。ログインユーザーは環境内で共通です。",
+            button(
+              icon("plus") + "メンバーを招待",
+              "invite-member",
+              "primary",
+              !canManage(),
+            ),
+          ) +
+          `<section class="card"><header class="card-header"><h2>${esc(site().name)}のメンバー</h2><span class="right-note">別サイトの権限は引き継ぎません</span></header>${[
+            [
+              "MS",
+              "佐藤 美香",
+              s.registeredEmail,
+              roleNames[effectiveRole()],
+              s.role === "owner" ? "全サイトにアクセス" : "このサイトのみ",
+            ],
+            [
+              "YT",
+              "高橋 結衣",
+              "yui@example.com",
+              "サイト管理者",
+              "このサイトのみ",
+            ],
+            ["KN", "中村 健", "ken@example.com", "編集者", "このサイトのみ"],
+          ]
+            .map(
+              ([a, n, e, r, d]) =>
+                `<div class="list-row"><div class="list-left"><span class="avatar">${a}</span><div>${n}<small>${esc(e)}</small></div></div><span class="pill">${r}</span><span class="right-note">${d}</span></div>`,
+            )
+            .join("")}${s.invites
+            .filter((v) => v.site === s.site)
+            .map(
+              (v) =>
+                `<div class="list-row"><div>${esc(v.email)}<small>招待中 · リンクの受付待ち</small></div><span class="pill">${roleNames[v.role]}</span>${button("招待を取り消す", "cancel-invite:" + v.id, "small", !canManage())}</div>`,
+            )
+            .join(
+              "",
+            )}</section>${info("Superuserの追加・ユーザー停止は「JevSense管理」で行います。サイト管理者が他サイトや環境全体の権限を付与することはできません。")}`
+        );
+      }
+      function installationPage() {
+        if (s.role !== "owner")
+          return '<section class="no-access"><h2>Superuserの権限が必要です。</h2><p class="desc">サイトでの権限とは別に管理します。</p></section>';
+        const tabs = `<div class="tabs">${[
+          ["sites", "すべてのサイト"],
+          ["users", "ユーザーと権限"],
+          ["system", "JevSense設定"],
+        ]
+          .map(
+            ([id, t]) =>
+              `<button data-installation-tab="${id}" class="${s.installationTab === id ? "selected" : ""}">${t}</button>`,
+          )
+          .join("")}</div>`;
+        let body = "";
+        if (s.installationTab === "sites")
+          body = `<header class="card-header"><h2>この環境のすべてのサイト</h2>${button(icon("plus") + "サイトを追加", "add-site", "small")}</header>${s.sites.map((v) => `<div class="list-row"><div class="list-left"><span class="site-avatar">${esc(v.initial)}</span><div>${esc(v.name)}<small>${esc(v.domain)}</small></div></div><span class="pill">${esc(v.id)}</span><button class="button small" data-site-open="${esc(v.id)}">このサイトを開く ↗</button></div>`).join("")}`;
+        if (s.installationTab === "users")
+          body = `<header class="card-header"><h2>環境内のユーザー</h2>${button("Superuser権限を管理", "manage-superuser", "small")}</header><div class="list-row"><div class="list-left"><span class="avatar">MS</span><div>佐藤 美香<small>${esc(s.registeredEmail)}</small></div></div><span class="pill">Superuser · 全サイト</span><span class="right-note">最後のSuperuserは降格・停止不可</span></div><div class="list-row"><div class="list-left"><span class="avatar">YT</span><div>高橋 結衣<small>yui@example.com</small></div></div><span class="pill">2サイトに所属</span>${button("所属を確認", "show-memberships", "small")}</div><div class="card-body">${info("ユーザー停止・他端末のログアウト・復旧リンク発行も、ここへ集約する予定です。サイト管理者は他サイトに影響するアカウント復旧や全体権限を変更できません。")}</div>`;
+        if (s.installationTab === "system")
+          body = `<header class="card-header"><h2>JevSense共通設定</h2><span class="pill">今後の設定を含む案</span></header><div class="card-body"><label class="field">環境の名前<input id="environmentName" value="${esc(s.environmentName)}"><span class="hint">このJevSenseにログインするメンバー全員に表示されます。</span></label><div class="section-label">AI接続・利用上限（将来の設定候補）</div><fieldset disabled><div class="fields2"><label class="field">利用モデル<input value="jev-1.14.0"></label><label class="field">1日の問い合わせ上限<input value="1000"></label></div><label class="field">接続キー<input type="text" value="設定済み（値は表示しない・サンプル）"></label></fieldset>${info("現在Cloudflareで設定している値を、将来この画面で扱う案です。このモックは実環境のキーや設定を読みません。")}<div class="section-label">ログインと招待</div><div class="meta-row"><span>招待の共有</span><strong>管理者がリンクを手動共有</strong></div><div class="meta-row"><span>メール送信</span><span>未使用 · 将来追加可能</span></div><div class="meta-row"><span>認証</span><span>パスキー / リカバリーコード</span></div><p class="help-note">パスキーは管理画面のドメインに紐づきます。管理対象サイトのドメインごとに登録する必要はありません。本番登録前に管理画面URLを確定します。</p><div class="section-gap">${button("環境名の保存を再現", "save-environment", "primary")}</div></div>`;
+        return (
+          heading(
+            "SUPERUSER CONSOLE",
+            "JevSense全体を管理する。",
+            "この環境の全サイト・ユーザー・共通設定にアクセスできます。サイト管理者とは別の権限です。",
+          ) +
+          info(
+            "Superuserは全サイトに対する権限を持ちます。追加・停止・重要設定の変更にはパスキーでの再認証を求めます。",
+          ) +
+          `<section class="card">${tabs}${body}</section>`
+        );
+      }
+      function accountPage() {
+        return (
+          heading(
+            "YOUR ACCOUNT",
+            "アカウントとセキュリティ。",
+            "パスキーを複数登録して、端末を変えたときにも安心して使えるように。",
+            button(icon("logout") + "ログアウト", "logout", ""),
+          ) +
+          `<section class="card short"><header class="card-header"><h2>プロフィール</h2><span class="pill">ログインID（メール未検証）</span></header><div class="card-body"><div class="meta-row"><span>表示名</span><strong>佐藤 美香</strong></div><div class="meta-row"><span>メールアドレス</span><strong>${esc(s.registeredEmail)}</strong></div></div></section><section class="card short section-gap"><header class="card-header"><h2>登録したパスキー</h2>${button(icon("plus") + "追加する", "add-passkey", "small")}</header>${s.passkeys.map((p, i) => `<div class="list-row"><div class="list-left">${icon(i ? "key" : "device")}<div>${esc(p)}<small>${i === 0 ? "前回のログインで使用" : "予備のパスキー"}</small></div></div><button class="button small" data-remove-key="${i}" ${s.passkeys.length < 2 ? "disabled" : ""}>削除</button></div>`).join("")}</section><section class="card short section-gap"><header class="card-header"><h2>リカバリーコード</h2><span class="pill">未表示</span></header><div class="card-body"><p class="desc">すべてのパスキーが使えなくなった場合のために、コードを安全な場所に保存してください。再発行すると以前のコードは使えなくなります。</p><div class="section-gap">${button("コードの発行フローを見る", "recovery-codes", "")}</div></div></section><section class="card short section-gap"><header class="card-header"><h2>ログイン中の端末</h2></header><div class="list-row"><div>このブラウザ<small>現在のセッション</small></div><span class="pill">使用中</span></div><div class="card-body">${button("他の端末からログアウトする", "revoke-sessions", "")}</div></section>`
+        );
+      }
+      function render() {
+        let route = location.hash.replace(/^#\/?/, "") || "login";
+        const auth = ["login", "setup", "invite", "recover"].includes(route);
+        if (!s.logged && !auth) route = "login";
+        if (auth) {
+          $("app").innerHTML = loginPage(route);
+          $("scenario").value = route;
+          return;
+        }
+        if (!allowedSites().some((v) => v.id === s.site)) s.site = "atelier";
+        let body;
+        if (route.startsWith("campaign/")) body = editPage();
+        else
+          body = (
+            {
+              home: homePage,
+              campaigns: campaignsPage,
+              settings: settingsPage,
+              diagnostics: diagnosticsPage,
+              members: membersPage,
+              installation: installationPage,
+              account: accountPage,
+            }[route] || homePage
+          )();
+        $("app").innerHTML = shell(route, body);
+      }
+      function passkey(mode, complete) {
+        nextAction = complete;
+        dialog(
+          mode === "register" ? "パスキーを登録" : "パスキーで本人確認",
+          `<div class="fingerprint">${icon("finger")}</div><p>${mode === "register" ? "この端末またはセキュリティキーに、パスキーを登録します。" : "端末のパスキーでログインを確認します。"}<br><br><strong>UIモックです。実際の端末認証は行いません。</strong></p>`,
+          button("キャンセル", "cancel", "") +
+            button(
+              mode === "register" ? "登録成功を再現" : "認証成功を再現",
+              "passkey-success",
+              "primary",
+            ),
+          "auth",
+        );
+      }
+      function signIn() {
+        s.logged = true;
+        s.dirty = false;
+        location.hash = "/home";
+        render();
+        toast(
+          "モックのログインが完了しました。ヘッダーからサイトを切り替えられます。",
+        );
+      }
+      function saveCampaign(active = false) {
+        if (!s.edit?.title.trim()) {
+          toast("施策名を入力してください。");
+          return;
+        }
+        const c = structuredClone(s.edit);
+        if (c.id === "new") c.id = "campaign-" + (site().campaigns.length + 1);
+        c.status = active ? "active" : "draft";
+        const at = site().campaigns.findIndex((v) => v.id === c.id);
+        if (at < 0) site().campaigns.push(c);
+        else site().campaigns[at] = c;
+        s.edit = c;
+        s.dirty = false;
+        closeDialog();
+        location.hash = "/campaigns";
+        render();
+        toast(
+          active
+            ? "配信開始の操作を再現しました。実際の配信は変更されません。"
+            : "下書き保存を再現しました。データはこのモックのメモリ内だけです。",
+        );
+      }
+      const actions = {
+        "save-environment": () => {
+          if (s.role !== "owner") return;
+          const v = $("environmentName")?.value.trim();
+          if (v) s.environmentName = v;
+          render();
+          toast("環境名の変更をモック内で再現しました。");
+        },
+        "manage-superuser": () => {
+          if (s.role !== "owner") return;
+          passkey("authenticate", () =>
+            dialog(
+              "Superuser権限の管理",
+              "<p>Superuserは、全サイト・全ユーザー・JevSense共通設定を管理できます。実装版では権限付与の確認と監査記録を必須にし、最後の1人を停止・降格できないようにします。このモックでは権限は付与しません。</p>",
+              button("確認した", "cancel", "primary"),
+            ),
+          );
+        },
+        "preview-invite": () => {
+          closeDialog();
+          s.logged = false;
+          s.dirty = false;
+          location.hash = "/invite";
+          render();
+        },
+        cancel: () => {
+          closeDialog();
+          nextAction = null;
+        },
+        discard: () => {
+          const fn = nextAction;
+          nextAction = null;
+          s.dirty = false;
+          closeDialog();
+          fn?.();
+        },
+        "passkey-success": () => {
+          const fn = nextAction;
+          nextAction = null;
+          closeDialog();
+          fn?.();
+        },
+        join: () =>
+          passkey("register", () => {
+            const i = s.currentInvite || {
+              email: "yui@example.com",
+              site: "atelier",
+              role: "editor",
+            };
+            s.registeredEmail = i.email;
+            s.role = i.role;
+            s.site = i.site;
+            $("demoRole").value = i.role;
+            signIn();
+            toast("招待への参加を再現しました。サイトの所属権限で表示します。");
+          }),
+        "other-device": () => passkey("authenticate", signIn),
+        "new-campaign": () => {
+          if (!canEdit()) return;
+          guard(() => {
+            s.edit = blankCampaign();
+            s.editTab = "audience";
+            s.dirty = false;
+            location.hash = "/campaign/new";
+            render();
+          });
+        },
+        "save-draft": () => {
+          if (canEdit()) saveCampaign(false);
+        },
+        "review-campaign": () => {
+          if (!canEdit() || !s.edit?.title.trim()) {
+            toast("施策名を入力してください。");
+            return;
+          }
+          dialog(
+            "配信内容を確認",
+            `<p>「${esc(s.edit.title)}」を${esc(site().name)}で配信する操作を再現します。</p><div class="mock-diagnostic"><div>対象者：${esc(s.edit.intent || "未入力")}</div><div>表示形式：${typeNames[s.edit.type]}</div><div>対象ページ：${esc(s.edit.target)}</div></div><p>本モックから実際の配信は開始されません。</p>`,
+            button("戻る", "cancel", "") +
+              button("配信開始を再現", "publish-campaign", "primary"),
+          );
+        },
+        "publish-campaign": () => {
+          if (canEdit()) saveCampaign(true);
+        },
+        "save-settings": () => {
+          if (!canManage()) return;
+          const n = document.querySelector('[data-setting="name"]');
+          if (n?.value.trim()) site().name = n.value.trim();
+          s.dirty = false;
+          render();
+          toast("サイト設定の保存を再現しました。実環境への変更はありません。");
+        },
+        "start-diagnostic": () => {
+          if (!canEdit()) return;
+          dialog(
+            "実サイトの動作確認",
+            `<p>実装版では別タブに既存のデバッグパネルを開きます。このモックでは通信を行いません。</p><div class="mock-diagnostic"><div>✓ 選択中：${esc(site().name)}</div><div>✓ サイト限定の診断認可を発行</div><div>✓ 計測 → APIへの送信 → Jev判定 → 描画</div><div>有効時間：15分間</div></div>`,
+            button("閉じる", "cancel", "primary"),
+          );
+        },
+        "invite-member": () => {
+          if (!canManage()) return;
+          dialog(
+            "メンバーを招待",
+            `<p>${esc(site().name)}への招待です。他サイトや環境全体の権限は付与されません。</p><form id="inviteForm"><label class="field">メールアドレス<input type="email" name="email" required placeholder="member@example.com"></label><label class="field">このサイトでの権限<select name="role"><option value="editor">編集者 · 施策の作成・編集・配信</option><option value="viewer">閲覧者 · 設定の閲覧</option><option value="admin">サイト管理者 · 設定・メンバーも管理</option></select></label></form><p>期限付きの招待リンクを発行し、管理者が本人へ直接共有します。メールは送信しません。</p>`,
+            button("キャンセル", "cancel", "") +
+              button("招待を作成（モック）", "confirm-invite", "primary"),
+          );
+        },
+        "confirm-invite": () => {
+          if (!canManage()) return;
+          const f = $("inviteForm");
+          if (!f.reportValidity()) return;
+          const v = new FormData(f);
+          s.currentInvite = {
+            id: String(Date.now()),
+            site: s.site,
+            email: v.get("email"),
+            role: v.get("role"),
+          };
+          s.invites.push(s.currentInvite);
+          closeDialog();
+          render();
+          dialog(
+            "招待リンクの発行イメージ",
+            '<p>初期版ではこのリンクを管理者が本人へ直接共有します。これは動作しない見本です。実装版のリンクは24時間有効・1回限りです。</p><label class="field">共有する招待リンク<input readonly value="https://your-jevsense.example/admin/invite#token=DEMO-NOT-VALID"></label>',
+            button("一覧へ戻る", "cancel", "") +
+              button("招待された側の画面を見る", "preview-invite", "primary"),
+          );
+        },
+        "add-site": () => {
+          if (s.role !== "owner") return;
+          dialog(
+            "新しいサイトを追加",
+            `<p>同じ環境の中にサイトを追加します。ログインアカウントは作り直す必要がありません。</p><form id="siteForm"><label class="field">サイト名<input name="name" required placeholder="例：採用サイト"></label><label class="field">サイトID<input name="id" required pattern="[a-zA-Z0-9_-]{1,64}" placeholder="例：careers"></label><label class="field">サイトのドメイン<input name="domain" required placeholder="careers.example.com"></label></form>`,
+            button("キャンセル", "cancel", "") +
+              button("追加を再現", "confirm-site", "primary"),
+          );
+        },
+        "confirm-site": () => {
+          if (s.role !== "owner") return;
+          const f = $("siteForm");
+          if (!f.reportValidity()) return;
+          const v = Object.fromEntries(new FormData(f));
+          if (s.sites.some((x) => x.id === v.id)) {
+            toast("そのサイトIDは使われています。");
+            return;
+          }
+          s.sites.push({ ...v, initial: v.name.slice(0, 1), campaigns: [] });
+          closeDialog();
+          render();
+          toast(
+            "サイトをモックに追加しました。実環境のサイトは作成していません。",
+          );
+        },
+        "show-memberships": () =>
+          dialog(
+            "高橋 結衣さんの所属",
+            `<div class="mock-diagnostic"><div>Atelier Store：サイト管理者</div><div>Studio Journal：編集者</div></div><p>1人のユーザーに、サイトごとに異なる権限を設定できます。</p>`,
+            button("閉じる", "cancel", "primary"),
+          ),
+        "add-passkey": () =>
+          passkey("register", () => {
+            s.passkeys.push("追加したパスキー（モック）");
+            render();
+            toast("パスキー追加の操作を再現しました。");
+          }),
+        "recovery-codes": () =>
+          passkey("authenticate", () =>
+            dialog(
+              "リカバリーコードの保管",
+              `<p>実装版では一度だけコードを表示し、安全な場所への保管を案内します。ここに示すコードは利用できない見本です。</p><div class="mock-diagnostic">DEMO-ONLY-NOT-A-RECOVERY-CODE</div><p>コードは1回限りで使用し、新しいパスキーの登録と他のセッションの失効へ進みます。</p>`,
+              button("保管フローを確認した", "cancel", "primary"),
+            ),
+          ),
+        "revoke-sessions": () =>
+          passkey("authenticate", () =>
+            toast("他の端末のセッション失効を再現しました。"),
+          ),
+        logout: () =>
+          guard(() => {
+            s.logged = false;
+            s.dirty = false;
+            location.hash = "/login";
+            render();
+            toast("ログアウトを再現しました。");
+          }),
+      };
+      document.addEventListener("click", (e) => {
+        const nav = e.target.closest("[data-nav]");
+        if (nav) {
+          e.preventDefault();
+          go(nav.dataset.nav);
+          return;
+        }
+        const action = e.target.closest("[data-action]");
+        if (action && !action.disabled) {
+          const a = action.dataset.action;
+          if (a.startsWith("cancel-invite:")) {
+            if (!canManage()) return;
+            s.invites = s.invites.filter((v) => v.id !== a.split(":")[1]);
+            render();
+            toast("招待を取り消しました（モック）。");
+            return;
+          }
+          actions[a]?.();
+          return;
+        }
+        const open = e.target.closest("[data-open]");
+        if (open) {
+          guard(() => {
+            s.edit = structuredClone(
+              site().campaigns.find((c) => c.id === open.dataset.open),
+            );
+            s.editTab = "audience";
+            s.dirty = false;
+            location.hash = "/campaign/" + open.dataset.open;
+            render();
+          });
+          return;
+        }
+        const toggle = e.target.closest("[data-toggle]");
+        if (toggle && canEdit()) {
+          const c = site().campaigns.find(
+            (v) => v.id === toggle.dataset.toggle,
+          );
+          dialog(
+            c.status === "active"
+              ? "配信を停止しますか？"
+              : "配信を再開しますか？",
+            `<p>${esc(c.title)}の状態変更を再現します。実際の配信には影響しません。</p>`,
+            `<button class="button" data-action="cancel">キャンセル</button><button class="button primary" id="confirmToggle">変更を再現</button>`,
+          );
+          $("confirmToggle").onclick = () => {
+            c.status = c.status === "active" ? "paused" : "active";
+            closeDialog();
+            render();
+          };
+          return;
+        }
+        const filter = e.target.closest("[data-filter]");
+        if (filter) {
+          s.filter = filter.dataset.filter;
+          render();
+          return;
+        }
+        const tab = e.target.closest("[data-edit-tab]");
+        if (tab) {
+          s.editTab = tab.dataset.editTab;
+          render();
+          return;
+        }
+        const install = e.target.closest("[data-installation-tab]");
+        if (install && s.role === "owner") {
+          s.installationTab = install.dataset.installationTab;
+          render();
+          return;
+        }
+        const settings = e.target.closest("[data-settings-tab]");
+        if (settings) {
+          guard(() => {
+            s.settingsTab = settings.dataset.settingsTab;
+            render();
+          });
+          return;
+        }
+        const type = e.target.closest("[data-type]");
+        if (type && canEdit()) {
+          s.edit.type = type.dataset.type;
+          s.dirty = true;
+          render();
+          return;
+        }
+        const key = e.target.closest("[data-remove-key]");
+        if (key && s.passkeys.length > 1) {
+          const i = Number(key.dataset.removeKey);
+          passkey("authenticate", () => {
+            s.passkeys.splice(i, 1);
+            render();
+            toast("パスキー削除を再現しました。");
+          });
+          return;
+        }
+        const choose = e.target.closest("[data-site-open]");
+        if (choose && s.role === "owner") {
+          guard(() => {
+            s.site = choose.dataset.siteOpen;
+            location.hash = "/home";
+            render();
+          });
+        }
+      });
+      document.addEventListener("submit", (e) => {
+        const f = e.target.closest("[data-form]");
+        if (!f) return;
+        e.preventDefault();
+        if (!f.reportValidity()) return;
+        const data = Object.fromEntries(new FormData(f));
+        if (f.dataset.form === "login") {
+          s.registeredEmail = data.email;
+          passkey("authenticate", signIn);
+        }
+        if (f.dataset.form === "setup") {
+          s.registeredEmail = data.email;
+          s.environmentName = data.environment;
+          passkey("register", () => {
+            s.role = "owner";
+            $("demoRole").value = "owner";
+            signIn();
+            toast("初回管理者の登録を再現しました。次にサイトを追加できます。");
+          });
+        }
+        if (f.dataset.form === "recovery") {
+          s.registeredEmail = data.email;
+          dialog(
+            "新しいパスキーを登録",
+            `<p>実装版ではコードを1回限りで検証し、パスキー再登録だけができる短期の復旧状態に進みます。コード入力だけで管理画面へは入りません。</p>`,
+            button("戻る", "cancel", "") +
+              button("パスキー再登録へ", "recover-register", "primary"),
+          );
+          actions["recover-register"] = () =>
+            passkey("register", () => {
+              signIn();
+              toast(
+                "復旧を再現しました。実装版では他の端末のセッションも失効します。",
+              );
+            });
+        }
+      });
+      document.addEventListener("input", (e) => {
+        if (e.target.id === "campaignSearch") {
+          s.query = e.target.value;
+          $("campaignRows").innerHTML = campaignRows(filtered());
+          return;
+        }
+        if (e.target.dataset.edit && canEdit()) {
+          s.edit[e.target.dataset.edit] = e.target.value;
+          s.dirty = true;
+          const dirty = $("dirtyState");
+          if (dirty) {
+            dirty.textContent = "未保存の変更があります";
+            dirty.className = "draft-indicator";
+          }
+          if ($("previewStage")) $("previewStage").innerHTML = preview(s.edit);
+        }
+        if (e.target.dataset.setting && canManage()) s.dirty = true;
+      });
+      document.addEventListener("change", (e) => {
+        if (e.target.id === "siteSwitcher") {
+          const id = e.target.value;
+          e.target.value = s.site;
+          guard(() => {
+            s.site = id;
+            s.dirty = false;
+            s.edit = null;
+            s.filter = "all";
+            s.query = "";
+            location.hash = "/home";
+            render();
+          });
+        }
+        if (e.target.id === "demoRole") {
+          s.role = e.target.value;
+          if (!allowedSites().some((v) => v.id === s.site)) s.site = "atelier";
+          s.edit = null;
+          s.dirty = false;
+          location.hash = s.logged ? "/home" : "/login";
+          render();
+        }
+        if (e.target.id === "scenario") {
+          s.dirty = false;
+          s.logged = false;
+          closeDialog();
+          location.hash = "/" + e.target.value;
+          render();
+        }
+      });
+      document.addEventListener("keydown", (e) => {
+        const modal = $("modalRoot").querySelector('[role="dialog"]');
+        if (!modal) return;
+        if (e.key === "Escape") {
+          closeDialog();
+          nextAction = null;
+        }
+        if (e.key === "Tab") {
+          const nodes = [
+            ...modal.querySelectorAll(
+              "button:not(:disabled),input,select,textarea,[href]",
+            ),
+          ];
+          const first = nodes[0],
+            last = nodes.at(-1);
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last?.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first?.focus();
+          }
+        }
+      });
+      window.addEventListener("hashchange", render);
+      render();
+    </script>
+  </body>
+</html>

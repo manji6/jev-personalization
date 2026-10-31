@@ -30,6 +30,22 @@ test("Workers serves assets with security headers, SDK and correct unknown API h
   assert.equal((await dispatch("/admin/api/missing")).status, 401);
   assert.equal((await dispatch("/missing")).status, 404);
   assert.equal((await dispatch("/admin.html")).status, 404);
+  const preview = await dispatch("/admin-preview");
+  assert.equal(preview.status, 200);
+  assert.match(
+    preview.headers.get("Content-Security-Policy"),
+    /connect-src 'none'/,
+  );
+  assert.match(
+    preview.headers.get("Content-Security-Policy"),
+    /script-src 'sha256-/,
+  );
+  assert.match(await preview.text(), /UI PROTOTYPE/);
+  const head = await dispatch("/admin-preview", { method: "HEAD" });
+  assert.equal(
+    head.headers.get("Content-Security-Policy"),
+    preview.headers.get("Content-Security-Policy"),
+  );
 });
 test("D1 configuration persistence, auth, primary reads and atomic concurrent edits", async (t) => {
   const { dispatch, db } = await setup(t);

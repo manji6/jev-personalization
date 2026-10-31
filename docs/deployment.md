@@ -71,3 +71,15 @@ CLOUDFLARE_API_TOKENをWorkerのSecretsへ登録する必要はない。キー�
 - Adobe検証サイトのHEAD応答は200で、確認時点にCross-Origin-Opener-Policyヘッダーはなし。実サイト上で管理認証した診断操作は自動実施していない。
 
 管理画面と対象サイトを再読込して利用する。起動方法と記録範囲は[診断マニュアル](debugging.md)を参照。
+
+## 2026-10-31：管理画面v2の検討・モック（公開URLへの追加は保留）
+
+- [認証・サイト所属・Superuser・画面構造の設計案](admin-v2-plan.md)と[操作モックHTML](prototypes/admin-v2.html)を作成。手動共有の招待を初期方式とし、将来のメール配送と分離。
+- `/admin-preview` 用の隔離した表示経路をNode・Workersへ追加。HTMLは架空データのみで、API接続と本物のWebAuthnをCSP・Permissions-Policyでも制限。既存の管理画面・認証は維持。
+- 自動テスト82件（単体・HTTP・DOM 33、workerd 8、Chromium 41）、書式チェック、Wrangler dry-runが成功。
+- 別の隔離実験でSimpleWebAuthn 14.0.3とworkerdのES256登録・署名検証など6項目を観測。本番のユーザーDB・パスキー認証・招待・セッション・復旧・DB移行は未実装。
+- 公開用のCloudflare APIはD1要求に10000 Authentication error、トークン検証APIにHTTP 401 / Invalid API Tokenを返した。環境の設定観測はreadyだが、実際のCloudflare認証が成功することを示さない。
+- 配備コマンドはD1マイグレーションの確認段階で停止し、Assetアップロードには進んでいない。新しい公開Version IDはない。既存DBの内容比較も認証エラーで実施できず、比較済みとは扱わない。
+- トークン値は表示・記録していない。現行の公開環境やSecretsを変更する操作、新規リソースの作成は行っていない。
+
+Web上のレビューURLは認証復旧後に追加する。単独HTMLはダウンロードしてブラウザで開ける。設計書の画面例からもレビューできる。

@@ -9,6 +9,7 @@ import { ALGORITHM_VERSION, prepare, select, draftIntent } from "./engine.js";
 import { Store } from "./store.js";
 import { createJev } from "./jev.js";
 import { publicOffer, customModule } from "./offer-response.js";
+import { adminPreviewCSP } from "./admin-preview.js";
 import {
   DEBUG_HEADER,
   issueDebugSession,
@@ -82,6 +83,20 @@ export async function buildApp({
     });
   });
   app.get("/health", async () => ({ ok: true }));
+  app.get("/admin-preview", async (req, reply) => {
+    const html = await readFile(
+      new URL("../docs/prototypes/admin-v2.html", import.meta.url),
+      "utf8",
+    );
+    return reply
+      .header("Content-Security-Policy", await adminPreviewCSP(html))
+      .header(
+        "Permissions-Policy",
+        "publickey-credentials-get=(), publickey-credentials-create=()",
+      )
+      .type("text/html")
+      .send(html);
+  });
   app.get("/sdk.js", async (req, reply) =>
     reply
       .type("application/javascript")
