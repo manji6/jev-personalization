@@ -1,3 +1,4 @@
+import { secureOrLoopback } from "./url-policy.js";
 // Shared Web Crypto implementation for Node and Workers. No diagnostic sessions
 // or browsing histories are stored on the server.
 export const DEBUG_HEADER = "X-JevSense-Debug";
@@ -26,10 +27,11 @@ export async function issueDebugSession(
   site,
   target,
   now = Date.now(),
+  identity = {},
 ) {
   const url = new URL(target);
   if (
-    url.protocol !== "https:" ||
+    !secureOrLoopback(url.href) ||
     url.username ||
     url.password ||
     !site.origins.includes(url.origin)
@@ -44,6 +46,9 @@ export async function issueDebugSession(
     origin: url.origin,
     expiresAt: now + DEBUG_TTL_MS,
     nonce: crypto.randomUUID(),
+    ...(identity.actor
+      ? { actor: identity.actor, version: identity.version }
+      : {}),
   };
   const payload = encode(encoder.encode(JSON.stringify(claims)));
   const signature = await crypto.subtle.sign(

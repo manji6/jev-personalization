@@ -1,5 +1,7 @@
 # Cloudflareセットアップ手順
 
+パスキー対応の新管理画面は、以下の基盤設定に加えて[新管理画面への移行手順](admin-v2-setup.md)が必要です。AUTH_MODE・AUTH_ORIGIN・AUTH_SECRETを使います。以下のADMIN_TOKEN入力によるログイン説明は切り替え前の旧方式です。
+
 Cloudflare Workers版を実装しています。管理画面・SDK・判断APIを1つのWorkerで提供し、施策設定はD1へ保存します。閲覧者の履歴・表示状態はブラウザ内に保持します。初回セットアップ後、GitHubへのPushから自動でコードを更新できます。
 
 本リポジトリの運用先には初回デプロイを実施済みです。[初回配備記録](deployment.md)を参照してください。以下は新しい運用先を作る場合の手順です。Secretsの値は利用者がCloudflareで登録します。Node.js版も引き続き使用できます。

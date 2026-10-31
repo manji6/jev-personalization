@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_DESIGN } from "./offer-model.js";
+import { guidedJudgmentSchema } from "./questions.js";
+import { secureOrLoopback } from "./url-policy.js";
 import { validCustomCode } from "./custom-code.js";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -98,11 +100,13 @@ export const inputSchema = z
 export const campaignSchema = z
   .object({
     id,
+    name: text(120).optional(),
+    judgment: guidedJudgmentSchema.optional(),
     enabled: z.boolean(),
     intent: text(1000),
     priority: z.number().int().min(0).max(100),
     questions: z
-      .array(z.object({ key: id, instructions: text(400) }).strict())
+      .array(z.object({ key: id, instructions: text(1000) }).strict())
       .min(1)
       .max(5),
     combination: z.enum(["all", "any"]),
@@ -189,13 +193,10 @@ export const campaignSchema = z
 export const siteSchema = z
   .object({
     id,
+    name: text(80).optional(),
     origins: z
       .array(
-        z
-          .url()
-          .refine(
-            (v) => new URL(v).origin === v && new URL(v).protocol === "https:",
-          ),
+        z.url().refine((v) => new URL(v).origin === v && secureOrLoopback(v)),
       )
       .min(1)
       .max(10),

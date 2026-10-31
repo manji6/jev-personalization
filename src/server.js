@@ -24,6 +24,8 @@ export async function buildApp({
   store,
   jev,
   adminToken,
+  administration,
+  runtimeSettings,
   modelName = "jev-1.14.0",
   maxConcurrent = 10,
   dailyRequestBudget = 1000,
@@ -46,6 +48,34 @@ export async function buildApp({
       .header("X-Content-Type-Options", "nosniff")
       .header("Referrer-Policy", "no-referrer")
       .header("Cache-Control", "no-store");
+    if (
+      administration &&
+      req.url.startsWith("/v1/") &&
+      !req.headers.origin &&
+      req.headers["sec-fetch-site"] === "same-origin"
+    )
+      req.headers.origin = administration.origin;
+    if (
+      administration &&
+      /^\/(admin(?:[/.?]|$)|auth(?:[/?]|$)|control\.(js|css)|v1\/preview\/)/.test(
+        req.url,
+      )
+    ) {
+      if (req.headers.host !== new URL(administration.origin).host)
+        return reply.code(403).send({ error: "origin_rejected" });
+      const init = { method: req.method, headers: req.headers };
+      if (!["GET", "HEAD"].includes(req.method)) {
+        init.body = req.raw;
+        init.duplex = "half";
+      }
+      const response = await administration.handle(
+        new Request(new URL(req.raw.url, administration.origin), init),
+      );
+      for (const [key, value] of response.headers) reply.header(key, value);
+      return reply
+        .code(response.status)
+        .send(Buffer.from(await response.arrayBuffer()));
+    }
     if (req.url.startsWith("/admin/api/")) {
       const actual = createHash("sha256")
         .update(req.headers.authorization ?? "")
@@ -182,7 +212,9 @@ export async function buildApp({
     }
   });
   function siteFor(req, reply, id) {
-    const site = store.get().sites.find((s) => s.id === id);
+    const site = store.site
+      ? store.site(id)
+      : store.get().sites.find((s) => s.id === id);
     if (!site || !site.origins.includes(req.headers.origin)) {
       reply.code(403).send({ error: "origin_rejected" });
       return null;
@@ -225,8 +257,10 @@ export async function buildApp({
   });
   app.get("/v1/debug-session", async (req, reply) => {
     if (!siteFor(req, reply, req.query.siteId)) return;
-    const session = await verifyDebugSession(
-      adminToken,
+    const session = await (
+      administration?.verifyDebug ??
+      ((...args) => verifyDebugSession(adminToken, ...args))
+    )(
       req.headers[DEBUG_HEADER.toLowerCase()],
       req.query.siteId,
       req.headers.origin,
@@ -260,12 +294,10 @@ export async function buildApp({
     const debugToken = req.headers[DEBUG_HEADER.toLowerCase()];
     if (
       debugToken &&
-      !(await verifyDebugSession(
-        adminToken,
-        debugToken,
-        site.id,
-        req.headers.origin,
-      ))
+      !(await (
+        administration?.verifyDebug ??
+        ((...args) => verifyDebugSession(adminToken, ...args))
+      )(debugToken, site.id, req.headers.origin))
     )
       return reply.code(401).send({ error: "debug_session_invalid" });
     const trace = debugToken ? createDebugTrace(site, input) : null;
@@ -290,19 +322,22 @@ export async function buildApp({
       day = today;
       dailyCalls = 0;
     }
-    if (dailyCalls >= dailyRequestBudget)
+    const runtime = runtimeSettings
+      ? await runtimeSettings()
+      : { model: modelName, dailyRequestBudget, maxConcurrent };
+    if (dailyCalls >= runtime.dailyRequestBudget)
       return respond(
         { ...base, decision: "hold", reason: "budget_exhausted" },
         503,
       );
-    if (active >= maxConcurrent)
+    if (active >= runtime.maxConcurrent)
       return respond({ ...base, decision: "hold", reason: "busy" }, 503);
     active++;
     dailyCalls++;
     const modelStart = performance.now();
-    startModelTrace(trace, prepared, modelName);
+    startModelTrace(trace, prepared, runtime.model);
     try {
-      const result = await jev(prepared);
+      const result = await jev(prepared, runtime.model);
       finishModelTrace(trace, prepared, result, performance.now() - modelStart);
       const selected = select(prepared, result);
       return respond({

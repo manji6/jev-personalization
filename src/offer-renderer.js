@@ -52,6 +52,7 @@ export function renderOffer(win, offer, options = {}) {
     }
   };
   const context = {
+    mode: options.mode === "preview" ? "preview" : "delivery",
     content: structuredClone(offer.content),
     variables: structuredClone(offer.custom?.variables ?? {}),
     mount: root,

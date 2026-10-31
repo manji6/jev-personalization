@@ -32,6 +32,13 @@ export async function cloudflareFixture(options = {}) {
       assetConfig: { html_handling: "none", not_found_handling: "none" },
     },
     bindings: {
+      ...(options.passkey
+        ? {
+            AUTH_MODE: "passkey",
+            AUTH_ORIGIN: "https://api.example.com",
+            AUTH_SECRET: "workerd-test-secret-".repeat(3),
+          }
+        : {}),
       ADMIN_TOKEN: adminToken,
       JEV_API_KEY: "fake-test-only",
       DAILY_REQUEST_BUDGET: options.budget ?? "1000",
@@ -60,6 +67,12 @@ export async function cloudflareFixture(options = {}) {
     .prepare("UPDATE app_config SET body = ?, revision = ? WHERE id = 1")
     .bind(JSON.stringify(config), "test-initial")
     .run();
+  if (options.passkey)
+    await db.exec(
+      (await readFile("migrations/0002_administration.sql", "utf8"))
+        .replace(/^--.*$/gm, "")
+        .trim(),
+    );
   const dispatch = (path, init = {}) =>
     mf.dispatchFetch("https://api.example.com" + path, init);
   const decision = (value = input(), extra = {}) =>

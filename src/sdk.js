@@ -1,3 +1,5 @@
+import { installPreview } from "./preview-sdk.js";
+import { secureOrLoopback } from "./url-policy.js";
 import { pathAllowed } from "./engine.js";
 import { renderOffer } from "./offer-renderer.js";
 import { createDebugger } from "./debug-panel.js";
@@ -221,7 +223,12 @@ export function install(win, script) {
     script?.dataset.api ?? script?.src ?? "",
     win.location.href,
   ).origin;
-  if (!siteId || new URL(endpoint).protocol !== "https:") return;
+  if (!siteId || !secureOrLoopback(endpoint)) return;
+  const preview = installPreview(win, { siteId, endpoint });
+  if (preview) {
+    win.JevPersonalization = preview;
+    return preview;
+  }
   const key = `jev:v1:${siteId}`;
   let enabled = false,
     config = null,

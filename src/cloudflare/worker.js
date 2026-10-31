@@ -1,3 +1,4 @@
+import { createAdministration } from "../admin/service.js";
 import { z } from "zod";
 import { configSchema, inputSchema } from "../schema.js";
 import { prepare, select, draftIntent, ALGORITHM_VERSION } from "../engine.js";
@@ -98,6 +99,65 @@ export default {
       "Referrer-Policy": "no-referrer",
     });
     try {
+      let administration;
+      // A completed cutover must never silently restore shared-token access.
+      if (
+        env.AUTH_MODE !== "passkey" &&
+        env.DB &&
+        path !== "/health" &&
+        path !== "/sdk.js"
+      ) {
+        const table = await env.DB.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='admin_settings'",
+        ).first();
+        if (
+          table &&
+          (
+            await env.DB.prepare(
+              "SELECT initialized FROM admin_settings WHERE id=1",
+            ).first()
+          )?.initialized
+        )
+          fail("passkey_mode_required", 503);
+      }
+      if (env.AUTH_MODE === "passkey") {
+        administration = createAdministration({
+          db: env.DB,
+          origin: env.AUTH_ORIGIN,
+          secret: env.AUTH_SECRET,
+          bootstrapToken: env.ADMIN_TOKEN,
+          defaults: {
+            model: env.JEV_MODEL ?? "jev-1.14.0",
+            dailyRequestBudget: integer(
+              env.DAILY_REQUEST_BUDGET,
+              1000,
+              0,
+              1000000,
+            ),
+            maxConcurrent: integer(env.MAX_CONCURRENT, 10, 1, 100),
+          },
+          assets: (file, method) => {
+            const u = new URL("/" + file, url);
+            return env.ASSETS.fetch(new Request(u, { method }));
+          },
+        });
+        if (
+          /^\/(admin(?:[/.]|$)|auth(?:[/?]|$)|control\.(js|css)|v1\/preview\/)/.test(
+            path,
+          )
+        ) {
+          if (!env.RATE_LIMITER) fail("server_not_configured", 503);
+          if (
+            !(
+              await env.RATE_LIMITER.limit({
+                key: request.headers.get("CF-Connecting-IP") ?? "unknown",
+              })
+            ).success
+          )
+            fail("rate_limited", 429);
+          return await administration.handle(request);
+        }
+      }
       if (path === "/health" && request.method === "GET")
         return finish(json({ ok: true }), headers);
       if (
@@ -131,8 +191,8 @@ export default {
         return finish(json({ error: "not_found" }, 404), headers);
       // Missing bindings/secrets fail closed, never use example credentials.
       if (
-        !env.ADMIN_TOKEN ||
-        env.ADMIN_TOKEN.length < 32 ||
+        (!administration &&
+          (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 32)) ||
         !env.DB ||
         !env.MODEL_BUDGET ||
         !env.RATE_LIMITER
@@ -152,7 +212,7 @@ export default {
         const origin = request.headers.get("Origin");
         if (origin && origin !== url.origin) fail("origin_rejected", 403);
       }
-      const store = new D1Store(env.DB);
+      const store = administration?.repo ?? new D1Store(env.DB);
       if (admin) {
         if (path === "/admin/api/debug-session" && request.method === "POST") {
           const parsed = z
@@ -226,9 +286,14 @@ export default {
         : path.startsWith("/v1/sites/")
           ? decodeURIComponent(path.slice(10))
           : url.searchParams.get("siteId");
-      const { config } = await store.load();
-      const site = config.sites.find((s) => s.id === siteId);
-      const origin = request.headers.get("Origin");
+      const site = administration
+        ? await administration.repo.publicSite(siteId)
+        : (await store.load()).config.sites.find((s) => s.id === siteId);
+      const origin =
+        request.headers.get("Origin") ||
+        (request.headers.get("Sec-Fetch-Site") === "same-origin"
+          ? url.origin
+          : null);
       if (!site || !site.origins.includes(origin)) fail("origin_rejected", 403);
       headers.set("Access-Control-Allow-Origin", origin);
       headers.set("Vary", "Origin");
@@ -260,12 +325,10 @@ export default {
         return finish(new Response(null, { status: 204 }), headers);
       }
       if (path === "/v1/debug-session" && request.method === "GET") {
-        const session = await verifyDebugSession(
-          env.ADMIN_TOKEN,
-          request.headers.get(DEBUG_HEADER),
-          siteId,
-          origin,
-        );
+        const session = await (
+          administration?.verifyDebug ??
+          ((...args) => verifyDebugSession(env.ADMIN_TOKEN, ...args))
+        )(request.headers.get(DEBUG_HEADER), siteId, origin);
         return finish(
           session
             ? json({ expiresAt: session.expiresAt })
@@ -304,7 +367,10 @@ export default {
       const debugToken = request.headers.get(DEBUG_HEADER);
       if (
         debugToken &&
-        !(await verifyDebugSession(env.ADMIN_TOKEN, debugToken, siteId, origin))
+        !(await (
+          administration?.verifyDebug ??
+          ((...args) => verifyDebugSession(env.ADMIN_TOKEN, ...args))
+        )(debugToken, siteId, origin))
       )
         fail("debug_session_invalid", 401);
       const trace = debugToken ? createDebugTrace(site, parsed.data) : null;
@@ -331,9 +397,21 @@ export default {
       const budget = env.MODEL_BUDGET.get(
         env.MODEL_BUDGET.idFromName("global"),
       );
+      const runtime = administration
+        ? await administration.runtimeSettings()
+        : {
+            model: env.JEV_MODEL ?? "jev-1.14.0",
+            dailyRequestBudget: integer(
+              env.DAILY_REQUEST_BUDGET,
+              1000,
+              0,
+              1000000,
+            ),
+            maxConcurrent: integer(env.MAX_CONCURRENT, 10, 1, 100),
+          };
       const permit = await budget.acquire({
-        dailyLimit: integer(env.DAILY_REQUEST_BUDGET, 1000, 0, 1000000),
-        maxConcurrent: integer(env.MAX_CONCURRENT, 10, 1, 100),
+        dailyLimit: runtime.dailyRequestBudget,
+        maxConcurrent: runtime.maxConcurrent,
       });
       if (!permit.token)
         return respond(
@@ -341,11 +419,11 @@ export default {
           503,
         );
       const modelStart = performance.now();
-      startModelTrace(trace, prepared, env.JEV_MODEL ?? "jev-1.14.0");
+      startModelTrace(trace, prepared, runtime.model);
       try {
         const result = await createJev({
           apiKey: env.JEV_API_KEY,
-          model: env.JEV_MODEL ?? "jev-1.14.0",
+          model: runtime.model,
         })(prepared);
         finishModelTrace(
           trace,

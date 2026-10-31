@@ -4,52 +4,60 @@
 
 JevSenseは、ユーザーの意図や文脈を察知・判定し、ふさわしい体験を届けるパーソナライズ基盤です。サイト共通のscriptタグで取得した閲覧情報を、自前APIで加工し、Jevの判断に基づいて登録済みコンテンツを表示する参照実装です。BtoB、メディア、採用、教育、予約、ECなどで利用できます。Node.js 24以上。
 
-ブラウザが履歴を保持し、サーバーには閲覧者ID・セッションストア・履歴DBを持ちません。判断時に許可されたページ情報と必要な行動履歴が自前APIとJevへ送信されます。
+ブラウザが履歴を保持し、サーバーには閲覧者ID・閲覧者のセッションストア・行動履歴DBを持ちません。管理者のアカウント・所属サイト・管理セッションは別の管理DBに保持します。判断時に許可されたページ情報と必要な行動履歴が自前APIとJevへ送信されます。
 
 ## ドキュメント
 
 - [導入・使い方マニュアル](docs/manual.md)
-- [詳細設計](docs/design.md)
+- [管理画面v2の詳細設計](docs/admin-v2-design.md)
+- [パスキー対応版のセットアップ・移行](docs/admin-v2-setup.md)
+- [受入テストと確認方法](docs/admin-v2-validation.md)
+- [判断エンジンの詳細設計](docs/design.md)
 - [オファー表示・共通デザイン設計](docs/offers.md)
 - [本番運用・セキュリティ](docs/operations.md)
 - [Cloudflareセットアップ手順](docs/cloudflare.md)
 - [検証結果と限界](docs/validation.md)
 - [先行する6件のJev実測](experiments/adobe-ja/README.md)
 
-## Cloudflareで使う
-
-Workers＋Static Assets＋D1＋Durable Objectsに対応しています。[セットアップ手順](docs/cloudflare.md)の順にD1作成、wrangler.jsonへのID設定、GitHub連携、Secrets登録を行います。初回設定後はPushから自動デプロイできます。施策設定はD1へ保持され、コードの再デプロイで初期化されません。
+## 公開せずに新管理画面を試す
 
 ```sh
 npm ci
-npm run cf:migrate:local
-npm run dev:cloudflare
+npm run review
 ```
 
-上記はローカル起動です。リモートへの本番デプロイは手順書を確認して実施してください。
+**http://localhost:4174/admin** を開きます。初回トークンは`local-review-only-not-a-production-token`。ローカル専用で、実際のパスキー・SQLite・施策管理・プレビューを利用できます。Jevだけは課金しない固定スタブです。確認用ページはhttp://localhost:4174/demo。手順は[マニュアル](docs/manual.md)を参照してください。
+
+## Cloudflareで使う
+
+Workers＋Static Assets＋D1＋Durable Objectsに対応します。[既存の基盤設定](docs/cloudflare.md)に加え、[パスキー方式への移行](docs/admin-v2-setup.md)を行います。AUTH_MODE=passkey、固定AUTH_ORIGIN、独立したAUTH_SECRETが必要です。既存ADMIN_TOKENは最初のSuperuser登録だけに使います。切り替え前の環境は旧画面を維持し、公開中の設定は移行時に引き継ぎます。
+
+この変更の確認では本番デプロイやリモートDB変更を行っていません。
 
 ## Node.jsで使う
+
+Node.js24以上。永続ディスク、HTTPS、管理DBのバックアップを用意します。
 
 ```sh
 npm ci
 npm run build
 mkdir -p data
 cp config/example.json data/config.json
-# ADMIN_TOKEN（ランダムな32文字以上）とJEV_API_KEYを秘密管理サービスから設定
+# 実行環境へAUTH_MODE / AUTH_ORIGIN / AUTH_SECRET / ADMIN_TOKEN / JEV_API_KEYを設定
 npm start
 ```
 
-既定は127.0.0.1:3000。HTTPSのリバースプロキシ経由で提供してください。管理画面は`/admin`です。サンプルはメタデータ送信・施策とも無効で、実サイトの許可経路を確認してから有効化します。環境変数の値や本番設定はGitへ保存しません。
+既定は127.0.0.1:3000。管理DBはdata/administration.sqlite。初回登録後の更新先は管理DBです。設定JSONは新規DBの初期データにだけ使います。値や本番設定をGitへ保存しません。詳細は[運用・移行手順](docs/admin-v2-setup.md)に記載しています。
 
 ```sh
+npm run format:check
 npm run check
 npm run test:cloudflare
 npx playwright install chromium
 npm run test:browser
+npm run cf:dry-run
 ```
 
-単一管理者向けの初期リリースです。Node.js版は単一プロセス用、Workers版はD1の条件付き更新と共有クォータで複数の実行インスタンスに対応します。任意の口語の完全自動コンパイル、組織別の認証・課金は提供していません。質問案は人が確認します。本番公開前にサイト固有のプライバシー審査、外部APIの保持条件確認、TLS・アクセス制御・費用上限の設定と実環境の負荷試験が必要です。公開準備の具体的な範囲は運用文書に記載しています。
+1人のログインユーザーが複数サイトに所属でき、Superuser/サイト管理者/編集者/閲覧者を区別します。生成AIによる質問変換、メール配送、成果集計、課金、画像アップロードは含みません。実機パスキー・Safari/Firefox・運用規模での負荷検証の範囲は[受入記録](docs/admin-v2-validation.md)を参照してください。
 
-実サイトでの計測・送信・判定の確認は[デバッグパネル](docs/debugging.md)を参照してください。
-
-管理画面v2の認証・サイト所属・画面構造は[検討資料](docs/admin-v2-plan.md)と[操作モック](docs/prototypes/admin-v2.html)を参照してください。単独HTMLをダウンロードして開くか、`npm run preview:admin`で手元の127.0.0.1にだけ表示できます。確認用Webサイトは公開しません。本番のパスキー認証・ユーザー管理への移行は、モック確認後の段階で実装します。
+実サイトの計測・送信・判断は[デバッグパネル](docs/debugging.md)で確認できます。[操作モック](docs/prototypes/admin-v2.html)と[検討履歴](docs/admin-v2-plan.md)も残しています。モックは本実装の認証とは異なり、`npm run preview:admin`で画面検討用にのみ使えます。

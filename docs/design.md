@@ -1,5 +1,7 @@
 # 詳細設計 v0.1
 
+管理画面・認証・下書き・実ページプレビューの更新仕様と検証は[管理画面v2 詳細設計](admin-v2-design.md)と[追加検証記録](admin-v2-validation.md)を参照してください。以下には旧管理トークン方式の記録を含みます。
+
 ## 構成と境界
 
 実行方式はNode.js版とCloudflare Workers版を持つ。SDK、入力スキーマ、判断前処理、Noul質問、配信判定、Jevアダプターを共用し、HTTPルーティングと設定ストアを実行環境ごとに実装する。Workers版の具体的な構成とセットアップは[Cloudflare手順](cloudflare.md)を参照。

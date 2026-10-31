@@ -16,3 +16,12 @@ await build({
   target: ["es2020"],
   outfile: "dist/offer-renderer.js",
 });
+await build({
+  entryPoints: ["src/admin/ui.js"],
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  outfile: "dist/control.js",
+});
