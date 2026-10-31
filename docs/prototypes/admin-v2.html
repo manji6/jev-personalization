@@ -805,6 +805,143 @@
         font-size: 11px;
         margin: 10px 0;
       }
+      .select-native {
+        display: none !important;
+      }
+      .custom-select {
+        display: block;
+        min-width: 0;
+      }
+      .select-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        border: 1px solid #dce3d9;
+        border-radius: 6px;
+        background: #fff;
+        padding: 11px 12px;
+        font: inherit;
+        text-align: left;
+        min-width: 0;
+      }
+      .select-trigger:hover:not(:disabled) {
+        border-color: #91a685;
+        background: #fcfdf9;
+      }
+      .select-trigger:focus-visible {
+        outline: 2px solid #6e9560;
+        outline-offset: 3px;
+      }
+      .select-trigger svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        transition: transform 0.15s;
+      }
+      .select-trigger[aria-expanded="true"] svg {
+        transform: rotate(180deg);
+      }
+      .select-value {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .select-menu {
+        position: fixed;
+        z-index: 100;
+        overflow: auto;
+        overscroll-behavior: contain;
+        border: 1px solid #dbe4d5;
+        background: #fff;
+        padding: 6px;
+        border-radius: 10px;
+        box-shadow: 0 12px 38px #15352124;
+        color: #233c31;
+        font:
+          12px/1.5 system-ui,
+          sans-serif;
+      }
+      .prototype .select-trigger:hover:not(:disabled) {
+        background: #355e49;
+        border-color: #9eb399;
+      }
+      .select-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 11px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .select-option[aria-selected="true"] {
+        color: #224f3d;
+        background: #eef4e8;
+        font-weight: 600;
+      }
+      .select-option.highlight {
+        background: #e5efdf;
+      }
+      .select-option-copy {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .select-option-copy small {
+        display: block;
+        font-size: 10px;
+        font-weight: 400;
+        margin-top: 4px;
+        color: #7a8b71;
+      }
+      .select-check {
+        flex-shrink: 0;
+        color: #577e43;
+      }
+      .field > .custom-select {
+        margin-top: 9px;
+        font-size: 12px;
+        font-weight: 400;
+      }
+      .site-picker .custom-select {
+        max-width: 250px;
+      }
+      .site-picker .select-trigger {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 650;
+      }
+      .prototype .custom-select {
+        display: inline-block;
+        max-width: 160px;
+      }
+      .prototype .select-trigger {
+        color: #edf4e9;
+        background: #294d3c;
+        border-color: #6a8374;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 11px;
+        gap: 12px;
+      }
+      @media (max-width: 600px) {
+        .site-picker .custom-select {
+          max-width: 166px;
+        }
+        .prototype .custom-select {
+          max-width: 115px;
+        }
+        .prototype .select-trigger {
+          font-size: 10px;
+          gap: 5px;
+        }
+        .select-menu {
+          font-size: 13px;
+        }
+      }
       .preview-caption {
         font-size: 10px;
         padding: 14px 20px;
@@ -1635,7 +1772,9 @@
         ],
         invites: [],
         registeredEmail: "mika@example.com",
+        displayName: "佐藤 美香",
       };
+      let lastRenderedHash = null;
       const roleNames = {
         owner: "Superuser",
         admin: "サイト管理者",
@@ -1674,18 +1813,303 @@
         `<div class="brand"><span class="brandmark">j.</span><span class="brand-word">JevSense<span class="dot">.</span></span></div>`;
       const info = (t) =>
         `<div class="info">${icon("info")}<span>${t}</span></div>`;
+      function nameInitials(name) {
+        const parts = name.trim().split(/\s+/);
+        return /^[a-z]/i.test(name) && parts.length > 1
+          ? parts
+              .slice(0, 2)
+              .map((v) => v[0])
+              .join("")
+              .toUpperCase()
+          : name.slice(0, 2);
+      }
+      const selectWidgets = new WeakMap();
+      let selectPopup = null,
+        selectSequence = 0;
+      function closeSelectPopup(focus = false) {
+        if (!selectPopup) return;
+        const { menu, button } = selectPopup;
+        menu.remove();
+        button.setAttribute("aria-expanded", "false");
+        button.removeAttribute("aria-activedescendant");
+        selectPopup = null;
+        if (focus && button.isConnected) button.focus();
+      }
+      function selectName(select) {
+        return (
+          select.getAttribute("aria-label") ||
+          [...(select.labels?.[0]?.childNodes || [])]
+            .filter((n) => n.nodeType === 3)
+            .map((n) => n.textContent)
+            .join("")
+            .trim() ||
+          "選択してください"
+        );
+      }
+      function roleForSite(id) {
+        return s.role === "admin" && id === "studio"
+          ? "editor"
+          : s.role === "editor" && id === "studio"
+            ? "viewer"
+            : s.role;
+      }
+      function positionSelectPopup() {
+        if (!selectPopup) return;
+        const { menu, button } = selectPopup,
+          rect = button.getBoundingClientRect();
+        const width = Math.min(
+          innerWidth - 24,
+          Math.max(
+            rect.width,
+            button.dataset.selectControl === "siteSwitcher" ? 285 : 210,
+          ),
+        );
+        menu.style.width = width + "px";
+        menu.style.left =
+          Math.max(12, Math.min(rect.left, innerWidth - width - 12)) + "px";
+        const below = innerHeight - rect.bottom - 16,
+          above = rect.top - 16;
+        const height = Math.min(
+          320,
+          Math.max(100, below >= 150 || below >= above ? below : above),
+        );
+        menu.style.maxHeight = height + "px";
+        menu.style.top =
+          (below >= 150 || below >= above
+            ? rect.bottom + 7
+            : Math.max(8, rect.top - 7 - Math.min(menu.scrollHeight, height))) +
+          "px";
+      }
+      function setSelectActive(index) {
+        if (!selectPopup) return;
+        const rows = selectPopup.rows;
+        if (!rows.length) return;
+        selectPopup.active = (index + rows.length) % rows.length;
+        rows.forEach((row, i) =>
+          row.classList.toggle("highlight", i === selectPopup.active),
+        );
+        const row = rows[selectPopup.active];
+        selectPopup.button.setAttribute("aria-activedescendant", row.id);
+        row.scrollIntoView({ block: "nearest" });
+      }
+      function chooseSelectValue(value) {
+        if (!selectPopup) return;
+        const { select, button } = selectPopup;
+        const changed = select.value !== value;
+        closeSelectPopup();
+        select.value = value;
+        if (changed) {
+          select.dispatchEvent(new Event("input", { bubbles: true }));
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        enhanceSelects();
+        if (!$("modalRoot").querySelector('[role="dialog"]'))
+          document.getElementById(button.id)?.focus();
+      }
+      function openSelectPopup(select, button) {
+        if (button.disabled) return;
+        if (selectPopup?.select === select) {
+          closeSelectPopup(true);
+          return;
+        }
+        closeSelectPopup();
+        const menu = document.createElement("div");
+        menu.className = "select-menu";
+        menu.id = select.id + "--listbox";
+        menu.setAttribute("role", "listbox");
+        menu.setAttribute("aria-label", selectName(select));
+        const rows = [];
+        for (const [index, option] of [...select.options].entries()) {
+          if (option.disabled) continue;
+          const row = document.createElement("div");
+          row.className = "select-option";
+          row.id = select.id + "--option-" + index;
+          row.dataset.value = option.value;
+          row.setAttribute("role", "option");
+          row.setAttribute("aria-selected", String(option.selected));
+          const text = document.createElement("span");
+          text.className = "select-option-copy";
+          const label = document.createElement("span");
+          label.textContent = option.textContent;
+          text.append(label);
+          if (select.id === "siteSwitcher") {
+            const current = s.sites.find((v) => v.id === option.value);
+            const caption = document.createElement("small");
+            caption.textContent =
+              current.domain + " · " + roleNames[roleForSite(current.id)];
+            text.append(caption);
+          }
+          row.append(text);
+          const check = document.createElement("span");
+          check.className = "select-check";
+          check.setAttribute("aria-hidden", "true");
+          check.textContent = option.selected ? "✓" : "";
+          row.append(check);
+          row.addEventListener("pointerdown", (e) => e.preventDefault());
+          row.addEventListener("click", () => chooseSelectValue(option.value));
+          row.addEventListener("pointermove", () => {
+            if (selectPopup?.select === select)
+              setSelectActive(rows.indexOf(row));
+          });
+          rows.push(row);
+          menu.append(row);
+        }
+        document.body.append(menu);
+        button.setAttribute("aria-expanded", "true");
+        selectPopup = {
+          select,
+          button,
+          menu,
+          rows,
+          active: 0,
+          typed: "",
+          typedAt: 0,
+        };
+        positionSelectPopup();
+        setSelectActive(
+          Math.max(
+            0,
+            rows.findIndex((row) => row.dataset.value === select.value),
+          ),
+        );
+      }
+      function enhanceSelects() {
+        for (const select of document.querySelectorAll("select")) {
+          let widget = selectWidgets.get(select);
+          if (!widget) {
+            if (!select.id) select.id = "select-" + ++selectSequence;
+            const wrap = document.createElement("span");
+            wrap.className = "custom-select";
+            select.before(wrap);
+            wrap.append(select);
+            select.classList.add("select-native");
+            select.setAttribute("aria-hidden", "true");
+            select.tabIndex = -1;
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "select-trigger";
+            button.id = select.id + "--trigger";
+            button.dataset.selectControl = select.id;
+            button.setAttribute("role", "combobox");
+            button.setAttribute("aria-haspopup", "listbox");
+            button.setAttribute("aria-controls", select.id + "--listbox");
+            button.setAttribute("aria-expanded", "false");
+            const label = document.createElement("span");
+            label.className = "select-value";
+            button.append(label);
+            const arrow = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "svg",
+            );
+            arrow.setAttribute("viewBox", "0 0 20 20");
+            arrow.setAttribute("aria-hidden", "true");
+            const path = document.createElementNS(arrow.namespaceURI, "path");
+            path.setAttribute("d", "M5 7l5 5 5-5");
+            arrow.append(path);
+            button.append(arrow);
+            wrap.append(button);
+            button.addEventListener("click", () =>
+              openSelectPopup(select, button),
+            );
+            button.addEventListener("keydown", (event) => {
+              const isOpen = selectPopup?.select === select;
+              if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!isOpen) openSelectPopup(select, button);
+                else
+                  setSelectActive(
+                    event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? selectPopup.rows.length - 1
+                        : selectPopup.active +
+                          (event.key === "ArrowDown" ? 1 : -1),
+                  );
+              } else if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                if (isOpen)
+                  chooseSelectValue(
+                    selectPopup.rows[selectPopup.active].dataset.value,
+                  );
+                else openSelectPopup(select, button);
+              } else if (event.key === "Escape" && isOpen) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeSelectPopup(true);
+              } else if (event.key === "Tab") closeSelectPopup();
+              else if (
+                event.key.length === 1 &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !event.altKey
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!isOpen) openSelectPopup(select, button);
+                const now = Date.now();
+                selectPopup.typed =
+                  (now - selectPopup.typedAt > 700 ? "" : selectPopup.typed) +
+                  event.key.toLocaleLowerCase();
+                selectPopup.typedAt = now;
+                const index = selectPopup.rows.findIndex((row) =>
+                  row
+                    .querySelector(".select-option-copy>span")
+                    .textContent.toLocaleLowerCase()
+                    .startsWith(selectPopup.typed),
+                );
+                if (index >= 0) setSelectActive(index);
+              }
+            });
+            for (const label of select.labels || [])
+              label.addEventListener("click", (event) => {
+                if (button.contains(event.target)) return;
+                event.preventDefault();
+                button.focus();
+              });
+            widget = { button, label };
+            selectWidgets.set(select, widget);
+          }
+          widget.label.textContent =
+            select.selectedOptions[0]?.textContent || "選択してください";
+          widget.button.disabled = select.matches(":disabled");
+          widget.button.setAttribute("aria-label", selectName(select));
+        }
+      }
+      document.addEventListener("pointerdown", (event) => {
+        if (
+          selectPopup &&
+          !selectPopup.menu.contains(event.target) &&
+          !selectPopup.button.contains(event.target)
+        )
+          closeSelectPopup();
+      });
+      document.addEventListener(
+        "scroll",
+        (event) => {
+          if (selectPopup && !selectPopup.menu.contains(event.target))
+            closeSelectPopup();
+        },
+        true,
+      );
+      window.addEventListener("resize", positionSelectPopup);
+
       function toast(t) {
         $("toast").textContent = t;
         $("toast").hidden = false;
         setTimeout(() => ($("toast").hidden = true), 4200);
       }
       function dialog(title, body, actions, extra = "") {
+        closeSelectPopup();
         $("modalRoot").innerHTML =
           `<div class="modal-shade"><section class="modal ${extra}" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1"><h2>${title}</h2>${body}<div class="actions">${actions}</div></section></div>`;
         const m = $("modalRoot").querySelector(".modal");
+        enhanceSelects();
         m.focus();
       }
       function closeDialog() {
+        closeSelectPopup();
         $("modalRoot").replaceChildren();
       }
       let nextAction = null;
@@ -1723,9 +2147,9 @@
         if (normal)
           content = `<div class="fingerprint">${icon("finger")}</div><p class="eyebrow">WELCOME BACK</p><h1>おかえりなさい。</h1><p class="desc">パスキーで安全にログインして、<br>あなたのサイトの施策を管理しましょう。</p><form data-form="login"><label class="field">メールアドレス<input type="email" name="email" required autocomplete="username webauthn" value="${esc(s.registeredEmail)}" placeholder="you@example.com"></label><button class="button primary wide" type="submit">${icon("key")}パスキーでログイン${icon("arrow")}</button></form><p class="help-note">Face ID・Touch ID・端末のPIN、またはセキュリティキーで本人確認できます。</p><div class="login-foot"><button class="text-button" data-nav="recover">パスキーが使えない場合</button><span>初めての方は、管理者から共有された招待リンクを開いてください。</span></div>`;
         if (kind === "setup")
-          content = `<div class="fingerprint">${icon("shield")}</div><p class="eyebrow">FIRST-TIME SETUP</p><h1>JevSenseを、はじめる。</h1><p class="desc">この環境の最初の管理者を登録します。実装版では、既存の管理トークンで環境の管理権限を確認して進みます。メール送信サービスは不要です。</p><form data-form="setup"><label class="field">管理者のメールアドレス<input name="email" type="email" required value="owner@example.com"></label><label class="field">環境の名前<input name="environment" value="Atelier Workspace" required></label><button type="submit" class="button primary wide">パスキー登録へ${icon("arrow")}</button></form><p class="help-note">この操作は、まだ管理者が登録されていない環境で一度だけ行えます。</p><div class="login-foot"><button class="text-button" data-nav="login">ログインへ戻る</button></div>`;
+          content = `<div class="fingerprint">${icon("shield")}</div><p class="eyebrow">FIRST-TIME SETUP</p><h1>JevSenseを、はじめる。</h1><p class="desc">この環境の最初の管理者を登録します。実装版では、既存の管理トークンで環境の管理権限を確認して進みます。メール送信サービスは不要です。</p><form data-form="setup"><label class="field">表示名<input aria-label="表示名" name="displayName" required maxlength="80" autocomplete="name" placeholder="例：佐藤 美香"><span class="hint">挨拶やメンバー一覧に表示する名前です。後から変更できます。</span></label><label class="field">管理者のメールアドレス<input name="email" type="email" required value="owner@example.com"></label><label class="field">環境の名前<input name="environment" value="Atelier Workspace" required></label><button type="submit" class="button primary wide">パスキー登録へ${icon("arrow")}</button></form><p class="help-note">この操作は、まだ管理者が登録されていない環境で一度だけ行えます。</p><div class="login-foot"><button class="text-button" data-nav="login">ログインへ戻る</button></div>`;
         if (kind === "invite")
-          content = `<div class="fingerprint">${icon("users")}</div><p class="eyebrow">YOU'RE INVITED</p><h1>チームに参加しませんか。</h1><p class="desc">佐藤 美香さんが、あなたをJevSenseに招待しました。</p><div class="card card-body invite-card"><div class="meta-row"><span>招待されたメール</span><strong>${esc(invitation.email)}</strong></div><div class="meta-row"><span>サイト</span><strong>${esc(s.sites.find((v) => v.id === invitation.site)?.name || invitation.site)}</strong></div><div class="meta-row"><span>権限</span><strong>${roleNames[invitation.role]}</strong></div></div>${button(icon("key") + "招待を確認してパスキーを登録", "join", "primary wide")}<p class="help-note">これは手動共有された招待リンクを開いた画面のモックです。実装版では期限付き・1回限りのリンクを確認します。メールの所有確認とは区別します。</p><div class="login-foot"><button class="text-button" data-nav="login">すでにアカウントをお持ちの方</button></div>`;
+          content = `<div class="fingerprint">${icon("users")}</div><p class="eyebrow">YOU'RE INVITED</p><h1>チームに参加しませんか。</h1><p class="desc">${esc(invitation.inviterName || "佐藤 美香")}さんが、あなたをJevSenseに招待しました。</p><div class="card card-body invite-card"><div class="meta-row"><span>招待されたメール</span><strong>${esc(invitation.email)}</strong></div><div class="meta-row"><span>サイト</span><strong>${esc(s.sites.find((v) => v.id === invitation.site)?.name || invitation.site)}</strong></div><div class="meta-row"><span>権限</span><strong>${roleNames[invitation.role]}</strong></div></div><label class="field">表示名<input id="inviteDisplayName" aria-label="表示名" name="displayName" required maxlength="80" autocomplete="name" placeholder="例：高橋 結衣"><span class="hint">この環境で共通の表示名です。参加後にアカウント設定で変更できます。</span></label>${button(icon("key") + "招待を確認してパスキーを登録", "join", "primary wide")}<p class="help-note">これは手動共有された招待リンクを開いた画面のモックです。実装版では期限付き・1回限りのリンクを確認します。メールの所有確認とは区別します。</p><div class="login-foot"><button class="text-button" data-nav="login">すでにアカウントをお持ちの方</button></div>`;
         if (kind === "recover")
           content = `<div class="fingerprint">${icon("key")}</div><p class="eyebrow">ACCOUNT RECOVERY</p><h1>パスキーが使えないとき。</h1><p class="desc">まず、別の端末やセキュリティキーのパスキーをお試しください。</p>${button("別の端末のパスキーを使う", "other-device", "primary wide")}<div class="login-foot"><form data-form="recovery"><label class="field">メールアドレス<input type="email" name="email" required value="${esc(s.registeredEmail)}"></label><label class="field">リカバリーコード<input name="code" required placeholder="事前に保存したコード"></label><button type="submit" class="button wide">リカバリーコードで復旧</button></form><p>どちらも使えない場合は、Superuserへ復旧を依頼してください。メールだけで管理者権限を再発行する設計にはしません。</p><button class="text-button" data-nav="login">ログインへ戻る</button></div>`;
         return `<div class="login"><section class="login-art">${brand()}<div class="login-copy"><p class="eyebrow">SENSE THE MOMENT.</p><h1>その人の、いまを。<br>ちょうどいい<br>コミュニケーションに。</h1><p>行動の先にある関心や文脈を捉えて、<br>ひとりひとりに、意味のある出会いを。</p></div><p class="login-bottom">JevSense · Personalization, with a sense of purpose.</p></section><section class="login-form"><div class="login-inner">${content}</div></section></div>`;
@@ -1739,14 +2163,14 @@
           ["members", "メンバー", "users"],
         ];
         const section = route.startsWith("campaign/") ? "campaigns" : route;
-        return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map(([r, t, i]) => `<a href="#/${r}" data-nav="${r}" class="${section === r ? "active" : ""}" title="${t}">${icon(i)}<span class="nav-text">${t}</span>${section === r ? '<span class="arrow" aria-hidden="true">↗︎</span>' : ""}</a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${s.role === "owner" ? `<p class="nav-label">INSTALLATION</p><nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}" title="JevSense管理">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" title="アカウント・パスキー" aria-label="アカウント・パスキー"><span class="avatar">MS</span><span class="account-text">佐藤 美香<small>${esc(s.registeredEmail)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc(site().initial)}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${allowedSites()
+        return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map(([r, t, i]) => `<a href="#/${r}" data-nav="${r}" class="${section === r ? "active" : ""}" title="${t}">${icon(i)}<span class="nav-text">${t}</span>${section === r ? '<span class="arrow" aria-hidden="true">↗︎</span>' : ""}</a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${s.role === "owner" ? `<p class="nav-label">INSTALLATION</p><nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}" title="JevSense管理">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" title="アカウント・パスキー" aria-label="アカウント・パスキー"><span class="avatar">${esc(nameInitials(s.displayName))}</span><span class="account-text">${esc(s.displayName)}<small>${esc(s.registeredEmail)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc(site().initial)}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${allowedSites()
           .map(
             (v) =>
               `<option value="${v.id}" ${v.id === s.site ? "selected" : ""}>${esc(v.name)}</option>`,
           )
           .join(
             "",
-          )}</select></div></div><div class="top-actions"><span class="environment-label">${esc(s.environmentName)}</span><span class="role-chip">${roleNames[effectiveRole()]}</span><span class="avatar">MS</span></div></header><main class="main"><div class="crumb"><span>${esc(["installation", "account"].includes(route) ? s.environmentName : site().name)}</span><span>/</span><span>${{ home: "ホーム", campaigns: "施策一覧", settings: "サイト設定", diagnostics: "動作確認", members: "メンバー", installation: "JevSense管理", account: "アカウント" }[section] || "施策の編集"}</span></div>${body}</main></div>`;
+          )}</select></div></div><div class="top-actions"><span class="environment-label">${esc(s.environmentName)}</span><span class="role-chip">${roleNames[effectiveRole()]}</span><span class="avatar">${esc(nameInitials(s.displayName))}</span></div></header><main class="main"><div class="crumb"><span>${esc(["installation", "account"].includes(route) ? s.environmentName : site().name)}</span><span>/</span><span>${{ home: "ホーム", campaigns: "施策一覧", settings: "サイト設定", diagnostics: "動作確認", members: "メンバー", installation: "JevSense管理", account: "アカウント" }[section] || "施策の編集"}</span></div>${body}</main></div>`;
       }
       function campaignRows(list) {
         return list.length
@@ -1766,7 +2190,7 @@
         return (
           heading(
             "YOUR WORKSPACE",
-            "こんにちは、美香さん。",
+            `こんにちは、${esc(s.displayName)}さん。`,
             "今日も、その人にちょうどいいコミュニケーションを。",
             button(
               icon("plus") + "新しい施策",
@@ -2066,8 +2490,8 @@
           ) +
           `<section class="card"><header class="card-header"><h2>${esc(site().name)}のメンバー</h2><span class="right-note">別サイトの権限は引き継ぎません</span></header>${[
             [
-              "MS",
-              "佐藤 美香",
+              nameInitials(s.displayName),
+              s.displayName,
               s.registeredEmail,
               roleNames[effectiveRole()],
               s.role === "owner" ? "全サイトにアクセス" : "このサイトのみ",
@@ -2083,7 +2507,7 @@
           ]
             .map(
               ([a, n, e, r, d]) =>
-                `<div class="list-row"><div class="list-left"><span class="avatar">${a}</span><div>${n}<small>${esc(e)}</small></div></div><span class="pill">${r}</span><span class="right-note">${d}</span></div>`,
+                `<div class="list-row"><div class="list-left"><span class="avatar">${esc(a)}</span><div><span class="member-name">${esc(n)}</span><small>${esc(e)}</small></div></div><span class="pill">${r}</span><span class="right-note">${d}</span></div>`,
             )
             .join("")}${s.invites
             .filter((v) => v.site === s.site)
@@ -2113,7 +2537,7 @@
         if (s.installationTab === "sites")
           body = `<header class="card-header"><h2>この環境のすべてのサイト</h2>${button(icon("plus") + "サイトを追加", "add-site", "small")}</header>${s.sites.map((v) => `<div class="list-row"><div class="list-left"><span class="site-avatar">${esc(v.initial)}</span><div>${esc(v.name)}<small>${esc(v.domain)}</small></div></div><span class="pill">${esc(v.id)}</span><button class="button small" data-site-open="${esc(v.id)}">このサイトを開く ↗</button></div>`).join("")}`;
         if (s.installationTab === "users")
-          body = `<header class="card-header"><h2>環境内のユーザー</h2>${button("Superuser権限を管理", "manage-superuser", "small")}</header><div class="list-row"><div class="list-left"><span class="avatar">MS</span><div>佐藤 美香<small>${esc(s.registeredEmail)}</small></div></div><span class="pill">Superuser · 全サイト</span><span class="right-note">最後のSuperuserは降格・停止不可</span></div><div class="list-row"><div class="list-left"><span class="avatar">YT</span><div>高橋 結衣<small>yui@example.com</small></div></div><span class="pill">2サイトに所属</span>${button("所属を確認", "show-memberships", "small")}</div><div class="card-body">${info("ユーザー停止・他端末のログアウト・復旧リンク発行も、ここへ集約する予定です。サイト管理者は他サイトに影響するアカウント復旧や全体権限を変更できません。")}</div>`;
+          body = `<header class="card-header"><h2>環境内のユーザー</h2>${button("Superuser権限を管理", "manage-superuser", "small")}</header><div class="list-row"><div class="list-left"><span class="avatar">${esc(nameInitials(s.displayName))}</span><div><span class="member-name">${esc(s.displayName)}</span><small>${esc(s.registeredEmail)}</small></div></div><span class="pill">Superuser · 全サイト</span><span class="right-note">最後のSuperuserは降格・停止不可</span></div><div class="list-row"><div class="list-left"><span class="avatar">YT</span><div>高橋 結衣<small>yui@example.com</small></div></div><span class="pill">2サイトに所属</span>${button("所属を確認", "show-memberships", "small")}</div><div class="card-body">${info("ユーザー停止・他端末のログアウト・復旧リンク発行も、ここへ集約する予定です。サイト管理者は他サイトに影響するアカウント復旧や全体権限を変更できません。")}</div>`;
         if (s.installationTab === "system")
           body = `<header class="card-header"><h2>JevSense共通設定</h2><span class="pill">今後の設定を含む案</span></header><div class="card-body"><label class="field">環境の名前<input id="environmentName" value="${esc(s.environmentName)}"><span class="hint">このJevSenseにログインするメンバー全員に表示されます。</span></label><div class="section-label">AI接続・利用上限（将来の設定候補）</div><fieldset disabled><div class="fields2"><label class="field">利用モデル<input value="jev-1.14.0"></label><label class="field">1日の問い合わせ上限<input value="1000"></label></div><label class="field">接続キー<input type="text" value="設定済み（値は表示しない・サンプル）"></label></fieldset>${info("現在Cloudflareで設定している値を、将来この画面で扱う案です。このモックは実環境のキーや設定を読みません。")}<div class="section-label">ログインと招待</div><div class="meta-row"><span>招待の共有</span><strong>管理者がリンクを手動共有</strong></div><div class="meta-row"><span>メール送信</span><span>未使用 · 将来追加可能</span></div><div class="meta-row"><span>認証</span><span>パスキー / リカバリーコード</span></div><p class="help-note">パスキーは管理画面のドメインに紐づきます。管理対象サイトのドメインごとに登録する必要はありません。本番登録前に管理画面URLを確定します。</p><div class="section-gap">${button("環境名の保存を再現", "save-environment", "primary")}</div></div>`;
         return (
@@ -2136,16 +2560,19 @@
             "パスキーを複数登録して、端末を変えたときにも安心して使えるように。",
             button(icon("logout") + "ログアウト", "logout", ""),
           ) +
-          `<section class="card short"><header class="card-header"><h2>プロフィール</h2><span class="pill">ログインID（メール未検証）</span></header><div class="card-body"><div class="meta-row"><span>表示名</span><strong>佐藤 美香</strong></div><div class="meta-row"><span>メールアドレス</span><strong>${esc(s.registeredEmail)}</strong></div></div></section><section class="card short section-gap"><header class="card-header"><h2>登録したパスキー</h2>${button(icon("plus") + "追加する", "add-passkey", "small")}</header>${s.passkeys.map((p, i) => `<div class="list-row"><div class="list-left">${icon(i ? "key" : "device")}<div>${esc(p)}<small>${i === 0 ? "前回のログインで使用" : "予備のパスキー"}</small></div></div><button class="button small" data-remove-key="${i}" ${s.passkeys.length < 2 ? "disabled" : ""}>削除</button></div>`).join("")}</section><section class="card short section-gap"><header class="card-header"><h2>リカバリーコード</h2><span class="pill">未表示</span></header><div class="card-body"><p class="desc">すべてのパスキーが使えなくなった場合のために、コードを安全な場所に保存してください。再発行すると以前のコードは使えなくなります。</p><div class="section-gap">${button("コードの発行フローを見る", "recovery-codes", "")}</div></div></section><section class="card short section-gap"><header class="card-header"><h2>ログイン中の端末</h2></header><div class="list-row"><div>このブラウザ<small>現在のセッション</small></div><span class="pill">使用中</span></div><div class="card-body">${button("他の端末からログアウトする", "revoke-sessions", "")}</div></section>`
+          `<section class="card short"><header class="card-header"><h2>プロフィール</h2><span class="pill">ログインID（メール未検証）</span></header><div class="card-body"><form data-form="profile"><label class="field">表示名<input aria-label="表示名" name="displayName" required maxlength="80" autocomplete="name" value="${esc(s.displayName)}" data-profile="displayName"><span class="hint">この環境内の全サイトで共通です。挨拶・アカウント欄・メンバー一覧に反映します。</span></label><label class="field">ログイン用メールアドレス<input type="email" readonly value="${esc(s.registeredEmail)}"><span class="hint">表示名の変更でログインIDや権限は変わりません。</span></label><div class="actions"><button class="button primary" type="submit">プロフィールを保存</button><button class="button" type="button" data-action="cancel-profile">変更を取り消す</button></div></form></div></section><section class="card short section-gap"><header class="card-header"><h2>登録したパスキー</h2>${button(icon("plus") + "追加する", "add-passkey", "small")}</header>${s.passkeys.map((p, i) => `<div class="list-row"><div class="list-left">${icon(i ? "key" : "device")}<div>${esc(p)}<small>${i === 0 ? "前回のログインで使用" : "予備のパスキー"}</small></div></div><button class="button small" data-remove-key="${i}" ${s.passkeys.length < 2 ? "disabled" : ""}>削除</button></div>`).join("")}</section><section class="card short section-gap"><header class="card-header"><h2>リカバリーコード</h2><span class="pill">未表示</span></header><div class="card-body"><p class="desc">すべてのパスキーが使えなくなった場合のために、コードを安全な場所に保存してください。再発行すると以前のコードは使えなくなります。</p><div class="section-gap">${button("コードの発行フローを見る", "recovery-codes", "")}</div></div></section><section class="card short section-gap"><header class="card-header"><h2>ログイン中の端末</h2></header><div class="list-row"><div>このブラウザ<small>現在のセッション</small></div><span class="pill">使用中</span></div><div class="card-body">${button("他の端末からログアウトする", "revoke-sessions", "")}</div></section>`
         );
       }
       function render() {
+        lastRenderedHash = location.hash;
+        closeSelectPopup();
         let route = location.hash.replace(/^#\/?/, "") || "login";
         const auth = ["login", "setup", "invite", "recover"].includes(route);
         if (!s.logged && !auth) route = "login";
         if (auth) {
           $("app").innerHTML = loginPage(route);
           $("scenario").value = route;
+          enhanceSelects();
           return;
         }
         if (!allowedSites().some((v) => v.id === s.site)) s.site = "atelier";
@@ -2164,6 +2591,7 @@
             }[route] || homePage
           )();
         $("app").innerHTML = shell(route, body);
+        enhanceSelects();
       }
       function passkey(mode, complete) {
         nextAction = complete;
@@ -2287,6 +2715,10 @@
         $("startPagePreview").disabled = !result.allowed || s.pagePreview.used;
       }
       const actions = {
+        "cancel-profile": () => {
+          s.dirty = false;
+          render();
+        },
         "start-page-preview": () => {
           const request = s.pagePreview;
           if (
@@ -2354,7 +2786,10 @@
           closeDialog();
           fn?.();
         },
-        join: () =>
+        join: () => {
+          const input = $("inviteDisplayName");
+          if (!input?.reportValidity() || !input.value.trim()) return;
+          const displayName = input.value.trim();
           passkey("register", () => {
             const i = s.currentInvite || {
               email: "yui@example.com",
@@ -2362,12 +2797,14 @@
               role: "editor",
             };
             s.registeredEmail = i.email;
+            s.displayName = displayName;
             s.role = i.role;
             s.site = i.site;
             $("demoRole").value = i.role;
             signIn();
             toast("招待への参加を再現しました。サイトの所属権限で表示します。");
-          }),
+          });
+        },
         "other-device": () => passkey("authenticate", signIn),
         "new-campaign": () => {
           if (!canEdit()) return;
@@ -2435,6 +2872,7 @@
             id: String(Date.now()),
             site: s.site,
             email: v.get("email"),
+            inviterName: s.displayName,
             role: v.get("role"),
           };
           s.invites.push(s.currentInvite);
@@ -2638,10 +3076,27 @@
           s.registeredEmail = data.email;
           passkey("authenticate", signIn);
         }
+        if (f.dataset.form === "profile") {
+          const name = data.displayName.trim();
+          if (!name) {
+            toast("表示名を入力してください。");
+            return;
+          }
+          s.displayName = name;
+          s.dirty = false;
+          render();
+          toast("表示名を変更しました（モック）。全サイトに反映されます。");
+        }
         if (f.dataset.form === "setup") {
+          const displayName = data.displayName.trim();
+          if (!displayName) {
+            toast("表示名を入力してください。");
+            return;
+          }
           s.registeredEmail = data.email;
           s.environmentName = data.environment;
           passkey("register", () => {
+            s.displayName = displayName;
             s.role = "owner";
             $("demoRole").value = "owner";
             signIn();
@@ -2666,6 +3121,7 @@
         }
       });
       document.addEventListener("input", (e) => {
+        if (e.target.dataset.profile) s.dirty = true;
         if (e.target.id === "pagePreviewURL") {
           updatePagePreviewMatch();
           return;
@@ -2743,7 +3199,9 @@
           }
         }
       });
-      window.addEventListener("hashchange", render);
+      window.addEventListener("hashchange", () => {
+        if (location.hash !== lastRenderedHash) render();
+      });
       render();
     </script>
   </body>

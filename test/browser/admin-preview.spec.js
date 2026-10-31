@@ -24,13 +24,19 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto(baseURL);
 });
+async function choose(page, label, value) {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page
+    .locator(`[role="option"][data-value=${JSON.stringify(value)}]`)
+    .click();
+}
 async function login(page) {
   await page.getByRole("button", { name: "パスキーでログイン" }).click();
   await page
     .getByRole("button", { name: "認証成功を再現", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "こんにちは、美香さん。" }),
+    page.getByRole("heading", { name: /^こんにちは、/ }),
   ).toBeVisible();
 }
 async function nav(page, name) {
@@ -78,7 +84,7 @@ test("site switching is reflected in campaigns; editor becomes viewer on another
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByLabel("サイトを切り替える").selectOption("studio");
+  await choose(page, "サイトを切り替える", "studio");
   await nav(page, "施策一覧");
   await expect(
     page.getByRole("button", {
@@ -92,7 +98,7 @@ test("site switching is reflected in campaigns; editor becomes viewer on another
       exact: true,
     }),
   ).toHaveCount(0);
-  await page.getByLabel("権限を再現").selectOption("editor");
+  await choose(page, "権限を再現", "editor");
   await nav(page, "施策一覧");
   await expect(
     page.getByRole("button", { name: "新規施策を作成" }),
@@ -100,10 +106,8 @@ test("site switching is reflected in campaigns; editor becomes viewer on another
   expect(
     await page.getByRole("link", { name: "JevSense管理", exact: true }).count(),
   ).toBe(0);
-  await page.getByLabel("権限を再現").selectOption("viewer");
-  expect(
-    await page.getByLabel("サイトを切り替える").locator("option").count(),
-  ).toBe(1);
+  await choose(page, "権限を再現", "viewer");
+  expect(await page.locator("#siteSwitcher option").count()).toBe(1);
 });
 test("unsaved changes guard site switching and discard keeps other site untouched", async ({
   page,
@@ -114,7 +118,7 @@ test("unsaved changes guard site switching and discard keeps other site untouche
     .getByRole("button", { name: "吸汗速乾ポロシャツのご案内", exact: true })
     .click();
   await page.getByLabel("施策名", { exact: true }).fill("未保存の施策");
-  await page.getByLabel("サイトを切り替える").selectOption("studio");
+  await choose(page, "サイトを切り替える", "studio");
   await expect(
     page.getByRole("dialog", { name: "未保存の変更があります" }),
   ).toBeVisible();
@@ -122,7 +126,7 @@ test("unsaved changes guard site switching and discard keeps other site untouche
   await expect(page.getByLabel("施策名", { exact: true })).toHaveValue(
     "未保存の施策",
   );
-  await page.getByLabel("サイトを切り替える").selectOption("studio");
+  await choose(page, "サイトを切り替える", "studio");
   await page.getByRole("button", { name: "破棄して切り替える" }).click();
   await nav(page, "施策一覧");
   await expect(
@@ -131,7 +135,7 @@ test("unsaved changes guard site switching and discard keeps other site untouche
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByLabel("サイトを切り替える").selectOption("atelier");
+  await choose(page, "サイトを切り替える", "atelier");
   await nav(page, "施策一覧");
   await expect(
     page.getByRole("button", {
@@ -202,6 +206,7 @@ test("manual invitation shows a sample link and passkey enrollment rather than e
   await expect(
     page.getByText("invited@example.com", { exact: true }),
   ).toBeVisible();
+  await page.getByLabel("表示名", { exact: true }).fill("高橋 結衣");
   await page
     .getByRole("button", { name: "招待を確認してパスキーを登録" })
     .click();
@@ -227,7 +232,7 @@ test("Superuser has system settings; site administrators cannot enter them", asy
     path: testInfo.outputPath("admin-v2-superuser.png"),
     fullPage: true,
   });
-  await page.getByLabel("権限を再現").selectOption("admin");
+  await choose(page, "権限を再現", "admin");
   await page.evaluate(() => (location.hash = "/installation"));
   await expect(
     page.getByRole("heading", { name: "Superuserの権限が必要です。" }),
@@ -236,13 +241,14 @@ test("Superuser has system settings; site administrators cannot enter them", asy
 test("setup and recovery scenarios explicitly simulate enrollment without actual WebAuthn", async ({
   page,
 }) => {
-  await page.getByLabel("シナリオ").selectOption("setup");
+  await choose(page, "シナリオ", "setup");
+  await page.getByLabel("表示名", { exact: true }).fill("佐藤 美香");
   await page.getByRole("button", { name: "パスキー登録へ" }).click();
   await page.getByRole("button", { name: "登録成功を再現" }).click();
   await expect(
     page.getByRole("link", { name: "JevSense管理", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("シナリオ").selectOption("recover");
+  await choose(page, "シナリオ", "recover");
   await page.getByLabel("リカバリーコード", { exact: true }).fill("DEMO-CODE");
   await page
     .getByRole("button", { name: "リカバリーコードで復旧", exact: true })
@@ -253,7 +259,7 @@ test("setup and recovery scenarios explicitly simulate enrollment without actual
   await page.getByRole("button", { name: "パスキー再登録へ" }).click();
   await page.getByRole("button", { name: "登録成功を再現" }).click();
   await expect(
-    page.getByRole("heading", { name: "こんにちは、美香さん。" }),
+    page.getByRole("heading", { name: /^こんにちは、/ }),
   ).toBeVisible();
   expect(urls).toEqual(["/"]);
 });
@@ -268,9 +274,9 @@ test("mobile navigation and site header fit the viewport", async ({
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.getByLabel("サイトを切り替える").selectOption("studio");
+  await choose(page, "サイトを切り替える", "studio");
   await expect(
-    page.getByRole("heading", { name: "こんにちは、美香さん。" }),
+    page.getByRole("heading", { name: /^こんにちは、/ }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -488,9 +494,201 @@ test("draft campaigns can preview but viewers cannot start it", async ({
     }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "閉じる", exact: true }).click();
-  await page.getByLabel("権限を再現").selectOption("viewer");
+  await choose(page, "権限を再現", "viewer");
   await nav(page, "施策一覧");
   const buttons = page.getByRole("button", { name: "プレビュー", exact: true });
   expect(await buttons.count()).toBeGreaterThan(0);
   for (const button of await buttons.all()) await expect(button).toBeDisabled();
+});
+
+test("display name can be edited in the account and is shared across sites", async ({
+  page,
+}) => {
+  await login(page);
+  await page.getByRole("link", { name: "アカウント・パスキー" }).click();
+  const email = await page.getByLabel("ログイン用メールアドレス").inputValue();
+  await page.getByLabel("表示名", { exact: true }).fill("新しい表示名");
+  await page
+    .getByRole("button", { name: "プロフィールを保存", exact: true })
+    .click();
+  await expect(
+    page.getByRole("link", { name: "アカウント・パスキー" }),
+  ).toContainText("新しい表示名");
+  await expect(page.getByLabel("ログイン用メールアドレス")).toHaveValue(email);
+  await nav(page, "ホーム");
+  await expect(
+    page.getByRole("heading", { name: "こんにちは、新しい表示名さん。" }),
+  ).toBeVisible();
+  await choose(page, "サイトを切り替える", "studio");
+  await expect(
+    page.getByRole("heading", { name: "こんにちは、新しい表示名さん。" }),
+  ).toBeVisible();
+  await nav(page, "メンバー");
+  await expect(page.getByText("新しい表示名", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "JevSense管理", exact: true }).click();
+  await page
+    .getByRole("button", { name: "ユーザーと権限", exact: true })
+    .click();
+  await expect(page.getByText("新しい表示名", { exact: true })).toBeVisible();
+  expect(urls).toEqual(["/"]);
+});
+
+test("setup and invitation require a name and carry it into the account", async ({
+  page,
+}) => {
+  await choose(page, "シナリオ", "setup");
+  await page.getByRole("button", { name: "パスキー登録へ" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("表示名", { exact: true }).fill("初回 管理者");
+  await page.getByRole("button", { name: "パスキー登録へ" }).click();
+  await page
+    .getByRole("button", { name: "登録成功を再現", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "こんにちは、初回 管理者さん。" }),
+  ).toBeVisible();
+  await choose(page, "シナリオ", "invite");
+  await page
+    .getByRole("button", { name: "招待を確認してパスキーを登録" })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("表示名", { exact: true }).fill("参加した メンバー");
+  await page
+    .getByRole("button", { name: "招待を確認してパスキーを登録" })
+    .click();
+  await page
+    .getByRole("button", { name: "登録成功を再現", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "こんにちは、参加した メンバーさん。" }),
+  ).toBeVisible();
+});
+
+test("profile cancel preserves the saved name and user text never becomes markup", async ({
+  page,
+}) => {
+  await login(page);
+  await page.getByRole("link", { name: "アカウント・パスキー" }).click();
+  const old = await page.getByLabel("表示名", { exact: true }).inputValue();
+  await page.getByLabel("表示名", { exact: true }).fill("取り消す 名前");
+  await page
+    .getByRole("button", { name: "変更を取り消す", exact: true })
+    .click();
+  await expect(page.getByLabel("表示名", { exact: true })).toHaveValue(old);
+  await page
+    .getByLabel("表示名", { exact: true })
+    .fill('<img src=x onerror="window.badName=1">');
+  await page
+    .getByRole("button", { name: "プロフィールを保存", exact: true })
+    .click();
+  await nav(page, "ホーム");
+  await expect(
+    page.getByRole("heading", { name: /こんにちは、<img/ }),
+  ).toBeVisible();
+  expect(await page.locator("#app img").count()).toBe(0);
+  expect(await page.evaluate(() => window.badName)).toBeUndefined();
+});
+
+test("site picker uses styled options with domain, role, selected marker and keyboard support", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  const picker = page.getByRole("combobox", {
+    name: "サイトを切り替える",
+    exact: true,
+  });
+  await picker.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: /Atelier Store/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("option", { name: /Studio Journal/ }),
+  ).toContainText("journal.example.com");
+  await expect(
+    page.getByRole("option", { name: /Studio Journal/ }),
+  ).toContainText("Superuser");
+  await expect(page.getByRole("listbox")).toHaveCSS("border-radius", "10px");
+  await page.locator("#toast").evaluate((el) => {
+    el.hidden = true;
+  });
+  await page.screenshot({
+    path: testInfo.outputPath("admin-v2-site-picker.png"),
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeFocused();
+  await expect(picker).toHaveAttribute("aria-expanded", "false");
+  await picker.press("ArrowDown");
+  await picker.press("End");
+  await picker.press("Enter");
+  await expect(
+    page.getByRole("combobox", { name: "サイトを切り替える", exact: true }),
+  ).toContainText("Studio Journal");
+  expect(await page.evaluate(() => window.violations)).toEqual([]);
+});
+
+test("selectors in dialogs and settings share styles and preserve form values", async ({
+  page,
+}) => {
+  await login(page);
+  await nav(page, "メンバー");
+  await page.getByRole("button", { name: "メンバーを招待" }).click();
+  await page
+    .getByLabel("メールアドレス", { exact: true })
+    .fill("read-only@example.com");
+  const role = page.getByRole("combobox", {
+    name: "このサイトでの権限",
+    exact: true,
+  });
+  await role.click();
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await expect(page.getByRole("listbox")).toHaveCSS("border-radius", "10px");
+  await role.press("Escape");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(role).toBeFocused();
+  await role.click();
+  await page.locator('[role="option"][data-value="viewer"]').click();
+  await page.getByRole("button", { name: "招待を作成（モック）" }).click();
+  await page.getByRole("button", { name: "一覧へ戻る", exact: true }).click();
+  const invitation = page
+    .locator(".list-row")
+    .filter({ hasText: "read-only@example.com" });
+  await expect(invitation).toContainText("閲覧者");
+  await nav(page, "サイト設定");
+  await page.getByRole("button", { name: "共通デザイン", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "基本の雰囲気", exact: true }),
+  ).toBeEnabled();
+  await choose(page, "権限を再現", "editor");
+  await nav(page, "サイト設定");
+  await page.getByRole("button", { name: "共通デザイン", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "基本の雰囲気", exact: true }),
+  ).toBeDisabled();
+});
+
+test("custom menu fits mobile, closes outside, and supports typeahead", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const picker = page.getByRole("combobox", {
+    name: "サイトを切り替える",
+    exact: true,
+  });
+  await picker.click();
+  const box = await page.getByRole("listbox").boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await picker.press("s");
+  await picker.press("Enter");
+  await expect(
+    page.getByRole("combobox", { name: "サイトを切り替える", exact: true }),
+  ).toContainText("Studio Journal");
+  await page
+    .getByRole("combobox", { name: "サイトを切り替える", exact: true })
+    .click();
+  await page.getByRole("heading", { name: /こんにちは、/ }).click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
 });
