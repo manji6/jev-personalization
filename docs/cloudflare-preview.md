@@ -84,7 +84,7 @@ npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 
 本番のAUTH_SECRETがまだない場合は、本番リリースの操作内で新しい独立した値を生成し、Secretとして登録します。Previewの値はコピーしません。その後に本番DBの追加移行とコード配備を行います。確認用D1のユーザーや施策は本番に入りません。
 
-`cf:deploy`も同じ確認を要求します。引数なしの実行、GitHubへのPush、CIの成功だけでは本番リリースしません。Cloudflare Buildsに以前の自動デプロイコマンドを残している場合、確認済み記録のない自動実行は停止します。Previewは`npm run cf:preview`、Productionは上の明示的なリリースコマンドという運用に統一してください。
+`cf:deploy`も同じ確認を要求します。このリポジトリのCIは検査だけを行います。Cloudflare Builds等で`cf:deploy`を自動実行しても確認済み記録がなければ停止しますが、直接`wrangler deploy`を使う外部設定にはこの確認が適用されません。外部の自動本番配備を無効にし、Previewは`npm run cf:preview`、Productionは上の明示的なリリースコマンドに統一してください。今回、Cloudflare Buildsの設定取得は権限不足で確認できていません。本番のコードと配備バージョンは変更していません。
 
 本番への初回切り替え・バックアップ・ロールバックは[管理画面移行手順](admin-v2-setup.md)を併せて確認します。旧版バイナリへコードだけを戻してDBを放置するロールバックは行いません。
 

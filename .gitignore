@@ -9,3 +9,6 @@ test-results/
 .dev.vars.*
 .env.*
 !.env.example
+
+help/.vitepress/cache/
+help/.vitepress/dist/

@@ -1,69 +1,130 @@
-# JevSense（ジェブセンス）
+# JevSense
 
-運用先の[管理画面](https://jev-personalization.manji6.workers.dev/admin)。初回利用にはCloudflare側のSecrets登録が必要です。[配備記録](docs/deployment.md)を参照してください。
+**閲覧の文脈を察知・判定し、用意したコンテンツを届けるWebパーソナライズ基盤。**
 
-JevSenseは、ユーザーの意図や文脈を察知・判定し、ふさわしい体験を届けるパーソナライズ基盤です。サイト共通のscriptタグで取得した閲覧情報を、自前APIで加工し、Jevの判断に基づいて登録済みコンテンツを表示する参照実装です。BtoB、メディア、採用、教育、予約、ECなどで利用できます。Node.js 24以上。
+[ヘルプ・セットアップガイド](https://manji6.github.io/jev-personalization/) · [施策の作り方](https://manji6.github.io/jev-personalization/guides/campaigns) · [Issues](https://github.com/manji6/jev-personalization/issues) · [MIT License](LICENSE)
 
-ブラウザが履歴を保持し、サーバーには閲覧者ID・閲覧者のセッションストア・行動履歴DBを持ちません。管理者のアカウント・所属サイト・管理セッションは別の管理DBに保持します。判断時に許可されたページ情報と必要な行動履歴が自前APIとJevへ送信されます。
+JevSense（ジェブセンス）は、マーケターが「何を伝えたいか」「どんな関心・状態の人に届けたいか」を入力すると、サイト上の閲覧情報を材料にJevで対象者を判定し、事前登録したオファーを表示するセルフホスト型アプリケーションです。ECだけでなく、BtoB・メディア・採用・教育・予約サービスにも使えます。
 
-## ドキュメント
+> このブランチはパスキー対応の管理画面v2です。本番反映前の機能を含みます。コードを確認する場合は`feature/admin-v2-implementation`を使用してください。稼働中の環境は別途Previewで確認してから更新します。
 
-- [導入・使い方マニュアル](docs/manual.md)
-- [管理画面v2の詳細設計](docs/admin-v2-design.md)
-- [パスキー対応版のセットアップ・移行](docs/admin-v2-setup.md)
-- [受入テストと確認方法](docs/admin-v2-validation.md)
-- [判断エンジンの詳細設計](docs/design.md)
-- [オファー表示・共通デザイン設計](docs/offers.md)
-- [本番運用・セキュリティ](docs/operations.md)
-- [Cloudflareセットアップ手順](docs/cloudflare.md)
-- [検証結果と限界](docs/validation.md)
-- [先行する6件のJev実測](experiments/adobe-ja/README.md)
+![JevSenseの管理画面](docs/images/admin-v2-implemented-home.png)
 
-## ブラウザでPreviewを確認する
+## 主な機能
 
-[確認用管理画面](https://admin-v2-jev-personalization.manji6.workers.dev/admin)をCloudflare Accessで保護しています。本番と別のD1・パスキー・費用カウンターを使用し、現在のJev判断はテスト用スタブです。[入場・確認・本番リリースの手順](docs/cloudflare-preview.md)を参照してください。
+- **判定条件の入力支援** — 案内内容と関心・状態から、固定テンプレートで独立したYes/No質問を作成。生成AIによる文章変換は使いません。
+- **共通タグによる自動観測** — 閲覧順序・表示中の時間・ページの名称/説明/種類/テーマを取得。JSON-LDからOGP・meta・titleへフォールバックします。
+- **オファー表示** — モーダル、フローティングバナー、通知バー、独自JavaScript。サイト単位で基本デザインを管理します。
+- **配信前の確認** — 下書き保存と配信開始を分離。1回限りの実ページプレビューと、送信内容・判定結果の診断パネルを利用できます。
+- **複数サイト・ユーザー管理** — メールをIDとするパスキー認証、Superuser、サイトごとの管理者/編集者/閲覧者、手動招待と復旧コード。
+- **Cloudflare対応** — Workers、D1、Durable Objects。Previewで確認したコミットを指定してProductionへリリースできます。
 
-`npm run cf:preview`で確認版を更新します。本番反映は、確認後に`npm run cf:release -- --reviewed-commit <SHA>`を明示的に実行します。Pushや通常のCIだけでは本番へ配備しません。
+## 仕組み
 
-## 公開せずに新管理画面を試す
+```text
+サイトのSDK → ブラウザ内の閲覧履歴
+                    ↓ 判断するタイミングだけ
+                自前のAPI → Jev（Noul）
+                    ↓
+             登録済みオファーを表示
+```
+
+閲覧者の履歴・表示済み状態はブラウザのsessionStorageで保持します。サーバーに閲覧者ID・閲覧者セッション・行動履歴DBは作りません。管理者のアカウント・認証・所属・設定は管理用DBに保持します。
+
+フォーム入力、ページ全文、JSON-LD全体をそのまま送信しません。ページ情報にも個人情報が含まれることがあるため、収集範囲と同意の設計は導入時に確認してください。Jevの判定値は購入率や施策効果を表すものではありません。
+
+## クイックスタート
+
+Node.js **24以上**が必要です。
 
 ```sh
+git clone --branch feature/admin-v2-implementation https://github.com/manji6/jev-personalization.git
+cd jev-personalization
 npm ci
 npm run review
 ```
 
-**http://localhost:4174/admin** を開きます。初回トークンは`local-review-only-not-a-production-token`。ローカル専用で、実際のパスキー・SQLite・施策管理・プレビューを利用できます。Jevだけは課金しない固定スタブです。確認用ページはhttp://localhost:4174/demo。手順は[マニュアル](docs/manual.md)を参照してください。
+**http://localhost:4174/admin** を開きます。初回登録用の値は`local-review-only-not-a-production-token`です。これはローカル確認専用で、本番では使いません。
 
-## Cloudflareで使う
+実際のパスキー・DB保存・施策管理・表示処理を試せます。Jev判定だけは固定のスタブで、外部のJev APIやCloudflareを呼び出しません。確認用ページはhttp://localhost:4174/demo。状態は`data/review.sqlite`に保存されます。
 
-Workers＋Static Assets＋D1＋Durable Objectsに対応します。[既存の基盤設定](docs/cloudflare.md)に加え、[パスキー方式への移行](docs/admin-v2-setup.md)を行います。AUTH_MODE=passkey、固定AUTH_ORIGIN、独立したAUTH_SECRETが必要です。既存ADMIN_TOKENは最初のSuperuser登録だけに使います。切り替え前の環境は旧画面を維持し、公開中の設定は移行時に引き継ぎます。
+## セットアップ
 
-この変更の確認では本番デプロイやリモートDB変更を行っていません。
+### Cloudflareで運用する
 
-## Node.jsで使う
+Cloudflareアカウント、JevのAPIキー、本番/確認用のD1を用意します。リポジトリの`wrangler.json`には開発環境のIDが含まれるので、自分のアカウント・Worker名・DB・Originへ必ず変更してください。
 
-Node.js24以上。永続ディスク、HTTPS、管理DBのバックアップを用意します。
+[Cloudflareセットアップガイド](https://manji6.github.io/jev-personalization/getting-started/cloudflare)に沿って、実行時SecretとAccessを設定し、Previewで確認します。
+
+```sh
+npm run cf:preview
+# Previewで確認後、明示的に本番へ反映する
+npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
+```
+
+本番と確認用でDB・認証・費用カウンターを分離します。このリポジトリのCIは検査だけを行います。Cloudflare Builds等を別途連携している場合は、自動の本番配備を無効にして上の手動リリースへ統一してください。[リリース手順](docs/cloudflare-preview.md)も参照してください。
+
+### Node.jsで運用する
+
+永続ディスクとHTTPSを用意し、`AUTH_MODE`、`AUTH_ORIGIN`、`AUTH_SECRET`、初回登録用`ADMIN_TOKEN`、`JEV_API_KEY`を実行環境へ設定して`npm start`します。既定は127.0.0.1:3000、管理DBは`data/administration.sqlite`です。
+
+[Node.jsセットアップガイド](https://manji6.github.io/jev-personalization/getting-started/node)に、環境変数・初期設定・リバースプロキシ・バックアップの詳細を記載しています。
+
+## ページへの組み込み
+
+サイト設定を作成し、共通タグを1つ設置します。
+
+```html
+<script
+  src="https://YOUR-API-HOST/sdk.js"
+  data-api="https://YOUR-API-HOST"
+  data-site="YOUR-SITE-ID"
+></script>
+```
+
+SDKの読み込み完了後、利用者の同意を取得してから呼び出します。
+
+```js
+window.JevPersonalization.consent(true);
+```
+
+サイトの許可Origin・収集/除外経路・メタデータ送信・施策の有効化が必要です。[SDK連携ガイド](https://manji6.github.io/jev-personalization/integration/sdk)を参照してください。
+
+## ドキュメント
+
+- [利用者向けヘルプ](https://manji6.github.io/jev-personalization/) — 導入、画面操作、表示デザイン、SDK、診断、運用、FAQ。
+- [詳細設計](docs/admin-v2-design.md) — 認証・権限・下書き・実ページプレビュー。
+- [Preview / Production運用](docs/cloudflare-preview.md) — 分離構成と確認後の本番反映。
+- [検証範囲](docs/admin-v2-validation.md) — 自動テストと実機確認の範囲。
+
+## 開発・テスト
 
 ```sh
 npm ci
-npm run build
-mkdir -p data
-cp config/example.json data/config.json
-# 実行環境へAUTH_MODE / AUTH_ORIGIN / AUTH_SECRET / ADMIN_TOKEN / JEV_API_KEYを設定
-npm start
-```
-
-既定は127.0.0.1:3000。管理DBはdata/administration.sqlite。初回登録後の更新先は管理DBです。設定JSONは新規DBの初期データにだけ使います。値や本番設定をGitへ保存しません。詳細は[運用・移行手順](docs/admin-v2-setup.md)に記載しています。
-
-```sh
-npm run format:check
 npm run check
 npm run test:cloudflare
 npx playwright install chromium
 npm run test:browser
-npm run cf:dry-run
+npm run format:check
 ```
 
-1人のログインユーザーが複数サイトに所属でき、Superuser/サイト管理者/編集者/閲覧者を区別します。生成AIによる質問変換、メール配送、成果集計、課金、画像アップロードは含みません。実機パスキー・Safari/Firefox・運用規模での負荷検証の範囲は[受入記録](docs/admin-v2-validation.md)を参照してください。
+ヘルプサイトもMarkdownで管理します。
 
-実サイトの計測・送信・判断は[デバッグパネル](docs/debugging.md)で確認できます。[操作モック](docs/prototypes/admin-v2.html)と[検討履歴](docs/admin-v2-plan.md)も残しています。モックは本実装の認証とは異なり、`npm run preview:admin`で画面検討用にのみ使えます。
+```sh
+npm run help:dev
+npm run help:build
+```
+
+Node.js版は単一プロセス向けです。Workers版はD1とDurable Objectsで状態・クォータを共有します。実機パスキー、対象サイトのCMP/CSP/SPA、想定負荷は運用環境でも確認してください。
+
+## 対象外・今後の機能
+
+任意の文章の生成AI変換、メール自動送信、成果集計・A/Bテスト、課金、画像アップロード基盤は含みません。画像はHTTPS URLを指定し、招待は期限付きリンクを手動共有します。
+
+## コントリビュート
+
+不具合報告・改善提案は[Issues](https://github.com/manji6/jev-personalization/issues)へお願いします。再現手順、利用環境、期待する動作を添えてください。APIキー、管理トークン、Cookie、個人情報、実際の閲覧履歴は投稿しないでください。
+
+## ライセンス
+
+[MIT License](LICENSE)。JevやCloudflare等、外部サービスの契約・料金・データ取扱条件はそれぞれの提供元で確認してください。

@@ -13,6 +13,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run format:check
+      - run: npm run help:check
       - run: npm run check
       - run: npm run test:cloudflare
       - run: npm run cf:dry-run

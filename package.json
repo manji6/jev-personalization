@@ -13,8 +13,8 @@
     "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js && node test/offers.test.js && node test/debug.test.js && node test/admin.test.js && node test/preview-environment.test.js",
     "check": "npm run build && npm test",
     "test:browser": "playwright test",
-    "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js wrangler.json",
-    "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js wrangler.json",
+    "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" \"help/**/*.md\" \"help/.vitepress/*.{mts,ts}\" \"help/.vitepress/theme/*.{ts,css}\" README.md package.json playwright.config.js wrangler.json",
+    "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" \"help/**/*.md\" \"help/.vitepress/*.{mts,ts}\" \"help/.vitepress/theme/*.{ts,css}\" README.md package.json playwright.config.js wrangler.json",
     "build:cloudflare": "node scripts/build-cloudflare.js",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev",
     "cf:configure": "node scripts/configure-cloudflare.js",
@@ -23,11 +23,17 @@
     "cf:deploy": "npm run build:cloudflare && node scripts/deploy-cloudflare.js",
     "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run",
     "test:cloudflare": "npm run build:cloudflare && node test/cloudflare.test.js && node test/admin-cloudflare.test.js && node test/preview-cloudflare.test.js",
-    "pretest:browser": "npm run build:cloudflare",
+    "pretest:browser": "npm run build:cloudflare && npm run help:build",
     "review": "npm run build && node scripts/review-admin.js",
     "start:legacy": "node src/server.js",
     "cf:preview": "node scripts/deploy-preview.js",
-    "cf:release": "npm run build:cloudflare && node scripts/deploy-cloudflare.js"
+    "cf:release": "npm run build:cloudflare && node scripts/deploy-cloudflare.js",
+    "help:dev": "vitepress dev help --host 127.0.0.1",
+    "help:build": "vitepress build help",
+    "help:preview": "vitepress preview help --host 127.0.0.1",
+    "help:publish": "node scripts/publish-help.js",
+    "help:check": "npm run help:build && node scripts/check-help.js",
+    "test:help": "npm run help:check && playwright test test/browser/help.spec.js"
   },
   "dependencies": {
     "@fastify/rate-limit": "^10.3.0",
@@ -44,6 +50,7 @@
     "jsdom": "^27.1.0",
     "miniflare": "^5.20261023.3-beta",
     "prettier": "^3.9.10",
+    "vitepress": "2.0.0-alpha.21",
     "wrangler": "^4.156.0"
   }
 }
