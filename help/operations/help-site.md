@@ -34,6 +34,12 @@ npm run help:publish
 
 公開先は **https://manji6.github.io/jev-personalization/** です。GitHub側のビルド・配信完了まで少し時間がかかります。
 
+### 初回有効化だけ403になる場合
+
+GitHubの接続にPages設定の編集権限がない場合、ファイルのPushは成功しても初回有効化だけ失敗することがあります。リポジトリ管理者が[Settings → Pages](https://github.com/manji6/jev-personalization/settings/pages)を開き、Sourceに「Deploy from a branch」、Branchに「gh-pages」、フォルダーに「/ (root)」を選んでSaveします。APIキーや追加トークンを本文へ貼る必要はありません。
+
+一度配信元を設定すれば、以後は`gh-pages`へのPushでヘルプを更新できます。Pages設定APIを使わず公開ファイルだけ更新する場合は`npm run help:publish -- --files-only`を使います。公開URLで表示を確認してから公開完了と扱ってください。
+
 ## アプリの本番反映との違い
 
 ヘルプの公開は`gh-pages`だけを更新します。アプリのProductionへコードを配置したり、DBを移行したりしません。

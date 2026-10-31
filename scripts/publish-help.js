@@ -50,39 +50,48 @@ try {
     input: `docs: publish JevSense Help from ${source}\n`,
   });
   git("push", "origin", `${commit}:refs/heads/gh-pages`);
-  const current = spawnSync("gh", ["api", `repos/${repo}/pages`], {
-    encoding: "utf8",
-    env: process.env,
-  });
-  if (current.status !== 0) {
-    if (!/Not Found|404/.test(current.stderr || ""))
-      throw Error(current.stderr || "Cannot read Pages configuration");
-    const body = join(folder, "pages.json");
-    await writeFile(
-      body,
-      JSON.stringify({
-        build_type: "legacy",
-        source: { branch: "gh-pages", path: "/" },
-      }),
-    );
-    command("gh", [
-      "api",
-      "--method",
-      "POST",
-      `repos/${repo}/pages`,
-      "--input",
-      body,
-    ]);
-  } else {
-    const page = JSON.parse(current.stdout);
-    if (
-      page.build_type !== "legacy" ||
-      page.source?.branch !== "gh-pages" ||
-      page.source?.path !== "/"
-    )
-      throw Error(
-        "Existing Pages configuration differs; source branch was not changed automatically",
+  if (!process.argv.includes("--files-only")) {
+    const current = spawnSync("gh", ["api", `repos/${repo}/pages`], {
+      encoding: "utf8",
+      env: process.env,
+    });
+    if (current.status !== 0) {
+      if (!/Not Found|404/.test(current.stderr || ""))
+        throw Error(current.stderr || "Cannot read Pages configuration");
+      const body = join(folder, "pages.json");
+      await writeFile(
+        body,
+        JSON.stringify({
+          build_type: "legacy",
+          source: { branch: "gh-pages", path: "/" },
+        }),
       );
+      try {
+        command("gh", [
+          "api",
+          "--method",
+          "POST",
+          `repos/${repo}/pages`,
+          "--input",
+          body,
+        ]);
+      } catch (error) {
+        throw Error(
+          `Static files were pushed to gh-pages, but Pages enablement failed: ${error.message}\n` +
+            `Open https://github.com/${repo}/settings/pages and select Deploy from a branch, gh-pages, / (root), then Save. No app Production deployment is needed.`,
+        );
+      }
+    } else {
+      const page = JSON.parse(current.stdout);
+      if (
+        page.build_type !== "legacy" ||
+        page.source?.branch !== "gh-pages" ||
+        page.source?.path !== "/"
+      )
+        throw Error(
+          "Existing Pages configuration differs; source branch was not changed automatically",
+        );
+    }
   }
   process.stdout.write(
     JSON.stringify(
@@ -90,6 +99,9 @@ try {
         sourceCommit: source,
         pagesCommit: commit,
         branch: "gh-pages",
+        pagesConfiguration: process.argv.includes("--files-only")
+          ? "not checked"
+          : "configured",
         url: "https://manji6.github.io/jev-personalization/",
       },
       null,
