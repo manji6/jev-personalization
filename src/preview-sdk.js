@@ -1,7 +1,10 @@
 import { renderOffer } from "./offer-renderer.js";
 import { secureOrLoopback } from "./url-policy.js";
 // Only a non-secret launch marker is put in the fragment. The ticket stays in the opener.
-export function installPreview(win, { siteId, endpoint }) {
+export function installPreview(
+  win,
+  { siteId, endpoint, credentials = "omit" },
+) {
   if (!win.location.hash.startsWith("#jevsense-preview=")) return null;
   let launch;
   try {
@@ -98,7 +101,7 @@ export function installPreview(win, { siteId, endpoint }) {
         `${endpoint}/v1/preview/redeem?siteId=${encodeURIComponent(siteId)}`,
         {
           method: "POST",
-          credentials: "omit",
+          credentials,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             token: event.data.token,

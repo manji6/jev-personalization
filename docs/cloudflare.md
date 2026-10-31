@@ -2,7 +2,7 @@
 
 パスキー対応の新管理画面は、以下の基盤設定に加えて[新管理画面への移行手順](admin-v2-setup.md)が必要です。AUTH_MODE・AUTH_ORIGIN・AUTH_SECRETを使います。以下のADMIN_TOKEN入力によるログイン説明は切り替え前の旧方式です。
 
-Cloudflare Workers版を実装しています。管理画面・SDK・判断APIを1つのWorkerで提供し、施策設定はD1へ保存します。閲覧者の履歴・表示状態はブラウザ内に保持します。初回セットアップ後、GitHubへのPushから自動でコードを更新できます。
+Cloudflare Workers版を実装しています。管理画面・SDK・判断APIを1つのWorkerで提供し、施策設定はD1へ保存します。閲覧者の履歴・表示状態はブラウザ内に保持します。今後の更新は[Previewで確認してからProductionへリリース](cloudflare-preview.md)する手順を使います。
 
 本リポジトリの運用先には初回デプロイを実施済みです。[初回配備記録](deployment.md)を参照してください。以下は新しい運用先を作る場合の手順です。Secretsの値は利用者がCloudflareで登録します。Node.js版も引き続き使用できます。
 
@@ -93,7 +93,7 @@ CloudflareのWorkers & PagesからGitHubリポジトリを接続してWorkerを�
 
 Buildsのデプロイ用トークンには、対象アカウントのWorkersスクリプト更新とD1編集が必要です。ビルドでD1に対する403が出た場合は、Buildsのトークン権限と対象アカウントを確認してください。Jevのキーはこのデプロイトークンとは別です。
 
-**最初は本番ブランチだけをデプロイ対象にし、非本番ブランチの自動デプロイは無効にしてください。** 本設定ではVersion Preview URLsを無効にしています。ブランチプレビューを後から作る場合は、Worker名、D1、Secrets、クォータを別環境に分離します。同じD1やDurable Objectを本番と共有させないでください。
+新管理画面の確認にはWorker Previewsを構成しています。Previewは専用D1・専用Durable Object・Access保護を使用します。設定は[Preview手順](cloudflare-preview.md)を参照してください。Productionの自動デプロイは行わず、確認済みコミットを指定してリリースします。
 
 ## C. Secretsを登録する
 
@@ -154,7 +154,7 @@ npx wrangler secret put ADMIN_TOKEN
 D1作成と`cf:configure`の完了後、次のコマンドで初回・通常のデプロイを行えます。
 
 ```sh
-npm run cf:deploy
+npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 ```
 
 これはビルド、リモートD1マイグレーション、Workerデプロイを実行するため、本番への変更操作です。検証だけの場合は`npm run cf:dry-run`を使います。dry-runはアップロードやリソース作成をしません。

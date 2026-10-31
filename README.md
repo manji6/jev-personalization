@@ -19,6 +19,12 @@ JevSenseは、ユーザーの意図や文脈を察知・判定し、ふさわし
 - [検証結果と限界](docs/validation.md)
 - [先行する6件のJev実測](experiments/adobe-ja/README.md)
 
+## ブラウザでPreviewを確認する
+
+[確認用管理画面](https://admin-v2-jev-personalization.manji6.workers.dev/admin)をCloudflare Accessで保護しています。本番と別のD1・パスキー・費用カウンターを使用し、現在のJev判断はテスト用スタブです。[入場・確認・本番リリースの手順](docs/cloudflare-preview.md)を参照してください。
+
+`npm run cf:preview`で確認版を更新します。本番反映は、確認後に`npm run cf:release -- --reviewed-commit <SHA>`を明示的に実行します。Pushや通常のCIだけでは本番へ配備しません。
+
 ## 公開せずに新管理画面を試す
 
 ```sh

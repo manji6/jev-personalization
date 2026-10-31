@@ -98,6 +98,8 @@ export function createAdministration({
   origin,
   secret,
   bootstrapToken,
+  setupIdentity,
+  deployment,
   assets,
   clock = Date.now,
   defaults = {},
@@ -837,6 +839,10 @@ export function createAdministration({
         return out({
           initialized: (await repo.settings()).initialized,
           rpID: config.rpID,
+          ...(deployment ? { deployment } : {}),
+          ...(setupIdentity
+            ? { setupMode: "access", setupEmail: setupIdentity.email }
+            : {}),
         });
       if (request.method !== "GET" && request.headers.get("Origin") !== origin)
         fail(403, "origin_rejected");
@@ -845,14 +851,18 @@ export function createAdministration({
           .object({
             email: emailSchema,
             displayName: nameSchema,
-            bootstrapToken: z.string().min(1).max(1024),
+            bootstrapToken: z.string().min(1).max(1024).optional(),
           })
           .strict()
           .parse(await readAdminJSON(request));
         if ((await repo.settings()).initialized)
           fail(409, "already_initialized");
-        if (!bootstrapToken || !(await equal(b.bootstrapToken, bootstrapToken)))
-          fail(403, "setup_unauthorized");
+        const authorized = setupIdentity
+          ? b.email === setupIdentity.email
+          : bootstrapToken &&
+            b.bootstrapToken &&
+            (await equal(b.bootstrapToken, bootstrapToken));
+        if (!authorized) fail(403, "setup_unauthorized");
         return await registrationOptions(request, "setup", {
           email: b.email,
           name: b.displayName,

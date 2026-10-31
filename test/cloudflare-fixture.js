@@ -43,8 +43,15 @@ export async function cloudflareFixture(options = {}) {
       JEV_API_KEY: "fake-test-only",
       DAILY_REQUEST_BUDGET: options.budget ?? "1000",
       MAX_CONCURRENT: "10",
+      ...(options.bindings || {}),
     },
     outboundService: async (request) => {
+      if (
+        options.jwks &&
+        request.url ===
+          "https://preview-test.cloudflareaccess.com/cdn-cgi/access/certs"
+      )
+        return Response.json(options.jwks);
       calls++;
       assert.equal(request.url, "https://api.typesafe.ai/v1/systemone");
       sent = await request.json();

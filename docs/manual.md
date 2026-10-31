@@ -4,6 +4,10 @@
 
 JevSenseは、閲覧から関心や状態を察知・判定し、事前に登録したコンテンツを表示する基盤です。文章やHTMLをAIで生成するサービスではありません。
 
+## ブラウザだけで確認する
+
+[Cloudflare Preview](https://admin-v2-jev-personalization.manji6.workers.dev/admin)で操作できます。許可されたメールのコードでCloudflare Accessへ入り、表示名とパスキーを登録します。本番とは別の確認環境です。初回管理トークンの入力は不要です。[詳しい確認方法](cloudflare-preview.md)をご覧ください。
+
 ## 1. 公開せずに一通り試す
 
 Node.js24以上を用意し、リポジトリのフォルダーで実行します。

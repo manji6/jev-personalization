@@ -558,6 +558,22 @@ function renderAuth(kind = "login") {
         "運用者が設定したADMIN_TOKENです。初回登録後はログインに使えません。",
         { required: true, type: "password" },
       );
+    if (state.setupMode === "access") {
+      desc =
+        "Cloudflare Accessで認証されたアカウントを、この確認環境の最初のSuperuserとして登録します。本番のアカウントは作成されません。";
+      fields =
+        field("表示名", "displayName", "", "登録後に変更できます。", {
+          required: true,
+          max: 80,
+        }) +
+        field(
+          "メールアドレス",
+          "email",
+          state.setupEmail,
+          "Accessで認証されたメールアドレスです。",
+          { required: true, type: "email", readonly: true },
+        );
+    }
   } else if (kind === "invite") {
     title = "チームに参加しませんか。";
     desc = "招待リンクを確認しました。";
@@ -2010,6 +2026,22 @@ window.addEventListener("beforeunload", (event) => {
 });
 async function boot() {
   try {
+    const status = await api("/auth/status");
+    state.setupMode = status.setupMode;
+    state.setupEmail = status.setupEmail;
+    if (status.deployment?.tier === "preview") {
+      document.body.classList.add("preview-environment");
+      const notice = document.getElementById("deploymentNotice");
+      notice.hidden = false;
+      notice.textContent =
+        "PREVIEW · この画面の変更は確認用です。" +
+        (status.deployment.modelMode === "stub"
+          ? "Jev判定は固定のテスト値です。 "
+          : "") +
+        (status.deployment.commit
+          ? "確認版 " + status.deployment.commit.slice(0, 7)
+          : "");
+    }
     const fragment = new URLSearchParams(location.hash.slice(1));
     if (location.pathname === "/admin/invite") {
       inviteToken = fragment.get("token");
@@ -2028,7 +2060,6 @@ async function boot() {
       renderAuth("recover");
       return;
     }
-    const status = await api("/auth/status");
     if (!status.initialized) {
       renderAuth("setup");
       return;

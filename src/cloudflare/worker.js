@@ -1,3 +1,9 @@
+import {
+  previewIdentity,
+  previewConfiguration,
+  deploymentInfo,
+  previewDemo,
+} from "./preview.js";
 import { createAdministration } from "../admin/service.js";
 import { z } from "zod";
 import { configSchema, inputSchema } from "../schema.js";
@@ -99,6 +105,52 @@ export default {
       "Referrer-Policy": "no-referrer",
     });
     try {
+      const info = deploymentInfo(env);
+      const isPreview = info.tier === "preview";
+      if (isPreview && path === "/health")
+        return finish(
+          json(
+            {
+              ok: !!previewConfiguration(env),
+              ...info,
+              accessConfigured: !!previewConfiguration(env),
+            },
+            previewConfiguration(env) ? 200 : 503,
+          ),
+          headers,
+        );
+      const identity = isPreview ? await previewIdentity(request, env) : null;
+      if (isPreview && !identity)
+        return finish(
+          json(
+            {
+              error: previewConfiguration(env)
+                ? "preview_access_required"
+                : "preview_access_not_configured",
+            },
+            403,
+          ),
+          headers,
+        );
+      if (isPreview && request.method === "GET" && path === "/demo")
+        return finish(
+          new Response(previewDemo(env.AUTH_ORIGIN), {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Content-Security-Policy":
+                "default-src 'self'; script-src 'self'; style-src 'self'; img-src https:; connect-src 'self'",
+            },
+          }),
+          headers,
+        );
+      if (isPreview && request.method === "GET" && path === "/demo.css")
+        return finish(
+          new Response(
+            "body{font:18px/1.8 system-ui;color:#233c31;background:#f5f6f2}main{max-width:760px;margin:18vh auto;padding:30px}h1{font-size:56px}a{color:#245b44}",
+            { headers: { "Content-Type": "text/css" } },
+          ),
+          headers,
+        );
       let administration;
       // A completed cutover must never silently restore shared-token access.
       if (
@@ -126,6 +178,8 @@ export default {
           origin: env.AUTH_ORIGIN,
           secret: env.AUTH_SECRET,
           bootstrapToken: env.ADMIN_TOKEN,
+          setupIdentity: identity,
+          deployment: info,
           defaults: {
             model: env.JEV_MODEL ?? "jev-1.14.0",
             dailyRequestBudget: integer(
@@ -389,7 +443,8 @@ export default {
       const prepared = prepare(site, parsed.data);
       if (prepared.reason)
         return respond({ ...base, decision: "hold", reason: prepared.reason });
-      if (!env.JEV_API_KEY)
+      const stub = isPreview && env.PREVIEW_MODEL_MODE === "stub";
+      if (!env.JEV_API_KEY && !stub)
         return respond(
           { ...base, decision: "hold", reason: "model_not_configured" },
           503,
@@ -419,12 +474,25 @@ export default {
           503,
         );
       const modelStart = performance.now();
-      startModelTrace(trace, prepared, runtime.model);
+      startModelTrace(trace, prepared, stub ? "preview-stub" : runtime.model);
+      if (stub && trace) {
+        trace.model.called = false;
+        trace.model.mode = "stub";
+      }
       try {
-        const result = await createJev({
-          apiKey: env.JEV_API_KEY,
-          model: runtime.model,
-        })(prepared);
+        const result = stub
+          ? {
+              model: "preview-stub",
+              answers: Object.fromEntries(
+                Object.keys(prepared.questions).map((key) => [
+                  key,
+                  { type: "noul", noul: 0.95 },
+                ]),
+              ),
+            }
+          : await createJev({ apiKey: env.JEV_API_KEY, model: runtime.model })(
+              prepared,
+            );
         finishModelTrace(
           trace,
           prepared,
@@ -435,6 +503,7 @@ export default {
         return respond({
           ...base,
           model: result.model,
+          ...(stub ? { modelMode: "stub" } : {}),
           decision: selected ? "show" : "hold",
           reason: selected ? "qualified" : "no_match_or_uncertain",
           campaign: await publicOffer(site, selected),

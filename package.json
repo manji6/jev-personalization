@@ -10,7 +10,7 @@
     "build": "node scripts/build.js",
     "start": "node src/app.js",
     "preview:admin": "node scripts/preview-admin.js",
-    "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js && node test/offers.test.js && node test/debug.test.js && node test/admin.test.js",
+    "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js && node test/offers.test.js && node test/debug.test.js && node test/admin.test.js && node test/preview-environment.test.js",
     "check": "npm run build && npm test",
     "test:browser": "playwright test",
     "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\" \"public/*\" \"scripts/*.js\" \"config/*.json\" \"docs/*.md\" README.md package.json playwright.config.js wrangler.json",
@@ -22,10 +22,12 @@
     "cf:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "cf:deploy": "npm run build:cloudflare && node scripts/deploy-cloudflare.js",
     "cf:dry-run": "npm run build:cloudflare && wrangler deploy --dry-run",
-    "test:cloudflare": "npm run build:cloudflare && node test/cloudflare.test.js && node test/admin-cloudflare.test.js",
+    "test:cloudflare": "npm run build:cloudflare && node test/cloudflare.test.js && node test/admin-cloudflare.test.js && node test/preview-cloudflare.test.js",
     "pretest:browser": "npm run build:cloudflare",
     "review": "npm run build && node scripts/review-admin.js",
-    "start:legacy": "node src/server.js"
+    "start:legacy": "node src/server.js",
+    "cf:preview": "node scripts/deploy-preview.js",
+    "cf:release": "npm run build:cloudflare && node scripts/deploy-cloudflare.js"
   },
   "dependencies": {
     "@fastify/rate-limit": "^10.3.0",
@@ -33,6 +35,7 @@
     "@simplewebauthn/server": "14.0.3",
     "acorn": "^8.19.0",
     "fastify": "^5.6.2",
+    "jose": "6.2.14",
     "zod": "^4.1.12"
   },
   "devDependencies": {

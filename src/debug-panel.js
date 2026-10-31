@@ -29,7 +29,10 @@ const labels = {
   queued: "通信中に更新された状態",
 };
 const describe = (value) => labels[value] ?? value;
-export function createDebugger(win, { siteId, endpoint, snapshot }) {
+export function createDebugger(
+  win,
+  { siteId, endpoint, snapshot, credentials = "omit" },
+) {
   let token = null,
     expiresAt = 0,
     host,
@@ -83,18 +86,27 @@ export function createDebugger(win, { siteId, endpoint, snapshot }) {
     const m = trace.model;
     el(
       "p",
-      m.called
-        ? `Jevに問い合わせました · ${m.actualModel ?? m.requestedModel} · ${m.elapsedMs ?? "—"}ms`
-        : "Jevへの問い合わせ：未実行",
+      m.mode === "stub"
+        ? "固定のテスト値で判定しました · Jevへの問い合わせなし"
+        : m.called
+          ? `Jevに問い合わせました · ${m.actualModel ?? m.requestedModel} · ${m.elapsedMs ?? "—"}ms`
+          : "Jevへの問い合わせ：未実行",
       parent,
     );
-    if (m.called) {
-      json(parent, "Jevへ実際に送ったstate・questions", {
-        model: m.requestedModel,
-        state: m.state,
-        questions: m.questions,
-      });
-      if (m.usage) json(parent, "使用量（応答に含まれる項目のみ）", m.usage);
+    if (m.called || m.mode === "stub") {
+      json(
+        parent,
+        m.mode === "stub"
+          ? "テストに使ったstate・questions（Jevへ未送信）"
+          : "Jevへ実際に送ったstate・questions",
+        {
+          model: m.requestedModel,
+          state: m.state,
+          questions: m.questions,
+        },
+      );
+      if (m.usage && m.mode !== "stub")
+        json(parent, "使用量（応答に含まれる項目のみ）", m.usage);
     }
     for (const c of trace.campaigns) {
       const details = el("details", undefined, parent);
@@ -342,7 +354,7 @@ export function createDebugger(win, { siteId, endpoint, snapshot }) {
       const r = await win.fetch(
         `${endpoint}/v1/debug-session?siteId=${encodeURIComponent(siteId)}`,
         {
-          credentials: "omit",
+          credentials,
           headers: { [HEADER]: data.token },
           signal: AbortSignal.timeout(3000),
         },

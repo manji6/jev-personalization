@@ -1689,3 +1689,37 @@ textarea.code {
   border: 1px solid var(--line);
   border-radius: 5px;
 }
+
+.deployment-notice {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #233c31;
+  color: white;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 24px;
+  min-height: 44px;
+}
+.preview-environment .sidebar {
+  top: 44px;
+  height: calc(100vh - 44px);
+}
+.preview-environment .topbar {
+  top: 44px;
+}
+.preview-environment .shell {
+  padding-top: 44px;
+}
+.preview-environment .login {
+  padding-top: 44px;
+}
+
+.deployment-notice {
+  height: 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

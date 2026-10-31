@@ -153,3 +153,32 @@ test("metadata provenance is available locally without changing the wire page sc
   assert.equal(page.sources, undefined);
   dom.window.close();
 });
+
+test("Access cookie opt-in is limited to explicit same-origin Preview pages", async () => {
+  for (const [apiOrigin, optIn, expected] of [
+    ["https://example.com", true, "same-origin"],
+    ["https://example.com", false, "omit"],
+    ["https://api.example.com", true, "omit"],
+  ]) {
+    const dom = new JSDOM("<title>Preview</title>", {
+      url: "https://example.com/demo",
+      pretendToBeVisual: true,
+    });
+    const win = dom.window;
+    const modes = [];
+    win.fetch = async (url, init) => {
+      modes.push(init.credentials);
+      return { ok: true, json: async () => ({ metadataEnabled: false }) };
+    };
+    const api = install(win, {
+      dataset: {
+        site: "demo",
+        api: apiOrigin,
+        ...(optIn ? { previewEnvironment: "true" } : {}),
+      },
+    });
+    await api.consent(true);
+    assert.deepEqual(modes, [expected]);
+    win.close();
+  }
+});

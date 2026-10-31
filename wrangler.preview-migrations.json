@@ -1,0 +1,11 @@
+{
+  "account_id": "4dd1b5dbfb7c717db2265f63b5d38c54",
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "jevsense-admin-v2-preview",
+      "database_id": "fdf93bda-2c2b-4df9-bde8-e13f20b6852e",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

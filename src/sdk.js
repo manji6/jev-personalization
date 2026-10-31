@@ -224,7 +224,12 @@ export function install(win, script) {
     win.location.href,
   ).origin;
   if (!siteId || !secureOrLoopback(endpoint)) return;
-  const preview = installPreview(win, { siteId, endpoint });
+  const credentials =
+    script.dataset.previewEnvironment === "true" &&
+    win.location.origin === endpoint
+      ? "same-origin"
+      : "omit";
+  const preview = installPreview(win, { siteId, endpoint, credentials });
   if (preview) {
     win.JevPersonalization = preview;
     return preview;
@@ -252,6 +257,7 @@ export function install(win, script) {
   const debug = createDebugger(win, {
     siteId,
     endpoint,
+    credentials,
     snapshot() {
       const sources = {};
       if (enabled && current) extractPage(win.document, win.location, sources);
@@ -505,7 +511,7 @@ export function install(win, script) {
         {
           method: "POST",
           mode: "cors",
-          credentials: "omit",
+          credentials,
           headers: { "Content-Type": "application/json", ...debug.headers() },
           body,
           signal: AbortSignal.timeout(3000),
@@ -571,7 +577,7 @@ export function install(win, script) {
     try {
       const r = await win.fetch(
         `${endpoint}/v1/sites/${encodeURIComponent(siteId)}`,
-        { credentials: "omit", signal: AbortSignal.timeout(3000) },
+        { credentials, signal: AbortSignal.timeout(3000) },
       );
       if (!r.ok) return;
       config = await r.json();

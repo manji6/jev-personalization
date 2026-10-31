@@ -1,5 +1,7 @@
 # 新管理画面のセットアップ・移行
 
+ブラウザだけで確認する場合は[Cloudflare Preview](cloudflare-preview.md)を使えます。
+
 まず[マニュアルのローカル確認](manual.md#1-公開せずに一通り試す)で実機パスキーと操作を確認してください。この作業記録では本番のSecrets・DB・公開バージョンを変更していません。
 
 ## Cloudflareの既存環境を切り替える場合
@@ -38,11 +40,11 @@ npx wrangler secret put AUTH_SECRET
 
 ### 3. マイグレーションとコードを適用
 
-`npm run cf:deploy`は、ビルド→D1マイグレーション→Worker配備を実行する**本番変更**のコマンドです。レビュー中に実行しないでください。
+`npm run cf:release -- --reviewed-commit <SHA>`は、ビルド→D1マイグレーション→Worker配備を実行する**本番変更**のコマンドです。レビュー中に実行しないでください。
 
 ```sh
 npm ci
-npm run cf:deploy
+npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 ```
 
 GitHub Buildsから適用する場合の設定は[Cloudflare手順](cloudflare.md)を参照してください。新管理画面に切り替える実行時変数も、コードと同じ切り替えで有効にします。先に変数だけを有効化した状態や、0002未適用で新APIを公開した状態を運用しません。

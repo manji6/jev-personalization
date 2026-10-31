@@ -4,7 +4,7 @@
   "main": "src/cloudflare/worker.js",
   "compatibility_date": "2026-10-30",
   "workers_dev": true,
-  "preview_urls": false,
+  "preview_urls": true,
   "assets": {
     "directory": "dist/assets",
     "binding": "ASSETS",
@@ -47,10 +47,54 @@
   "vars": {
     "JEV_MODEL": "jev-1.14.0",
     "DAILY_REQUEST_BUDGET": "1000",
-    "MAX_CONCURRENT": "10"
+    "MAX_CONCURRENT": "10",
+    "AUTH_MODE": "passkey",
+    "AUTH_ORIGIN": "https://jev-personalization.manji6.workers.dev"
   },
   "observability": {
     "enabled": false
   },
-  "account_id": "4dd1b5dbfb7c717db2265f63b5d38c54"
+  "account_id": "4dd1b5dbfb7c717db2265f63b5d38c54",
+  "previews": {
+    "vars": {
+      "DEPLOYMENT_TIER": "preview",
+      "AUTH_MODE": "passkey",
+      "AUTH_ORIGIN": "https://admin-v2-jev-personalization.manji6.workers.dev",
+      "PREVIEW_ACCESS_AUD": "977d6b663fc9270052eebe6db4bf87995572bfb18a744e7b610d36167e67bcef",
+      "PREVIEW_ACCESS_DOMAIN": "web-profile-cgn-pages.cloudflareaccess.com",
+      "PREVIEW_MODEL_MODE": "stub",
+      "JEV_MODEL": "jev-1.14.0",
+      "DAILY_REQUEST_BUDGET": "1000",
+      "MAX_CONCURRENT": "3"
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "jevsense-admin-v2-preview",
+        "database_id": "fdf93bda-2c2b-4df9-bde8-e13f20b6852e",
+        "migrations_dir": "migrations"
+      }
+    ],
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "MODEL_BUDGET",
+          "class_name": "ModelBudget"
+        }
+      ]
+    },
+    "ratelimits": [
+      {
+        "name": "RATE_LIMITER",
+        "namespace_id": "1002",
+        "simple": {
+          "limit": 60,
+          "period": 60
+        }
+      }
+    ],
+    "observability": {
+      "enabled": false
+    }
+  }
 }
