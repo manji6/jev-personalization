@@ -9,6 +9,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "start": "node src/server.js",
+    "preview:admin": "node scripts/preview-admin.js",
     "test": "node test/engine.test.js && node test/server.test.js && node test/sdk.test.js && node test/offers.test.js && node test/debug.test.js",
     "check": "npm run build && npm test",
     "test:browser": "playwright test",

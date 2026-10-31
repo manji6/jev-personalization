@@ -52,4 +52,4 @@ npm run test:browser
 
 実サイトでの計測・送信・判定の確認は[デバッグパネル](docs/debugging.md)を参照してください。
 
-管理画面v2の認証・サイト所属・画面構造は[検討資料](docs/admin-v2-plan.md)と[操作モック](docs/prototypes/admin-v2.html)を参照してください。`/admin-preview`で架空データのモックを表示できます。本番のパスキー認証・ユーザー管理への移行は、モック確認後の段階で実装します。
+管理画面v2の認証・サイト所属・画面構造は[検討資料](docs/admin-v2-plan.md)と[操作モック](docs/prototypes/admin-v2.html)を参照してください。単独HTMLをダウンロードして開くか、`npm run preview:admin`で手元の127.0.0.1にだけ表示できます。確認用Webサイトは公開しません。本番のパスキー認証・ユーザー管理への移行は、モック確認後の段階で実装します。

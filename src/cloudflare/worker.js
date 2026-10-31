@@ -5,7 +5,6 @@ import { createJev } from "../jev.js";
 import { D1Store, revisionOf } from "./store.js";
 export { ModelBudget } from "./budget.js";
 import { publicOffer, customModule } from "../offer-response.js";
-import { adminPreviewCSP } from "../admin-preview.js";
 import {
   DEBUG_HEADER,
   issueDebugSession,
@@ -26,7 +25,6 @@ const assets = new Map([
   ["/admin.css", "/admin.css"],
   ["/sdk.js", "/sdk.js"],
   ["/offer-renderer.js", "/offer-renderer.js"],
-  ["/admin-preview", "/admin-preview.html"],
 ]);
 function json(body, status = 200, headers = {}) {
   return Response.json(body, { status, headers });
@@ -110,25 +108,8 @@ export default {
         assetURL.pathname = assets.get(path);
         assetURL.search = "";
         const response = await env.ASSETS.fetch(
-          new Request(assetURL, {
-            method: path === "/admin-preview" ? "GET" : request.method,
-          }),
+          new Request(assetURL, { method: request.method }),
         );
-        if (path === "/admin-preview") {
-          const html = await response.text();
-          headers.set("Content-Security-Policy", await adminPreviewCSP(html));
-          headers.set(
-            "Permissions-Policy",
-            "publickey-credentials-get=(), publickey-credentials-create=()",
-          );
-          return finish(
-            new Response(request.method === "HEAD" ? null : html, {
-              status: response.status,
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            }),
-            headers,
-          );
-        }
         if (path === "/admin" || path === "/admin/")
           headers.set("Content-Security-Policy", CSP);
         if (path === "/sdk.js")

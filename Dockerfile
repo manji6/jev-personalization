@@ -14,7 +14,6 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
 COPY --chown=node:node src ./src
 COPY --chown=node:node public ./public
-COPY --chown=node:node docs/prototypes/admin-v2.html ./docs/prototypes/admin-v2.html
 RUN mkdir data && chown node:node data
 USER node
 EXPOSE 3000

@@ -6,10 +6,6 @@ for (const file of ["admin.html", "admin.css", "admin.js"])
   await copyFile(`public/${file}`, `dist/assets/${file}`);
 await copyFile("dist/sdk.js", "dist/assets/sdk.js");
 await copyFile("dist/offer-renderer.js", "dist/assets/offer-renderer.js");
-await copyFile(
-  "docs/prototypes/admin-v2.html",
-  "dist/assets/admin-preview.html",
-);
 // The same source is bundled by Wrangler for deploy, and by esbuild for workerd tests.
 await build({
   entryPoints: ["src/cloudflare/worker.js"],

@@ -21,30 +21,6 @@ const request = () => ({
   headers: { origin: "https://www.example.com" },
   payload: input(),
 });
-test("review prototype is separate from management and blocks API/WebAuthn access", async (t) => {
-  let calls = 0;
-  const { app } = await setup(async () => {
-    calls++;
-  });
-  t.after(() => app.close());
-  const response = await app.inject("/admin-preview");
-  assert.equal(response.statusCode, 200);
-  assert.match(response.body, /UI PROTOTYPE/);
-  assert.match(
-    response.headers["content-security-policy"],
-    /script-src 'sha256-/,
-  );
-  assert.match(
-    response.headers["content-security-policy"],
-    /connect-src 'none'/,
-  );
-  assert.match(
-    response.headers["permissions-policy"],
-    /publickey-credentials-get=\(\)/,
-  );
-  assert.equal((await app.inject("/admin/api/config")).statusCode, 401);
-  assert.equal(calls, 0);
-});
 test("HTTP pipeline sends bounded state and returns safe registered content", async (t) => {
   let calls = 0;
   const { app } = await setup(async (p) => {

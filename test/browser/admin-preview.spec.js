@@ -1,32 +1,28 @@
 import { test, expect } from "@playwright/test";
-import { cloudflareFixture } from "../cloudflare-fixture.js";
-let runtime, urls;
+import { startAdminPreview } from "../../scripts/preview-admin.js";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+let preview, baseURL, urls;
+test.beforeAll(async () => {
+  preview = await startAdminPreview({ port: 0 });
+  baseURL = `http://127.0.0.1:${preview.address().port}`;
+});
+test.afterAll(
+  async () =>
+    new Promise((resolve, reject) =>
+      preview.close((error) => (error ? reject(error) : resolve())),
+    ),
+);
 test.beforeEach(async ({ page }) => {
-  runtime = await cloudflareFixture();
   urls = [];
-  await page.route("https://api.example.com/**", async (route) => {
-    const u = new URL(route.request().url());
-    urls.push(u.pathname);
-    const r = await runtime.dispatch(u.pathname, {
-      method: route.request().method(),
-    });
-    await route.fulfill({
-      status: r.status,
-      headers: Object.fromEntries(r.headers),
-      body: Buffer.from(await r.arrayBuffer()),
-    });
-  });
+  page.on("request", (request) => urls.push(new URL(request.url()).pathname));
   await page.addInitScript(() => {
     window.violations = [];
-    document.addEventListener("securitypolicyviolation", (e) =>
-      window.violations.push(e.effectiveDirective),
+    document.addEventListener("securitypolicyviolation", (event) =>
+      window.violations.push(event.effectiveDirective),
     );
   });
-  await page.goto("https://api.example.com/admin-preview");
-});
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: "wait" });
-  await runtime.mf.dispose();
+  await page.goto(baseURL);
 });
 async function login(page) {
   await page.getByRole("button", { name: "パスキーでログイン" }).click();
@@ -60,8 +56,8 @@ test("prototype has independent CSP and mock login; never contacts APIs or model
       exact: false,
     }),
   ).toBeVisible();
-  expect(urls).toEqual(["/admin-preview"]);
-  expect(runtime.calls()).toBe(0);
+  expect(urls).toEqual(["/"]);
+
   expect(await page.evaluate(() => window.violations)).toEqual([]);
   await page.locator("#toast").evaluate((el) => {
     el.hidden = true;
@@ -175,7 +171,7 @@ test("new campaign flows through content and delivery confirmation into filtered
   await expect(
     page.getByRole("button", { name: "新規レビュー施策", exact: true }),
   ).toBeVisible();
-  expect(runtime.calls()).toBe(0);
+
   await page.locator("#toast").evaluate((el) => {
     el.hidden = true;
   });
@@ -209,7 +205,7 @@ test("manual invitation shows a sample link and passkey enrollment rather than e
   await page.getByRole("button", { name: "登録成功を再現" }).click();
   await page.getByRole("link", { name: "アカウント・パスキー" }).click();
   await expect(page.getByText("ログインID（メール未検証）")).toBeVisible();
-  expect(urls).toEqual(["/admin-preview"]);
+  expect(urls).toEqual(["/"]);
 });
 test("Superuser has system settings; site administrators cannot enter them", async ({
   page,
@@ -256,7 +252,7 @@ test("setup and recovery scenarios explicitly simulate enrollment without actual
   await expect(
     page.getByRole("heading", { name: "こんにちは、美香さん。" }),
   ).toBeVisible();
-  expect(urls).toEqual(["/admin-preview"]);
+  expect(urls).toEqual(["/"]);
 });
 test("mobile navigation and site header fit the viewport", async ({
   page,
@@ -285,4 +281,18 @@ test("mobile navigation and site header fit the viewport", async ({
     path: testInfo.outputPath("admin-v2-mobile.png"),
     fullPage: true,
   });
+});
+
+test("standalone HTML opens directly from disk without a server", async ({
+  page,
+}) => {
+  await page.goto(pathToFileURL(resolve("docs/prototypes/admin-v2.html")).href);
+  await login(page);
+  await nav(page, "施策一覧");
+  await expect(
+    page.getByRole("button", {
+      name: "吸汗速乾ポロシャツのご案内",
+      exact: true,
+    }),
+  ).toBeVisible();
 });
