@@ -940,19 +940,110 @@ td.empty {
   padding: 14px 20px;
   color: #9aa38f;
 }
+/* Reusable spacing for stacked sections and primary/secondary identity text. */
+.section-stack {
+  display: grid;
+  gap: 32px;
+}
+.admin-section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.admin-section > .card {
+  min-width: 0;
+}
+.main > h2 {
+  margin: 32px 0 14px;
+}
+.card-body > h2 {
+  margin-bottom: 16px;
+}
+.card-body > h2:not(:first-child) {
+  margin-top: 28px;
+}
+.card-body > h3 {
+  margin-bottom: 12px;
+}
+.card-body > h3:not(:first-child) {
+  margin-top: 24px;
+}
+.card-body > p + form,
+.card-body > p + .button {
+  margin-top: 16px;
+}
+.card-body > form + p,
+.card-body > .button + p {
+  margin-top: 16px;
+}
+.identity-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.identity-copy strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.identity-copy small {
+  color: #65766b;
+  font-size: 11px;
+  line-height: 1.55;
+}
 .meta-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 16px;
   border-bottom: 1px solid #edf0e8;
-  padding: 13px 0;
-  font-size: 11px;
+  padding: 16px 0;
+  font-size: 12px;
 }
 .meta-row:last-child {
   border: 0;
 }
-.meta-row span:first-child {
-  color: #9aa38f;
+.meta-row > span:first-child {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
 }
+.meta-row > button,
+.meta-row > small {
+  flex-shrink: 0;
+}
+.meta-row > span > small {
+  display: block;
+  margin-top: 4px;
+}
+.meta-row > :is(.identity-copy, .passkey-info) > small {
+  margin-top: 0;
+}
+.card > .table-wrap {
+  border-radius: inherit;
+}
+.identity-table {
+  min-width: 640px;
+}
+.identity-table .identity-copy {
+  min-width: 180px;
+}
+.identity-table td:not(:first-child) {
+  white-space: nowrap;
+}
+.card-body > .meta-row + .button {
+  margin-top: 16px;
+}
+@media (max-width: 600px) {
+  .site-directory .meta-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .site-directory .meta-row > button {
+    align-self: flex-start;
+  }
+}
+
 .passkey-row {
   align-items: center;
   gap: 16px;
