@@ -180,6 +180,8 @@ export default {
           bootstrapToken: env.ADMIN_TOKEN,
           setupIdentity: identity,
           deployment: info,
+          jevKeyring: env.JEV_KEYRING,
+          defaultJevKey: env.JEV_API_KEY,
           defaults: {
             model: env.JEV_MODEL ?? "jev-1.14.0",
             dailyRequestBudget: integer(
@@ -444,7 +446,16 @@ export default {
       if (prepared.reason)
         return respond({ ...base, decision: "hold", reason: prepared.reason });
       const stub = isPreview && env.PREVIEW_MODEL_MODE === "stub";
-      if (!env.JEV_API_KEY && !stub)
+      if (!administration && !env.JEV_API_KEY && !stub)
+        return respond(
+          { ...base, decision: "hold", reason: "model_not_configured" },
+          503,
+        );
+      if (
+        stub &&
+        administration &&
+        (await administration.jevStatus(site.id)).mode === "disabled"
+      )
         return respond(
           { ...base, decision: "hold", reason: "model_not_configured" },
           503,
@@ -464,6 +475,19 @@ export default {
             ),
             maxConcurrent: integer(env.MAX_CONCURRENT, 10, 1, 100),
           };
+      let callModel;
+      if (!stub) {
+        try {
+          callModel = administration
+            ? await administration.prepareJev(site.id, runtime.model)
+            : createJev({ apiKey: env.JEV_API_KEY, model: runtime.model });
+        } catch {
+          return respond(
+            { ...base, decision: "hold", reason: "model_not_configured" },
+            503,
+          );
+        }
+      }
       const permit = await budget.acquire({
         dailyLimit: runtime.dailyRequestBudget,
         maxConcurrent: runtime.maxConcurrent,
@@ -490,9 +514,7 @@ export default {
                 ]),
               ),
             }
-          : await createJev({ apiKey: env.JEV_API_KEY, model: runtime.model })(
-              prepared,
-            );
+          : await callModel(prepared);
         finishModelTrace(
           trace,
           prepared,

@@ -1723,3 +1723,17 @@ textarea.code {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.stats.jev-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .stats.jev-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .stats.jev-stats {
+    grid-template-columns: 1fr;
+  }
+}

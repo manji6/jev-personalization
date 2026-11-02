@@ -36,10 +36,14 @@ Node.jsではSQLite本体とWALの整合性を保ちます。停止中またはS
 
 通常は予備パスキー、復旧コード、Superuserの期限付き復旧リンクを使います。[アカウント](../guides/accounts)を参照してください。
 
-全Superuserが資格を失った場合は、DBを操作できる環境運用者が、本人確認とバックアップを行って対応します。ADMIN_TOKENで既存アカウントを取り直す公開の裏口はありません。運用者向けの最終手順は[リポジトリの移行・復旧手順](https://github.com/manji6/jev-personalization/blob/feature/admin-v2-implementation/docs/admin-v2-setup.md)に記載しています。
+全Superuserが資格を失った場合は、DBを操作できる環境運用者が、本人確認とバックアップを行って対応します。ADMIN_TOKENで既存アカウントを取り直す公開の裏口はありません。運用者向けの最終手順は[リポジトリの移行・復旧手順](https://github.com/manji6/jev-personalization/blob/feature/site-jev-management/docs/admin-v2-setup.md)に記載しています。
 
 ## 稼働確認
 
 `/health`はプロセスの応答確認です。Jevの残高、正しい対象者判定、すべてのSecretの有効性を保証しません。PreviewではAccessにより入口も保護されます。
 
 モデル障害・混雑・費用上限ではオファーを出さずに継続します。対象サイト本体の操作ができることと、診断パネルの理由を確認してください。
+
+## サイト専用Jevキーと利用記録
+
+バックアップにはAPIキーの暗号文と利用記録も入ります。対応する暗号化キーは、DBと別に保護・保管してください。古い記録は通常利用・閲覧時に削除しますが、バックアップの保持は別途管理します。暗号化キーの更新・紛失・切り戻しは[専用手順](./jev-keys)を参照してください。対応前コードだけへ戻すとサイト専用キーや停止を無視して共通キーを使うおそれがあります。

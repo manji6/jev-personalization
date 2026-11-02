@@ -55,6 +55,7 @@ export default defineConfig({
           { text: "表示形式と独自JavaScript", link: "/guides/presentation" },
           { text: "プレビューと動作確認", link: "/guides/testing" },
           { text: "診断パネルを読む", link: "/guides/debugging" },
+          { text: "Jev接続・利用状況", link: "/guides/jev" },
         ],
       },
       {
@@ -68,6 +69,7 @@ export default defineConfig({
         text: "運用・リファレンス",
         items: [
           { text: "セキュリティと秘密情報", link: "/operations/security" },
+          { text: "サイト専用キーの安全な運用", link: "/operations/jev-keys" },
           { text: "更新・バックアップ・復旧", link: "/operations/maintenance" },
           { text: "設定と上限", link: "/reference/configuration" },
           { text: "トラブルシューティング", link: "/troubleshooting" },
@@ -86,7 +88,7 @@ export default defineConfig({
     lastUpdated: { text: "最終更新", formatOptions: { dateStyle: "medium" } },
     editLink: {
       pattern:
-        "https://github.com/manji6/jev-personalization/edit/feature/admin-v2-implementation/help/:path",
+        "https://github.com/manji6/jev-personalization/edit/feature/site-jev-management/help/:path",
       text: "このページの編集を提案",
     },
     footer: {

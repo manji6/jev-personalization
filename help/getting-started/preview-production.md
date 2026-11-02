@@ -12,6 +12,8 @@
 | Access             | 許可された担当者に限定 | 運用方針に従う   |
 | Jev                | 初期構成は固定スタブ   | 本番キーで実判定 |
 
+サイト専用Jevキーを使う場合は、PreviewとProductionそれぞれの[JEV_KEYRING](../operations/jev-keys)を独立させます。暗号文・キー・利用記録を本番へコピーしません。
+
 CloudflareのWorker Previewsを使います。Version URLは本番リソースを共有するため、この分離確認の代わりには使いません。
 
 ## 1. 確認版を作る

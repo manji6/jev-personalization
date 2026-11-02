@@ -17,7 +17,7 @@ Cloudflare運用を推奨する構成として用意しています。まずロ�
 現行v2の確認対象ブランチを取得します。
 
 ```sh
-git clone --branch feature/admin-v2-implementation https://github.com/manji6/jev-personalization.git
+git clone --branch feature/site-jev-management https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 npm run review

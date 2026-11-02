@@ -26,6 +26,7 @@ export async function buildApp({
   adminToken,
   administration,
   runtimeSettings,
+  prepareModel,
   modelName = "jev-1.14.0",
   maxConcurrent = 10,
   dailyRequestBudget = 1000,
@@ -325,6 +326,17 @@ export async function buildApp({
     const runtime = runtimeSettings
       ? await runtimeSettings()
       : { model: modelName, dailyRequestBudget, maxConcurrent };
+    let callModel = (p) => jev(p, runtime.model);
+    if (prepareModel) {
+      try {
+        callModel = await prepareModel(site.id, runtime.model);
+      } catch {
+        return respond(
+          { ...base, decision: "hold", reason: "model_not_configured" },
+          503,
+        );
+      }
+    }
     if (dailyCalls >= runtime.dailyRequestBudget)
       return respond(
         { ...base, decision: "hold", reason: "budget_exhausted" },
@@ -337,7 +349,7 @@ export async function buildApp({
     const modelStart = performance.now();
     startModelTrace(trace, prepared, runtime.model);
     try {
-      const result = await jev(prepared, runtime.model);
+      const result = await callModel(prepared);
       finishModelTrace(trace, prepared, result, performance.now() - modelStart);
       const selected = select(prepared, result);
       return respond({

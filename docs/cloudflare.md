@@ -209,3 +209,7 @@ Cloudflare統合テストはworkerd、実D1エミュレーター、実Durable Ob
 - [Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
 
 確認日：2026-10-30（日本時間）。本リポジトリの運用先で初回デプロイと公開URLの疎通を確認済みです。GitHub Buildsによる自動デプロイの連携と、Secrets登録後の実Jev呼び出しは別途確認が必要です。
+
+## 新管理画面のサイト別Jevキー
+
+パスキー方式では共通JEV_API_KEYに加え、サイト専用キーを[Jev連携画面](../help/guides/jev.md)から管理できます。実行時Secret JEV_KEYRINGと0003の移行が必要です。値を通常変数やビルドログへ出さない[初期設定手順](../help/operations/jev-keys.md)を使います。利用記録はD1へ保存しますが、閲覧者の履歴・要求本文は保存しません。共有キーを使わない運用ではJEV_API_KEYは不要です。

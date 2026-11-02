@@ -8,7 +8,6 @@ import {
   openAdminDatabase,
   migrateAdminDatabase,
 } from "./admin/node-database.js";
-import { createJev } from "./jev.js";
 
 export async function buildManagedApp({
   databasePath = "data/administration.sqlite",
@@ -18,7 +17,13 @@ export async function buildManagedApp({
   bootstrapToken,
   jev,
   defaults = {},
+  jevKeyring = process.env.JEV_KEYRING,
+  defaultJevKey = process.env.JEV_API_KEY,
+  jevFetch,
+  jevKeyringPath = process.env.JEV_KEYRING_FILE,
 }) {
+  if (!jevKeyring && jevKeyringPath)
+    jevKeyring = await readFile(jevKeyringPath, "utf8");
   const db = await openAdminDatabase(databasePath);
   await migrateAdminDatabase(db, config);
   const assets = async (file, method) => {
@@ -44,6 +49,9 @@ export async function buildManagedApp({
       bootstrapToken,
       assets,
       defaults,
+      jevKeyring,
+      defaultJevKey,
+      jevFetch,
     }),
     origin,
   };
@@ -87,10 +95,14 @@ export async function buildManagedApp({
     adminToken: bootstrapToken || crypto.randomUUID(),
     administration,
     runtimeSettings: () => administration.runtimeSettings(),
-    jev:
-      jev ||
-      ((prepared, model) =>
-        createJev({ apiKey: process.env.JEV_API_KEY, model })(prepared)),
+    prepareModel: jev
+      ? async (siteId, model) => {
+          if ((await administration.jevStatus(siteId)).mode === "disabled")
+            throw Error("model_not_configured");
+          return (p) => jev(p, model);
+        }
+      : administration.prepareJev,
+    jev,
   });
   app.addHook("onClose", async () => db.close());
   return { app, administration, db };

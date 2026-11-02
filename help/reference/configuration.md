@@ -8,7 +8,7 @@
 | AUTH_ORIGIN                 | 固定された管理画面Origin。HTTPS、末尾スラッシュなし |
 | AUTH_SECRET                 | 環境ごとの署名Secret。32文字以上                    |
 | ADMIN_TOKEN                 | 初回Superuser登録用。32文字以上                     |
-| JEV_API_KEY                 | Jevの実判定用キー                                   |
+| JEV_API_KEY                 | インスタンス共通のJevキー                           |
 | JEV_MODEL                   | 初回設定に使うモデル名                              |
 | DAILY_REQUEST_BUDGET        | 初回設定に使うUTC日単位の実行上限                   |
 | MAX_CONCURRENT              | 初回設定に使う同時実行数                            |
@@ -17,6 +17,8 @@
 | PREVIEW_ACCESS_DOMAIN / AUD | Accessの信頼する発行元と対象アプリ                  |
 
 モデルと予算は初回登録時に管理DBへ引き継ぎます。以後の設定元はSuperuserの「JevSense管理」です。環境変数だけを書き換えてDBの値を上書きする運用ではありません。
+
+サイト専用キーには実行時Secret `JEV_KEYRING`が必要です。Node.jsだけは代わりに`JEV_KEYRING_FILE`のファイルを読めます。詳細は[暗号化キーの運用](../operations/jev-keys)を参照してください。
 
 ## 管理画面の主要設定
 
@@ -58,4 +60,8 @@
 
 公開SDKは`/v1/sites/:siteId`、`/v1/decision`等を使います。管理者のログインは`/auth/*`、サイト別管理は`/admin/api/v2/*`です。
 
-管理Cookieや管理トークンをSDKへ配らないでください。実際のスキーマと競合制御は[詳細設計](https://github.com/manji6/jev-personalization/blob/feature/admin-v2-implementation/docs/admin-v2-design.md)を参照してください。
+管理Cookieや管理トークンをSDKへ配らないでください。実際のスキーマと競合制御は[詳細設計](https://github.com/manji6/jev-personalization/blob/feature/site-jev-management/docs/admin-v2-design.md)を参照してください。
+
+## Jev接続と記録の上限
+
+サイトごとの接続モードは共通・専用・停止の3種類。専用APIキーは空白を含まない印字ASCIIで8〜4096文字です。暗号化キーストアは最大10世代、各32バイトを使います。利用記録はUTC日で最大90日、最新100件を表示します。APIキー・利用記録はサイト管理者/Superuser専用です。

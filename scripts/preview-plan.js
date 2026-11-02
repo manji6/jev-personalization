@@ -52,6 +52,8 @@ export function previewPlan(config, migrations, { allowLocked = false } = {}) {
   )
     throw Error("Preview Durable Objects must be scoped to this Preview");
   if (
+    "JEV_KEYRING" in (config.vars || {}) ||
+    "JEV_KEYRING" in p.vars ||
     "JEV_API_KEY" in p.vars ||
     "AUTH_SECRET" in p.vars ||
     "ADMIN_TOKEN" in p.vars
@@ -72,6 +74,8 @@ export function previewPlan(config, migrations, { allowLocked = false } = {}) {
   };
 }
 export function releasePlan({ head, reviewedCommit, dirty, receipt, config }) {
+  if ("JEV_KEYRING" in (config.vars || {}))
+    throw Error("Encryption keyring must be a Secret, never plain vars");
   if (!/^[a-f0-9]{40}$/.test(reviewedCommit || ""))
     throw Error(
       "Specify the full --reviewed-commit SHA after checking Preview",

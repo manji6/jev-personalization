@@ -95,6 +95,10 @@ test("workerd Preview is private, permits Access-bound initial setup and labels 
   assert.equal(report.debug.model.mode, "stub");
   assert.equal(report.debug.campaigns[0].questions[0].probability, 0.95);
   assert.equal(f.calls(), 0);
+  assert.equal(
+    (await f.db.prepare("SELECT count(*) AS n FROM site_jev_calls").first()).n,
+    0,
+  );
 });
 test("Preview stays closed when Access issuer or audience is not configured", async (t) => {
   const f = await cloudflareFixture({

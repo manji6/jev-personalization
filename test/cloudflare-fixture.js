@@ -55,6 +55,7 @@ export async function cloudflareFixture(options = {}) {
       calls++;
       assert.equal(request.url, "https://api.typesafe.ai/v1/systemone");
       sent = await request.json();
+      options.onCall?.(request.headers.get("Authorization"));
       if (options.error) return new Response("private error", { status: 401 });
       return Response.json({
         model: "mock-jev",
@@ -75,11 +76,12 @@ export async function cloudflareFixture(options = {}) {
     .bind(JSON.stringify(config), "test-initial")
     .run();
   if (options.passkey)
-    await db.exec(
-      (await readFile("migrations/0002_administration.sql", "utf8"))
-        .replace(/^--.*$/gm, "")
-        .trim(),
-    );
+    for (const migration of ["0002_administration.sql", "0003_site_jev.sql"])
+      await db.exec(
+        (await readFile("migrations/" + migration, "utf8"))
+          .replace(/^--.*$/gm, "")
+          .trim(),
+      );
   const dispatch = (path, init = {}) =>
     mf.dispatchFetch("https://api.example.com" + path, init);
   const decision = (value = input(), extra = {}) =>

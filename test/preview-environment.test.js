@@ -29,6 +29,14 @@ test("Preview resource validation rejects production DB, mismatched migrations a
   const bad = structuredClone(migration);
   bad.d1_databases[0].database_id = "wrong";
   assert.throws(() => previewPlan(config, bad), /does not match/);
+  for (const scope of ["preview", "production"]) {
+    const plaintext = structuredClone(config);
+    (scope === "preview"
+      ? plaintext.previews.vars
+      : plaintext.vars
+    ).JEV_KEYRING = "synthetic-forbidden-plaintext";
+    assert.throws(() => previewPlan(plaintext, migration), /Secrets/);
+  }
   const quotas = structuredClone(config);
   quotas.previews.ratelimits[0].namespace_id =
     config.ratelimits[0].namespace_id;

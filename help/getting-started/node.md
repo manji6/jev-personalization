@@ -5,7 +5,7 @@ Node.js 24以上、永続ディスク、HTTPSのリバースプロキシを用�
 ## インストール
 
 ```sh
-git clone --branch feature/admin-v2-implementation https://github.com/manji6/jev-personalization.git
+git clone --branch feature/site-jev-management https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 npm run build
@@ -23,7 +23,7 @@ cp config/example.json data/config.json
 | AUTH_ORIGIN   | 管理画面の正確なHTTPS Origin              |
 | AUTH_SECRET   | 独立したランダムな32文字以上の秘密情報    |
 | ADMIN_TOKEN   | 初回Superuser登録用のランダムな32文字以上 |
-| JEV_API_KEY   | 実判定用のJevキー                         |
+| JEV_API_KEY   | 共通キーを使う場合のJevキー               |
 | CONFIG_PATH   | 初期データ。既定data/config.json          |
 | ADMIN_DB_PATH | 管理DB。既定data/administration.sqlite    |
 | HOST / PORT   | 既定127.0.0.1 / 3000                      |
@@ -37,6 +37,8 @@ npm start
 # ローカルのGit対象外.envを明示して使う場合
 node --env-file=.env src/app.js
 ```
+
+サイト専用キーを使う場合は、[暗号化キーの手順](../operations/jev-keys)に従い`JEV_KEYRING`、または`JEV_KEYRING_FILE`に専用JSONの絶対パスを設定します。JEV_KEYRINGを優先し、AUTH_SECRETとは独立して管理します。DBと暗号化キーの両方を永続化してください。
 
 ## HTTPSとプロキシ
 

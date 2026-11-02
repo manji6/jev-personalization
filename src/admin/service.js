@@ -93,6 +93,7 @@ export async function readAdminJSON(request) {
 const actorPermission = `EXISTS(SELECT 1 FROM admin_users a WHERE a.id=? AND a.status='active' AND (a.global_role='superuser' OR EXISTS(SELECT 1 FROM admin_memberships m WHERE m.user_id=a.id AND m.site_id=? AND m.role IN ('admin','editor'))))`;
 const actorAdmin = `EXISTS(SELECT 1 FROM admin_users a WHERE a.id=? AND a.status='active' AND (a.global_role='superuser' OR EXISTS(SELECT 1 FROM admin_memberships m WHERE m.user_id=a.id AND m.site_id=? AND m.role='admin')))`;
 const validIssuer = `EXISTS(SELECT 1 FROM admin_users a WHERE a.id=i.created_by AND a.status='active' AND (a.global_role='superuser' OR (i.kind='invite' AND EXISTS(SELECT 1 FROM admin_memberships m WHERE m.user_id=a.id AND m.site_id=i.site_id AND m.role='admin'))))`;
+import { createSiteJev, siteJevUpdate } from "../site-jev.js";
 export function createAdministration({
   db,
   origin,
@@ -103,9 +104,19 @@ export function createAdministration({
   assets,
   clock = Date.now,
   defaults = {},
+  jevKeyring,
+  defaultJevKey,
+  jevFetch,
 }) {
   const config = authConfiguration(origin, secret),
     repo = new AdminDatabase(db);
+  const siteJev = createSiteJev({
+    repo,
+    keyring: jevKeyring,
+    defaultApiKey: defaultJevKey,
+    fetchImpl: jevFetch,
+    clock,
+  });
   const initialDefaults = z
     .object({
       model: z
@@ -1265,15 +1276,40 @@ export function createAdministration({
       const siteId = match[1],
         tail = match[2] || "",
         kind =
-          request.method === "GET"
-            ? "view"
-            : tail.startsWith("members") ||
-                tail === "invitations" ||
-                tail === "settings"
-              ? "admin"
-              : "edit";
+          tail === "jev" || tail === "jev/usage"
+            ? "admin"
+            : request.method === "GET"
+              ? "view"
+              : tail.startsWith("members") ||
+                  tail === "invitations" ||
+                  tail === "settings"
+                ? "admin"
+                : "edit";
       const value = await allowedSite(session, siteId, kind),
         site = value.site;
+      if (tail === "jev") {
+        if (request.method === "GET") return out(await siteJev.status(siteId));
+        if (request.method === "PUT") {
+          recent(session);
+          return out(
+            await siteJev.save(
+              siteId,
+              siteJevUpdate.parse(await readAdminJSON(request)),
+              request.headers.get("If-Match"),
+              session.user_id,
+            ),
+          );
+        }
+      }
+      if (tail === "jev/usage" && request.method === "GET") {
+        const days = z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(90)
+          .parse(url.searchParams.get("days") || "30");
+        return out(await siteJev.usage(siteId, days));
+      }
       if (!tail && request.method === "GET") {
         const drafts = await repo.all(
           "SELECT campaign_id,body,revision,base_hash FROM admin_drafts WHERE site_id=?",
@@ -1684,5 +1720,14 @@ export function createAdministration({
       );
     }
   }
-  return { handle, repo, verifyDebug, actor, permission, runtimeSettings };
+  return {
+    handle,
+    repo,
+    verifyDebug,
+    actor,
+    permission,
+    runtimeSettings,
+    prepareJev: siteJev.prepare,
+    jevStatus: siteJev.status,
+  };
 }

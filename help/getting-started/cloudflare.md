@@ -17,7 +17,7 @@ Accessを新規に使う場合はCloudflare Zero Trustの初期設定も行い�
 ## 1. コードを取得する
 
 ```sh
-git clone --branch feature/admin-v2-implementation https://github.com/manji6/jev-personalization.git
+git clone --branch feature/site-jev-management https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 ```
@@ -118,11 +118,12 @@ npm run cf:preview
 
 ## 7. 本番のSecretを設定する
 
-本番には、実行時Secretの`JEV_API_KEY`と`ADMIN_TOKEN`が必要です。API Tokenとは別のものです。最初の管理者を登録するADMIN_TOKENは、ランダムな32文字以上にします。
+本番には初回登録用の実行時Secret `ADMIN_TOKEN`と、共通キー用`JEV_API_KEY`またはサイト専用キー暗号化用`JEV_KEYRING`の少なくとも一方が必要です。サイト専用キーを使う場合は[暗号化キーの初期設定](../operations/jev-keys)も行ってください。API Tokenとは別のものです。最初の管理者を登録するADMIN_TOKENは、ランダムな32文字以上にします。
 
 ```sh
-npx wrangler secret put JEV_API_KEY
 npx wrangler secret put ADMIN_TOKEN
+# 共通キーを使う場合
+npx wrangler secret put JEV_API_KEY
 ```
 
 本番AUTH_SECRETは、まだない場合、明示的な本番リリース操作の中で独立した値を生成して設定します。Previewの値をコピーしません。既存環境の値は上書きしません。

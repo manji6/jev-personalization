@@ -82,6 +82,10 @@ test.beforeEach(async ({ page, context }) => {
     origin,
     secret: "test-auth-secret-".repeat(4),
     bootstrapToken: token,
+    jevKeyring: JSON.stringify({
+      active: "test",
+      keys: { test: Buffer.alloc(32, 31).toString("base64url") },
+    }),
     jev: async () => {
       calls++;
       return { model: "stub", answers: { c0q0: { noul: 0.95 } } };
@@ -390,4 +394,135 @@ test("passkey-authenticated administrator launches scoped live diagnostics from 
   await expect(page.locator("#toast")).toContainText("診断パネルに接続");
   expect(calls).toBe(0);
   await popup.close();
+});
+
+test("site Jev key form saves encrypted write-only credentials with confirmation and passkey reauthentication", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.locator('a[data-nav="jev"]').click();
+  await expect(
+    page.getByRole("heading", { name: "Jev連携", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "使用するキー", exact: true })
+    .click();
+  await page.locator('[role="option"][data-value="site"]').click();
+  const key = "browser-private-synthetic-key";
+  await page.getByLabel("新しいサイト専用APIキー", { exact: true }).fill(key);
+  await db.raw
+    .prepare("UPDATE admin_sessions SET authenticated_at=?")
+    .run(Date.now() - 600000);
+  await page
+    .getByRole("button", { name: "Jev接続設定を保存", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("新しいサイト専用APIキー", { exact: true }),
+  ).toHaveValue("");
+  await page.getByRole("button", { name: "保存する", exact: true }).click();
+  await page
+    .getByRole("button", { name: "パスキーで確認", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Jev接続設定を保存しました",
+  );
+  await expect(
+    page.getByLabel("新しいサイト専用APIキー", { exact: true }),
+  ).toHaveValue("");
+  const row = db.raw
+    .prepare("SELECT * FROM site_jev_credentials WHERE site_id='demo'")
+    .get();
+  expect(row.mode).toBe("site");
+  expect(JSON.stringify(row)).not.toContain(key);
+  await page.reload();
+  await expect(
+    page.getByText("保存済み（値は表示しません）", { exact: false }),
+  ).toBeVisible();
+  expect(await page.content()).not.toContain(key);
+  await page.screenshot({
+    path: testInfo.outputPath("jev-connection.png"),
+    fullPage: true,
+  });
+  expect(calls).toBe(0);
+});
+test("Jev usage displays real-call metadata, UTC totals and pending results with manual refresh on mobile", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  const now = Date.now();
+  for (const [i, outcome, status] of [
+    [0, "success", 200],
+    [1, "http_error", 401],
+    [2, "started", null],
+  ])
+    db.raw
+      .prepare(
+        "INSERT INTO site_jev_calls(id,site_id,started_at,outcome,configured_model,actual_model,http_status,elapsed_ms,key_source,credential_revision) VALUES(?,'demo',?,?,'jev-test',?,?,?,'site','test-revision')",
+      )
+      .run(
+        "browser-test-" + i,
+        now - i,
+        outcome,
+        outcome === "success" ? "actual-model" : null,
+        status,
+        outcome === "started" ? null : 123,
+      );
+  await page.locator('a[data-nav="jev"]').click();
+  await page.getByRole("button", { name: "利用状況", exact: true }).click();
+  await expect(
+    page.getByRole("cell", { name: "正常応答", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("actual-model", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("未確定（処理中・結果未記録）", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("combobox", { name: "集計期間", exact: true }).click();
+  await page.locator('[role="option"][data-value="90"]').click();
+  await page.getByRole("button", { name: "更新", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "集計期間", exact: true }),
+  ).toContainText("過去90日");
+  await page.screenshot({
+    path: testInfo.outputPath("jev-usage.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  expect(calls).toBe(0);
+});
+test("editors cannot see Jev navigation or open credential and usage endpoints through a deep link", async ({
+  page,
+}) => {
+  await setup(page);
+  const user = db.raw.prepare("SELECT id FROM admin_users").get().id;
+  db.raw
+    .prepare(
+      "INSERT INTO admin_users(id,email,display_name,global_role,status,created_at) VALUES('reserved-superuser','reserved@example.com','Reserved','superuser','active',?)",
+    )
+    .run(Date.now());
+  db.raw
+    .prepare("UPDATE admin_users SET global_role='member' WHERE id=?")
+    .run(user);
+  db.raw
+    .prepare(
+      "INSERT INTO admin_memberships(user_id,site_id,role) VALUES(?,'demo','editor')",
+    )
+    .run(user);
+  await page.reload();
+  await expect(page.locator('a[data-nav="jev"]')).toHaveCount(0);
+  await page.goto(origin + "/admin#/jev");
+  await expect(
+    page.getByText(
+      "Jev連携の設定と利用状況は、サイト管理者とSuperuserだけが確認できます。",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  for (const tail of ["", "/usage"])
+    expect(
+      (await browserAPI(page, "/admin/api/v2/sites/demo/jev" + tail)).status,
+    ).toBe(403);
 });

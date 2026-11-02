@@ -325,6 +325,7 @@ const names = {
   settings: "サイト設定",
   diagnostics: "動作確認",
   members: "メンバー",
+  jev: "Jev連携",
   account: "アカウント",
   installation: "JevSense管理",
 };
@@ -386,6 +387,11 @@ const errors = {
     "メールアドレス、復旧コードまたは復旧リンクを確認してください。",
   content_title_required: "表示タイトルを入力してください。",
   invalid_request: "入力内容を確認してください。",
+  jev_encryption_not_configured:
+    "暗号化キーが未設定です。環境管理者にJEV_KEYRINGの設定を依頼してください。",
+  jev_key_required: "サイト専用APIキーを入力してください。",
+  jev_key_unavailable:
+    "保存済みキーを復号できません。環境管理者に確認するか、新しいキーで置き換えてください。",
   setup_unauthorized: "初回登録用の管理トークンを確認してください。",
   rate_limited: "操作が集中しています。少し待ってお試しください。",
   preview_target_rejected:
@@ -661,8 +667,15 @@ async function navigate(route) {
 function shell(route, body) {
   const current = state.session.sites.find((s) => s.id === state.siteId);
   const user = state.session.user;
-  const nav = ["home", "campaigns", "settings", "diagnostics", "members"];
-  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${globalAdmin() ? `<nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${body}</main></div>`;
+  const nav = [
+    "home",
+    "campaigns",
+    "settings",
+    "diagnostics",
+    "members",
+    ...(canManage() ? ["jev"] : []),
+  ];
+  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${globalAdmin() ? `<nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${body}</main></div>`;
 }
 function allCampaigns() {
   const result = new Map(
@@ -1120,6 +1133,53 @@ function diagnosticsPage() {
     `<section class="card card-body"><h2>診断パネルを開く</h2>${info("サイト側に最新版のSDKタグが必要です。診断は通常の判定を観測します。履歴のサーバー保存や追加のJev呼び出しは行いません。サイトでの同意取得は別途必要です。")}<form data-form="debug">${field("確認するページURL", "url", site.origins[0] + site.allowedPathPrefixes[0], "登録済みのオリジンを指定してください。", { type: "url", required: true })}<button class="button primary" ${canEdit() ? "" : "disabled"} type="submit">実サイトで診断を開始</button></form><p id="launchStatus" role="status"></p><h3>ページに設置するタグ</h3><pre><code>${esc(`<script src="${location.origin}/sdk.js" data-site="${site.id}" data-api="${location.origin}"></script>`)}</code></pre><p class="hint">利用者の同意取得後に window.JevPersonalization.consent(true) を呼んでください。すでに同意取得が済むサイトでは data-consent="granted" を指定できます。閲覧者の履歴・表示済み状態はブラウザのsessionStorageに保持します。</p></section>`
   );
 }
+const jevModes = {
+  instance: "インスタンス共通キー",
+  site: "サイト専用キー",
+  disabled: "Jevの利用を停止",
+};
+const jevOutcomes = {
+  started: "未確定（処理中・結果未記録）",
+  success: "正常応答",
+  http_error: "HTTPエラー",
+  timeout: "タイムアウト",
+  network_error: "通信エラー",
+  invalid_response: "応答形式エラー",
+};
+async function jevPage() {
+  if (!canManage())
+    return info(
+      "Jev連携の設定と利用状況は、サイト管理者とSuperuserだけが確認できます。",
+    );
+  const usage = state.jevTab === "usage";
+  const tabs = `<div class="tabs">${button("接続設定", "jev-tab:connection", !usage ? "selected" : "")}${button("利用状況", "jev-tab:usage", usage ? "selected" : "")}</div>`;
+  let body;
+  if (!usage) {
+    const value = await api(sitePath() + "/jev");
+    state.jevStatus = value;
+    body = `<div class="card-body">${info("このサイトで使うJevキーを管理します。保存済みのキーは再表示しません。保存操作ではJevへ接続せず、APIキーの有効性確認や課金は発生しません。")}<p>現在：<strong>${jevModes[value.mode]}</strong>${value.updatedAt ? ` · 最終更新 ${esc(new Date(value.updatedAt).toLocaleString())}` : ""}</p>${!value.encryptionAvailable ? info("サイト専用キーの保存には、環境管理者による暗号化キーの設定（JEV_KEYRING）が必要です。共通キーの利用・停止設定は保存できます。") : ""}${!value.decryptionKeyAvailable ? info("保存済みキーを復号する暗号化キーがありません。共通キーへ自動で切り替えず、Jevへの送信を停止します。環境管理者に確認してください。") : ""}<form data-form="jev"><fieldset>${select("使用するキー", "mode", value.mode, jevModes, "共通キーは環境のJEV_API_KEYです。サイト専用キーが使えない場合に共通キーへ自動で戻ることはありません。")}<label class="field">新しいサイト専用APIキー<input type="password" name="apiKey" aria-label="新しいサイト専用APIキー" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="4096"><span class="hint">「サイト専用キー」を選ぶ場合だけ入力します。既に保存済みなら、空欄のままで現在のキーを保持できます。</span></label><p class="hint">共通キー：${value.instanceKeyConfigured ? "設定あり" : "未設定"} ／ サイト専用キー：${value.siteKeyConfigured ? "保存済み（値は表示しません）" : "未保存"}</p><button class="button primary" type="submit">Jev接続設定を保存</button></fieldset></form><p class="hint">変更時は必要に応じてパスキーで本人確認します。「共通キー」または「利用停止」へ変更すると保存済みサイトキーを削除します。再利用には入力し直してください。失敗時はオファーを表示せず保留します。</p></div>`;
+  } else {
+    const value = await api(
+      sitePath() + "/jev/usage?days=" + (state.jevDays || 30),
+    );
+    const n = (v) => Number(v).toLocaleString();
+    const stats = [
+      ["呼び出し開始", value.totals.started],
+      ["正常応答", value.totals.succeeded],
+      ["エラー", value.totals.failed],
+      ["結果未確定", value.totals.pending],
+    ];
+    body = `<div class="card-body"><div class="filters">${select("集計期間", "jevDays", state.jevDays || 30, { 7: "過去7日", 30: "過去30日", 90: "過去90日" })}${button("更新", "jev-refresh")}</div>${info("実Jevへの呼び出し開始を記録します。Previewの固定判定、対象条件に届かない判断要求、配信前の強制プレビューは含みません。UTC日単位の集計です。課金額やJev側での受信・処理完了を保証する数値ではありません。")}<div class="stats jev-stats">${stats.map(([label, v]) => `<div class="card stat"><label>${label}</label><div class="number">${n(v)}<small>件</small></div></div>`).join("")}</div><p class="hint">送信開始前に記録し、応答後に結果を更新します。処理中断等で結果を保存できない場合は「未確定」に残ります。閲覧者のID・URL・履歴・質問・回答・キーは記録しません。最大90日の範囲を表示し、古い記録は利用・閲覧時に削除します。</p><h2>日別の利用数（UTC）</h2>${value.daily.length ? `<div class="table-wrap"><table><thead><tr><th>日付</th><th>開始</th><th>正常</th><th>エラー</th><th>未確定</th></tr></thead><tbody>${value.daily.map((v) => `<tr><td>${esc(v.day)}</td><td>${n(v.started)}</td><td>${n(v.succeeded)}</td><td>${n(v.failed)}</td><td>${n(v.pending)}</td></tr>`).join("")}</tbody></table></div>` : "<p>この期間の実Jev呼び出し記録はありません。</p>"}<h2>最近の呼び出し（最大100件）</h2><div class="table-wrap"><table><thead><tr><th>開始日時（端末の時刻）</th><th>結果</th><th>モデル</th><th>HTTP</th><th>遅延</th><th>キーの種類</th></tr></thead><tbody>${value.recent.map((v) => `<tr><td>${esc(new Date(v.startedAt).toLocaleString())}</td><td>${jevOutcomes[v.outcome]}</td><td>${esc(v.actualModel || v.configuredModel)}${v.actualModel ? "" : "（要求モデル）"}</td><td>${v.httpStatus ?? "—"}</td><td>${v.elapsedMs === null ? "—" : n(v.elapsedMs) + " ms"}</td><td>${jevModes[v.keySource]}</td></tr>`).join("")}</tbody></table></div><p class="hint">キーの変更前後を含む、このサイト全体の記録です。記録開始はこの機能を導入した後です。過去の呼び出しやJevの請求データは取り込みません。費用上限・同時実行数は引き続きインスタンス全体で共有します。</p></div>`;
+  }
+  return (
+    heading(
+      "JEV CONNECTION",
+      "Jev連携",
+      "サイトごとの接続設定と、実際のAPI呼び出し状況を確認します。",
+    ) + `<section class="card">${tabs}${body}</section>`
+  );
+}
+
 async function membersPage() {
   const data = await api(sitePath() + "/members");
   return (
@@ -1166,7 +1226,7 @@ async function installationPage() {
       "Superuserはすべてのサイト・ユーザー・環境設定を管理できます。",
       button("サイトを追加", "new-site", "primary"),
     ) +
-    `<section class="card card-body"><h2>サイト一覧</h2>${state.session.sites.map((site) => `<div class="meta-row"><span><strong>${esc(site.name)}</strong><small>${esc(site.origins.join(", "))}</small></span><button class="button small" data-site="${site.id}">設定を開く</button></div>`).join("")}</section><h2>全ユーザー</h2><section class="card"><div class="table-wrap"><table><thead><tr><th>ユーザー</th><th>全体権限</th><th>状態</th><th>操作</th></tr></thead><tbody>${users.users.map((u) => `<tr><td>${esc(u.displayName)}<small>${esc(u.email)}</small></td><td>${u.globalRole === "superuser" ? "Superuser" : "一般ユーザー"}</td><td>${u.status === "active" ? "有効" : "無効"}</td><td><button class="button small" data-user="${u.id}">変更</button><button class="button small" data-user-recover="${u.id}" ${u.status === "active" ? "" : "disabled"}>復旧リンク</button></td></tr>`).join("")}</tbody></table></div></section><h2>環境設定</h2><section class="card card-body"><form data-form="system">${field("環境名", "name", settings.name, "", { required: true, max: 80 })}${field("Jevモデル名", "model", settings.model, "利用可能な実モデル名を指定してください。変更は次の判定から適用されます。", { required: true })}${field("1日あたりのAPI呼び出し上限", "dailyRequestBudget", settings.dailyRequestBudget, "0で新しい判定を停止します。", { type: "number", min: 0 })}${field("同時実行数の上限", "maxConcurrent", settings.maxConcurrent, "1〜100。", { type: "number", min: 1 })}<button class="button primary" type="submit">環境設定を保存</button></form><p class="hint">JEV_API_KEY・AUTH_SECRETは実行環境のシークレットで管理します。この画面から値を閲覧・保存しません。</p></section><h2>最近の管理操作</h2><section class="card card-body"><p class="hint">直近100件の管理操作です。閲覧者の行動履歴は記録しません。</p>${audit.events.map((e) => `<div class="meta-row"><span>${esc(e.action)}${e.siteId ? " · " + esc(e.siteId) : ""}</span><small>${new Date(e.createdAt).toLocaleString()}</small></div>`).join("")}</section>`
+    `<section class="card card-body"><h2>サイト一覧</h2>${state.session.sites.map((site) => `<div class="meta-row"><span><strong>${esc(site.name)}</strong><small>${esc(site.origins.join(", "))}</small></span><button class="button small" data-site="${site.id}">設定を開く</button></div>`).join("")}</section><h2>全ユーザー</h2><section class="card"><div class="table-wrap"><table><thead><tr><th>ユーザー</th><th>全体権限</th><th>状態</th><th>操作</th></tr></thead><tbody>${users.users.map((u) => `<tr><td>${esc(u.displayName)}<small>${esc(u.email)}</small></td><td>${u.globalRole === "superuser" ? "Superuser" : "一般ユーザー"}</td><td>${u.status === "active" ? "有効" : "無効"}</td><td><button class="button small" data-user="${u.id}">変更</button><button class="button small" data-user-recover="${u.id}" ${u.status === "active" ? "" : "disabled"}>復旧リンク</button></td></tr>`).join("")}</tbody></table></div></section><h2>環境設定</h2><section class="card card-body"><form data-form="system">${field("環境名", "name", settings.name, "", { required: true, max: 80 })}${field("Jevモデル名", "model", settings.model, "利用可能な実モデル名を指定してください。変更は次の判定から適用されます。", { required: true })}${field("1日あたりのAPI呼び出し上限", "dailyRequestBudget", settings.dailyRequestBudget, "0で新しい判定を停止します。", { type: "number", min: 0 })}${field("同時実行数の上限", "maxConcurrent", settings.maxConcurrent, "1〜100。", { type: "number", min: 1 })}<button class="button primary" type="submit">環境設定を保存</button></form><p class="hint">共通JEV_API_KEY・JEV_KEYRING・AUTH_SECRETは実行環境のシークレットです。サイト専用APIキーは各サイトの「Jev連携」で管理します。保存値は表示しません。</p></section><h2>最近の管理操作</h2><section class="card card-body"><p class="hint">直近100件の管理操作です。閲覧者の行動履歴は記録しません。</p>${audit.events.map((e) => `<div class="meta-row"><span>${esc(e.action)}${e.siteId ? " · " + esc(e.siteId) : ""}</span><small>${new Date(e.createdAt).toLocaleString()}</small></div>`).join("")}</section>`
   );
 }
 let renderVersion = 0;
@@ -1200,6 +1260,7 @@ async function render() {
   } else if (route === "settings") body = settingsPage();
   else if (route === "diagnostics") body = diagnosticsPage();
   else if (route === "members") body = await membersPage();
+  else if (route === "jev") body = await jevPage();
   else {
     const rows = allCampaigns();
     body =
@@ -1436,6 +1497,23 @@ async function handleAction(action) {
     state.dirty = false;
     renderAuth("login");
     return;
+  }
+  if (action.startsWith("jev-tab:")) {
+    if (
+      state.dirty &&
+      !(await confirmAction(
+        "未保存の変更があります",
+        "<p>入力を破棄して切り替えます。</p>",
+      ))
+    )
+      return;
+    state.dirty = false;
+    state.jevTab = action.slice(8);
+    return render();
+  }
+  if (action === "jev-refresh") {
+    state.jevDays = Number(document.querySelector('[name="jevDays"]').value);
+    return render();
   }
   if (action === "new-campaign") return navigate("campaign/new");
   if (action === "back") return navigate("campaigns");
@@ -1871,6 +1949,34 @@ document.addEventListener("submit", (event) => {
       }
       return;
     }
+    if (form.dataset.form === "jev") {
+      form.elements.apiKey.value = "";
+      try {
+        if (f.mode !== "site" && f.apiKey)
+          throw Error(
+            "サイト専用キーを使う場合だけAPIキーを入力してください。",
+          );
+        if (
+          !(await confirmAction(
+            "Jev接続設定を変更",
+            `<p>このサイトの接続を「${jevModes[f.mode]}」に変更します。${f.mode !== "site" ? "保存済みサイトキーは削除されます。" : ""}</p>`,
+            "保存する",
+          ))
+        )
+          return;
+        await api(
+          sitePath() + "/jev",
+          "PUT",
+          { mode: f.mode, ...(f.apiKey ? { apiKey: f.apiKey } : {}) },
+          state.jevStatus.revision,
+        );
+        state.dirty = false;
+        toast("Jev接続設定を保存しました。APIキーの値は再表示しません。");
+        return render();
+      } finally {
+        delete f.apiKey;
+      }
+    }
     if (form.dataset.form === "profile") {
       await api("/admin/api/v2/profile", "PUT", { displayName: f.displayName });
       state.dirty = false;
@@ -1950,7 +2056,7 @@ document.addEventListener("input", (event) => {
     } catch {}
   } else if (
     event.target.closest(
-      'form[data-form="settings"],form[data-form="profile"],form[data-form="system"]',
+      'form[data-form="settings"],form[data-form="profile"],form[data-form="system"],form[data-form="jev"]',
     )
   )
     markDirty();
@@ -1977,6 +2083,7 @@ function filterCampaigns() {
   );
 }
 document.addEventListener("change", (event) => {
+  if (event.target.closest('form[data-form="jev"]')) markDirty();
   if (event.target.id === "siteSwitcher") {
     const id = event.target.value;
     event.target.value = state.siteId;

@@ -1,6 +1,7 @@
 // A loopback-only real administration instance. No Cloudflare deploy or Jev call.
 import { randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { buildManagedApp } from "../src/app.js";
 const port = Number(process.env.REVIEW_PORT || 4174);
 const origin = `http://localhost:${port}`;
@@ -22,12 +23,35 @@ const config = {
     },
   ],
 };
+const keyringPath =
+  process.env.JEV_KEYRING_FILE ||
+  (process.env.REVIEW_DB_PATH || "data/review.sqlite") + ".jev-keyring.json";
+let jevKeyring = process.env.JEV_KEYRING;
+if (!jevKeyring) {
+  await mkdir(dirname(keyringPath), { recursive: true, mode: 0o700 });
+  if (!process.env.JEV_KEYRING_FILE) {
+    try {
+      await writeFile(
+        keyringPath,
+        JSON.stringify({
+          active: "local-review",
+          keys: { "local-review": randomBytes(32).toString("base64url") },
+        }),
+        { mode: 0o600, flag: "wx" },
+      );
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+    }
+  }
+  jevKeyring = await readFile(keyringPath, "utf8");
+}
 const { app } = await buildManagedApp({
   databasePath: process.env.REVIEW_DB_PATH || "data/review.sqlite",
   config,
   origin,
   secret: randomBytes(48).toString("base64url"),
   bootstrapToken: "local-review-only-not-a-production-token",
+  jevKeyring,
   jev: async ({ questions }) => ({
     model: "local-review-stub",
     answers: Object.fromEntries(
