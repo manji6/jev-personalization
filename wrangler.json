@@ -49,7 +49,7 @@
     "DAILY_REQUEST_BUDGET": "1000",
     "MAX_CONCURRENT": "10",
     "AUTH_MODE": "passkey",
-    "AUTH_ORIGIN": "https://jev-personalization.manji6.workers.dev"
+    "AUTH_ORIGIN": "https://jevsense.amanohashi.date"
   },
   "observability": {
     "enabled": false

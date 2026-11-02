@@ -116,3 +116,51 @@ test("completed cutover fails closed if AUTH_MODE is accidentally removed", asyn
   assert.equal((await f.decision()).status, 503);
   assert.equal(f.calls(), 0);
 });
+
+test("canonical custom domain redirects admin navigation to HTTPS while old SDK endpoints work and auth writes stay origin-bound", async (t) => {
+  const canonical = "https://jevsense.example.com";
+  const f = await cloudflareFixture({
+    passkey: true,
+    bindings: { AUTH_ORIGIN: canonical },
+  });
+  t.after(() => f.mf.dispose());
+  for (const path of [
+    "/",
+    "/admin",
+    "/admin/recover",
+    "/auth/status",
+    "/control.js",
+  ]) {
+    const r = await f.dispatch(path, { redirect: "manual" });
+    assert.equal(r.status, 302, path);
+    assert.equal(
+      r.headers.get("location"),
+      canonical + (path === "/" ? "/admin" : path),
+    );
+    assert.equal(r.headers.get("cache-control"), "no-store");
+  }
+  let r = await f.mf.dispatchFetch(
+    "http://jevsense.example.com/admin?from=bookmark",
+    { redirect: "manual" },
+  );
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get("location"), canonical + "/admin?from=bookmark");
+  r = await f.mf.dispatchFetch(canonical + "/auth/status");
+  assert.equal(r.status, 200, await r.clone().text());
+  r = await f.dispatch("/auth/login/options", {
+    method: "POST",
+    headers: {
+      Origin: "https://api.example.com",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email: "owner@example.com" }),
+  });
+  assert.equal(r.status, 403);
+  assert.equal((await r.json()).error, "origin_rejected");
+  r = await f.dispatch("/v1/sites/demo", {
+    headers: { Origin: "https://www.example.com" },
+  });
+  assert.equal(r.status, 200, await r.clone().text());
+  r = await f.dispatch("/sdk.js");
+  assert.equal(r.status, 200);
+});

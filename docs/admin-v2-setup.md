@@ -20,14 +20,14 @@ GitHub Buildsの本番対象ブランチを確認します。レビュー中の�
 
 ### 2. 実行時設定を用意
 
-| 名前        | 種類       | 設定内容                                                                                 |
-| ----------- | ---------- | ---------------------------------------------------------------------------------------- |
-| AUTH_MODE   | 通常変数   | `passkey`                                                                                |
-| AUTH_ORIGIN | 通常変数   | 管理画面の正確なOrigin。現在の運用先なら`https://jev-personalization.manji6.workers.dev` |
-| AUTH_SECRET | Secret     | 新しいランダムな32文字以上。ADMIN_TOKEN/JEV_API_KEYとは別の値                            |
-| ADMIN_TOKEN | 既存Secret | 既存の値を初回Superuser登録の確認に使用。重複のキーを作らない                            |
-| JEV_API_KEY | 既存Secret | 共通キーを使う場合に継続。サイト専用キーだけの運用では不要                               |
-| JEV_KEYRING | Secret     | サイト専用キーの暗号化用。環境ごとに独立した値。初期生成・世代更新は末尾の手順を参照     |
+| 名前        | 種類       | 設定内容                                                                             |
+| ----------- | ---------- | ------------------------------------------------------------------------------------ |
+| AUTH_MODE   | 通常変数   | `passkey`                                                                            |
+| AUTH_ORIGIN | 通常変数   | 管理画面の正確なOrigin。現在の運用先なら`https://jevsense.amanohashi.date`           |
+| AUTH_SECRET | Secret     | 新しいランダムな32文字以上。ADMIN_TOKEN/JEV_API_KEYとは別の値                        |
+| ADMIN_TOKEN | 既存Secret | 既存の値を初回Superuser登録の確認に使用。重複のキーを作らない                        |
+| JEV_API_KEY | 既存Secret | 共通キーを使う場合に継続。サイト専用キーだけの運用では不要                           |
+| JEV_KEYRING | Secret     | サイト専用キーの暗号化用。環境ごとに独立した値。初期生成・世代更新は末尾の手順を参照 |
 
 AUTH_ORIGINは末尾`/`・パス・クエリを付けません。安定したホスト名を選んでください。登録後にRP IDを変えるドメイン移転では、パスキーをそのまま移せません。同じ環境で複数の管理Originを受け付ける設定はありません。
 

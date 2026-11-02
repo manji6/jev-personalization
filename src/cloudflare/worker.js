@@ -1,3 +1,4 @@
+import { canonicalAdminRedirect } from "../admin-origin.js";
 import { publicMetadata, metadataMismatch } from "../metadata-policy.js";
 import {
   previewIdentity,
@@ -133,6 +134,10 @@ export default {
           ),
           headers,
         );
+      if (env.AUTH_MODE === "passkey") {
+        const redirect = canonicalAdminRedirect(request, env.AUTH_ORIGIN);
+        if (redirect) return finish(redirect, headers);
+      }
       if (isPreview && request.method === "GET" && path === "/demo")
         return finish(
           new Response(previewDemo(env.AUTH_ORIGIN), {

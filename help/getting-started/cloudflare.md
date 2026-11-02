@@ -137,3 +137,11 @@ npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 [PreviewからProductionへ](./preview-production)の条件を満たした場合だけ本番の移行と配備を行います。本番の`/admin`で、初回ADMIN_TOKENを使って最初のSuperuserとパスキーを登録します。以後のログインはパスキーです。
 
 最後にサイト設定・[共通タグ](../integration/sdk)・通常の判断と表示を確認してください。
+
+## 独自ドメインを管理画面に使う
+
+CloudflareでWorkerへ独自ドメインを接続したうえで、通常変数`AUTH_ORIGIN`にも、そのHTTPSのoriginを設定します。例：`https://jevsense.example.com`。末尾の`/`や`/admin`は付けません。管理画面は`https://jevsense.example.com/admin`で開きます。設定はリポジトリの`wrangler.json`にも反映し、次の配備で元へ戻らないようにします。
+
+HTTPや別の接続ドメインで管理画面を開いた場合は、設定済みの正式なHTTPS URLへ移動します。認証のPOST要求は別originから受け付けません。すでにページへ設置したSDKが使う`/sdk.js`・`/v1/*`の接続先は継続利用できます。
+
+パスキーを登録した後で管理ドメインを変える場合は、変更前に復旧コードを確保してください。パスキーはドメインに結び付いているため、新しいドメインで再登録が必要です。初回用の`ADMIN_TOKEN`では、登録済みアカウントを作り直せません。既存アカウントの[復旧手順](../guides/accounts)を使います。
