@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1000" viewBox="0 0 1120 1000" role="img" aria-labelledby="title description" lang="ja">
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1200" viewBox="0 0 1120 1200" role="img" aria-labelledby="title description" lang="ja">
   <title id="title">JevSenseのシステムワークフロー</title>
-  <desc id="description">管理者が対象者の条件・案内内容・表示コンテンツを事前登録します。1、閲覧者のブラウザで同意後に共通SDKが計測。2、自前APIが有効な閲覧を選び、必要な情報と独立したYes/No質問をJevへ送信。3、Jevが関心・状態の判定値を返します。4、自前APIが閾値・AND/OR・対象ページ・表示回数などをコードで確認。5、ブラウザが登録済みコンテンツを表示します。条件不足やエラー時は表示せず保留します。閲覧履歴と表示済み状態はブラウザ内に保持し、管理用DBとは区別します。</desc>
+  <desc id="description">管理者が条件と表示コンテンツを事前登録します。同意後、共通SDKがブラウザ内で計測します。判断のきっかけがない間は計測を続け、自前APIへ定期的には問い合わせません。初回のページ取得、最低閲覧時間への到達、許可された操作などの必要なタイミングでだけ判断を依頼します。自前APIは有効な閲覧・対象施策などを先に確認し、不足する場合はJevへ送らず表示を保留します。条件を満たす場合だけJevへstateと独立したYes/No質問を送ります。Jevの判定値に基づき、APIが表示可否をコードで決定し、許可された場合だけブラウザがコンテンツを表示します。判定値不足・不明・エラー時も表示を保留します。閲覧履歴と表示済み状態はブラウザ内に保持します。</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
       <path d="M1 1 8 5 1 9" fill="none" stroke="#426553" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -16,7 +16,7 @@
       .link { fill: none; stroke: #7a9083; stroke-width: 2; stroke-dasharray: 5 6; }
     </style>
   </defs>
-  <rect width="1120" height="1000" rx="20" fill="#fff"/>
+  <rect width="1120" height="1200" rx="20" fill="#fff"/>
 
   <!-- Campaign configuration is prepared before the visitor flow. -->
   <rect x="24" y="24" width="1072" height="130" rx="16" fill="#234f3c"/>
@@ -28,9 +28,9 @@
   <text x="593" y="187" class="note">保存した設定をAPIが使う</text>
 
   <!-- Three execution boundaries, with numbered steps in request order. -->
-  <rect x="24" y="214" width="330" height="660" rx="16" fill="#f2f7f2"/>
-  <rect x="394" y="214" width="332" height="660" rx="16" fill="#f2f6fa"/>
-  <rect x="766" y="214" width="330" height="660" rx="16" fill="#faf6ee"/>
+  <rect x="24" y="214" width="330" height="860" rx="16" fill="#f2f7f2"/>
+  <rect x="394" y="214" width="332" height="860" rx="16" fill="#f2f6fa"/>
+  <rect x="766" y="214" width="330" height="860" rx="16" fill="#faf6ee"/>
   <text x="189" y="251" class="section" text-anchor="middle">閲覧者のブラウザ</text>
   <text x="560" y="251" class="section" text-anchor="middle">JevSenseの自前API</text>
   <text x="931" y="251" class="section" text-anchor="middle">Jev</text>
@@ -39,19 +39,29 @@
   <circle cx="75" cy="319" r="17" fill="#2d6648"/>
   <text x="75" y="327" class="number">1</text>
   <text x="104" y="327" class="step">同意後に計測</text>
-  <text x="64" y="367" class="body">共通SDKが自動取得</text>
-  <text x="64" y="398" class="note">閲覧順序・表示時間</text>
-  <text x="64" y="425" class="note">ページの名称・説明など</text>
+  <text x="64" y="367" class="note">閲覧順序・時間・ページ情報</text>
+  <text x="64" y="398" class="note">初回・閲覧条件到達・操作時</text>
+  <text x="64" y="425" class="note">などに判断要求を送る</text>
   <path class="flow" d="M334 359H414"/>
+  <text x="374" y="345" class="note" text-anchor="middle">必要時</text>
+  <path class="flow" d="M189 440V466"/>
+  <rect x="44" y="466" width="290" height="86" rx="12" fill="#e9efe9" stroke="#cbdccf"/>
+  <text x="64" y="499" class="note">判断のきっかけがない間</text>
+  <text x="64" y="531" class="note">ブラウザ内の計測を継続</text>
 
   <rect x="414" y="282" width="292" height="158" rx="12" fill="#fff" stroke="#cbd8e4"/>
   <circle cx="445" cy="319" r="17" fill="#3c6485"/>
   <text x="445" y="327" class="number">2</text>
-  <text x="474" y="327" class="step">判断の入力を整理</text>
-  <text x="434" y="367" class="body">有効な閲覧を選ぶ</text>
-  <text x="434" y="398" class="note">必要な情報をstateにし、</text>
-  <text x="434" y="425" class="note">独立したYes/No質問を送る</text>
+  <text x="474" y="327" class="step">Jevへ送る前に確認</text>
+  <text x="434" y="367" class="body">閲覧・配信条件を確認</text>
+  <text x="434" y="398" class="note">条件を満たす場合だけ、</text>
+  <text x="434" y="425" class="note">stateとYes/No質問を送る</text>
   <path class="flow" d="M706 359H786"/>
+  <text x="746" y="345" class="note" text-anchor="middle">条件OK</text>
+  <path class="flow" d="M560 440V466"/>
+  <rect x="414" y="466" width="292" height="86" rx="12" fill="#edf0f3" stroke="#cbd8e4"/>
+  <text x="434" y="499" class="note">事前条件を満たさない</text>
+  <text x="434" y="531" class="note">Jevへ送らず、表示を保留</text>
 
   <rect x="786" y="282" width="290" height="158" rx="12" fill="#fff" stroke="#e3d7bf"/>
   <circle cx="817" cy="319" r="17" fill="#876337"/>
@@ -60,17 +70,18 @@
   <text x="806" y="367" class="body">質問ごとに判定値を返す</text>
   <text x="806" y="398" class="note">他の質問の回答は参照せず、</text>
   <text x="806" y="425" class="note">それぞれ独立して判断</text>
-  <path class="flow" d="M931 440V493H560V548"/>
-  <rect x="673" y="471" width="213" height="37" rx="7" fill="#fff"/>
-  <text x="780" y="497" class="body" text-anchor="middle">確率をAPIへ返す</text>
+  <path class="flow" d="M931 440V594H560V630"/>
+  <rect x="673" y="572" width="213" height="37" rx="7" fill="#fff"/>
+  <text x="780" y="598" class="body" text-anchor="middle">確率をAPIへ返す</text>
 
+  <g transform="translate(0 82)">
   <rect x="414" y="548" width="292" height="180" rx="12" fill="#fff" stroke="#cbd8e4"/>
   <circle cx="445" cy="585" r="17" fill="#3c6485"/>
   <text x="445" y="593" class="number">4</text>
   <text x="474" y="593" class="step">配信条件を確認</text>
   <text x="434" y="634" class="body">コードが表示可否を決定</text>
-  <text x="434" y="665" class="note">閾値・AND/OR・対象ページ</text>
-  <text x="434" y="692" class="note">表示回数・確定条件など</text>
+  <text x="434" y="665" class="note">閾値・AND/ORを確認</text>
+  <text x="434" y="692" class="note">表示を許可する施策を選ぶ</text>
   <text x="434" y="719" class="note">条件不足・エラー時は保留</text>
   <path class="flow" d="M414 631H334"/>
 
@@ -88,7 +99,14 @@
   <text x="806" y="640" class="note">関心・状態に当てはまるか</text>
   <text x="806" y="672" class="note">購入率・施策効果ではない</text>
 
-  <path class="link" d="M189 728V756"/>
+  </g>
+  <text x="374" y="697" class="note" text-anchor="middle">成立</text>
+  <path class="flow" d="M560 810V836"/>
+  <rect x="414" y="836" width="292" height="80" rx="12" fill="#edf0f3" stroke="#cbd8e4"/>
+  <text x="434" y="869" class="note">判定値不足・不明・エラー</text>
+  <text x="434" y="898" class="note">表示せず保留</text>
+  <path class="link" d="M189 810V950"/>
+  <g transform="translate(0 194)">
   <rect x="44" y="756" width="290" height="96" rx="12" fill="#e2ede2"/>
   <text x="64" y="791" class="section">ブラウザ内に保持</text>
   <text x="64" y="827" class="note">閲覧履歴・表示済み状態</text>
@@ -96,7 +114,10 @@
   <text x="434" y="791" class="section">管理用DBに保存</text>
   <text x="434" y="827" class="note">管理者・サイト・施策設定</text>
 
+  </g>
+  <g transform="translate(0 200)">
   <rect x="24" y="900" width="1072" height="76" rx="12" fill="#f5f6f3"/>
   <text x="44" y="931" class="note">送信しない情報：個人情報・フォーム入力・ページ全文・JSON-LD全体</text>
   <text x="44" y="960" class="note">サーバーに持たない情報：閲覧者ID・閲覧者セッション・行動履歴DB</text>
+  </g>
 </svg>
