@@ -1,1 +1,0 @@
-var e=`/jev-personalization/images/account.png`,t=`/jev-personalization/images/campaign.png`,n=`/jev-personalization/images/design.png`,r=`/jev-personalization/images/home.png`;export{e as i,n,t as r,r as t};
