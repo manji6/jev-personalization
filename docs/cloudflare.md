@@ -1,5 +1,7 @@
 # Cloudflareセットアップ手順
 
+最新の導入は[利用者ヘルプのCloudflareセットアップ](../help/getting-started/cloudflare.md)を優先してください。この文書には旧トークン方式と初期配備の記録を含みます。サイト専用キー・暗号化・確認後リリースの新しい手順はヘルプへ統合しています。
+
 パスキー対応の新管理画面は、以下の基盤設定に加えて[新管理画面への移行手順](admin-v2-setup.md)が必要です。AUTH_MODE・AUTH_ORIGIN・AUTH_SECRETを使います。以下のADMIN_TOKEN入力によるログイン説明は切り替え前の旧方式です。
 
 Cloudflare Workers版を実装しています。管理画面・SDK・判断APIを1つのWorkerで提供し、施策設定はD1へ保存します。閲覧者の履歴・表示状態はブラウザ内に保持します。今後の更新は[Previewで確認してからProductionへリリース](cloudflare-preview.md)する手順を使います。

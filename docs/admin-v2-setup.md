@@ -26,7 +26,8 @@ GitHub Buildsの本番対象ブランチを確認します。レビュー中の�
 | AUTH_ORIGIN | 通常変数   | 管理画面の正確なOrigin。現在の運用先なら`https://jev-personalization.manji6.workers.dev` |
 | AUTH_SECRET | Secret     | 新しいランダムな32文字以上。ADMIN_TOKEN/JEV_API_KEYとは別の値                            |
 | ADMIN_TOKEN | 既存Secret | 既存の値を初回Superuser登録の確認に使用。重複のキーを作らない                            |
-| JEV_API_KEY | 既存Secret | 通常判定用。既存の設定を継続                                                             |
+| JEV_API_KEY | 既存Secret | 共通キーを使う場合に継続。サイト専用キーだけの運用では不要                               |
+| JEV_KEYRING | Secret     | サイト専用キーの暗号化用。環境ごとに独立した値。初期生成・世代更新は末尾の手順を参照     |
 
 AUTH_ORIGINは末尾`/`・パス・クエリを付けません。安定したホスト名を選んでください。登録後にRP IDを変えるドメイン移転では、パスキーをそのまま移せません。同じ環境で複数の管理Originを受け付ける設定はありません。
 
@@ -72,7 +73,7 @@ npm ci
 npm run build
 ```
 
-実行環境へAUTH_MODE=passkey、AUTH_ORIGIN、AUTH_SECRET、初回用ADMIN_TOKEN、通常判定用JEV_API_KEYを設定してください。必要に応じてCONFIG_PATH（移行元）、ADMIN_DB_PATH（既定data/administration.sqlite）、HOST/PORTも設定し、`npm start`します。Node.jsの既定リッスンは127.0.0.1:3000です。
+実行環境へAUTH_MODE=passkey、AUTH_ORIGIN、AUTH_SECRET、初回用ADMIN_TOKENを設定します。共通キーを使う場合はJEV_API_KEY、サイト専用キーを使う場合はJEV_KEYRINGまたはJEV_KEYRING_FILEも設定してください。必要に応じてCONFIG_PATH（移行元）、ADMIN_DB_PATH（既定data/administration.sqlite）、HOST/PORTも設定し、`npm start`します。Node.jsの既定リッスンは127.0.0.1:3000です。
 
 HTTPSリバースプロキシで管理OriginとHostを維持してください。固定Originと実際のHostが違う管理要求は拒否されます。SQLiteとWALを同じ永続ボリュームへ置き、停止中のバックアップまたはSQLite対応の整合性のあるバックアップを使ってください。Node.js版は単一プロセス運用で、費用カウンターは再起動でリセットされます。
 
@@ -82,7 +83,7 @@ Dockerfileも新エントリーポイントとSQLマイグレーションを含�
 
 - 登録/認証失敗：AUTH_ORIGIN・実アクセスURL・RP ID、端末のパスキー、Cookie、時刻、HTTPSを確認します。Originをrequest Hostから自動推測する変更はしません。
 - 切り替え完了後にAUTH_MODEを削除しても、旧方式には戻らず503で拒否します。コードだけ古い版へ戻さないでください。切り替え後の公開設定はadmin_sitesにあり、app_configは凍結しています。旧JSONを使うコードへ戻すと最新の変更を失います。
-- 0002とAUTH_MODE=passkeyを保った修正版へのロールフォワードを優先します。過去へ戻す必要がある場合はメンテナンス中にコードとDBを同じ復旧位置へ戻し、そこで失われる管理操作を確認してください。
+- 0002/0003とAUTH_MODE=passkeyを保った修正版へのロールフォワードを優先します。過去へ戻す必要がある場合はメンテナンス中にコードとDBを同じ復旧位置へ戻し、そこで失われる管理操作を確認してください。
 - 最新設定の退避にはadmin_sitesのbodyを集めた`{"version":1,"sites":[...]}`を使います。新しいname/judgment・1000文字の質問を受け取れない古いバイナリへの変換は別途確認が必要です。文章を無断で切り詰めません。
 - 全員がパスキーと復旧コードを失った場合は、D1/SQLiteを操作できる環境運用者が、本人確認とバックアップの後、復旧する有効なSuperuser向けにadmin_invitationsへ5分のrecovery行を発行します。token_hashは32バイト乱数のbase64url値をSHA-256してbase64url化したもの。kind=recovery、email/target_user/created_byは対象の有効Superuser、created_at=現在のUnixミリ秒、expires_at=5分後、used=0とし、元の乱数を`/admin/recover#token=...`で本人へ一度だけ共有します。APIと同じ制約で新パスキーを登録し、旧資格を無効にします。この操作は公開のメール復旧APIやADMIN_TOKENの再有効化にはしません。
 - 停止・全体権限変更でユーザーの管理セッションと復旧資格を取り消します。AUTH_SECRETの変更は診断認可を無効にします。管理セッションも終了する必要があるときは「他のログインをすべて終了」または運用者によるadmin_sessionsの失効を併用します。
