@@ -98,6 +98,203 @@ test.beforeEach(async ({ page, context }) => {
   authenticator = await virtualPasskey(page);
 });
 test.afterEach(async () => app.close());
+async function saveThresholdDraft(page) {
+  const saved = page.waitForResponse(
+    (r) => r.url().endsWith("/draft") && r.request().method() === "PUT",
+  );
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  expect((await saved).status()).toBe(200);
+  await expect(page.getByRole("status")).toContainText("下書きを保存");
+  return (await browserAPI(page, "/admin/api/v2/sites/demo")).drafts[0]
+    .campaign;
+}
+test("threshold presets save numeric values, publish normally and fit desktop and mobile", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await setup(page);
+  await page.getByRole("button", { name: "新しい施策", exact: true }).click();
+  await expect(
+    page.getByRole("radio", { name: "標準", exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByLabel("しきい値を数値で指定", { exact: true }),
+  ).toBeHidden();
+  await page
+    .locator(".threshold-control")
+    .screenshot({ path: testInfo.outputPath("threshold-presets.png") });
+  await page.getByRole("radio", { name: "広めに判定", exact: true }).check();
+  const broad = await saveThresholdDraft(page);
+  expect(broad.threshold).toBe(0.6);
+  expect(broad).not.toHaveProperty("thresholdPreset");
+  await page.getByRole("radio", { name: "広めに判定", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.getByRole("radio", { name: "標準", exact: true }),
+  ).toBeChecked();
+  expect((await saveThresholdDraft(page)).threshold).toBe(0.7);
+  await page.getByRole("radio", { name: "標準", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.getByRole("radio", { name: "慎重に判定", exact: true }),
+  ).toBeChecked();
+  expect((await saveThresholdDraft(page)).threshold).toBe(0.85);
+  await page.reload();
+  await expect(
+    page.getByRole("radio", { name: "慎重に判定", exact: true }),
+  ).toBeChecked();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1100 });
+    const layout = await page.evaluate(() => ({
+      width: innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      overflowing: [...document.querySelectorAll("main *")]
+        .filter((el) => el.getBoundingClientRect().right > innerWidth + 1)
+        .slice(0, 8)
+        .map((el) => ({
+          tag: el.tagName,
+          className: el.className,
+          width: el.getBoundingClientRect().width,
+        })),
+    }));
+    expect(layout.scrollWidth <= layout.width + 1, JSON.stringify(layout)).toBe(
+      true,
+    );
+    await page
+      .locator(".threshold-control")
+      .screenshot({ path: testInfo.outputPath(`threshold-${width}.png`) });
+  }
+  await page
+    .getByLabel("何を伝えたいですか？", { exact: true })
+    .fill("導入ガイドを案内する");
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
+    .fill("導入方法に関心がある");
+  await page
+    .getByRole("button", { name: "表示コンテンツ", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "表示タイトル", exact: true })
+    .fill("導入ガイド");
+  await saveThresholdDraft(page);
+  await page
+    .getByRole("button", { name: "配信内容を確認", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "この内容で配信開始", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "施策一覧" })).toBeVisible();
+  const published = (await admin.repo.publicConfig()).sites[0].campaigns.find(
+    (c) => c.id === broad.id,
+  );
+  expect(published.threshold).toBe(0.85);
+  expect(published.combination).toBe("all");
+  expect(calls).toBe(0);
+});
+test("existing custom thresholds retain exact precision; invalid values cannot save", async ({
+  page,
+}) => {
+  await setup(page);
+  const row = db.raw
+    .prepare("SELECT body FROM admin_sites WHERE id='demo'")
+    .get();
+  const site = JSON.parse(row.body);
+  site.campaigns[0].threshold = 0.735123;
+  db.raw
+    .prepare("UPDATE admin_sites SET body=? WHERE id='demo'")
+    .run(JSON.stringify(site));
+  await page.goto(origin + "/admin#/campaign/" + site.campaigns[0].id);
+  await page.reload();
+  const number = page.getByLabel("しきい値を数値で指定", { exact: true });
+  await expect(number).toBeVisible();
+  await expect(number).toHaveValue("0.735123");
+  await expect(page.locator("[data-threshold-preset]:checked")).toHaveCount(0);
+  await expect(page.locator("#thresholdSelection")).toHaveText(
+    "現在：カスタム設定",
+  );
+  await page
+    .getByRole("button", { name: "表示コンテンツ", exact: true })
+    .click();
+  await page.getByRole("button", { name: "対象者・条件", exact: true }).click();
+  await expect(number).toHaveValue("0.735123");
+  expect((await saveThresholdDraft(page)).threshold).toBe(0.735123);
+  const writes = [];
+  page.on("request", (req) => {
+    if (req.method() === "PUT" && req.url().endsWith("/draft"))
+      writes.push(req);
+  });
+  await number.fill("0.49");
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("しきい値は0.5〜0.99");
+  expect(writes).toHaveLength(0);
+  await number.fill("0.99");
+  expect((await saveThresholdDraft(page)).threshold).toBe(0.99);
+  expect(writes).toHaveLength(1);
+  expect(
+    (await admin.repo.publicConfig()).sites[0].campaigns[0].threshold,
+  ).toBe(0.735123);
+  expect(calls).toBe(0);
+});
+test("threshold slider synchronizes values and presets with keyboard bounds; viewers cannot edit", async ({
+  page,
+}) => {
+  await setup(page);
+  const campaign = (await admin.repo.publicConfig()).sites[0].campaigns[0];
+  await page.goto(origin + "/admin#/campaign/" + campaign.id);
+  await page.locator(".threshold-details > summary").click();
+  const slider = page.getByRole("slider", {
+    name: "スライダーで調整",
+    exact: true,
+  });
+  const number = page.getByLabel("しきい値を数値で指定", { exact: true });
+  await slider.focus();
+  await page.keyboard.press("Home");
+  await expect(number).toHaveValue("0.5");
+  await page.keyboard.press("ArrowLeft");
+  await expect(number).toHaveValue("0.5");
+  await page.keyboard.press("End");
+  await expect(number).toHaveValue("0.99");
+  await page.keyboard.press("ArrowRight");
+  await expect(number).toHaveValue("0.99");
+  await number.fill("0.6");
+  await expect(slider).toHaveValue("0.6");
+  await expect(
+    page.getByRole("radio", { name: "広めに判定", exact: true }),
+  ).toBeChecked();
+  await slider.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(number).toHaveValue("0.61");
+  await expect(page.locator("[data-threshold-preset]:checked")).toHaveCount(0);
+  expect((await saveThresholdDraft(page)).threshold).toBe(0.61);
+  await page.reload();
+  await expect(number).toBeVisible();
+  await expect(number).toHaveValue("0.61");
+  const user = (await admin.repo.all("SELECT id FROM admin_users"))[0].id;
+  db.raw
+    .prepare(
+      "INSERT INTO admin_users(id,email,display_name,global_role,status,created_at) VALUES('reserved-superuser','reserved@example.com','Reserved','superuser','active',?)",
+    )
+    .run(Date.now());
+  db.raw
+    .prepare("UPDATE admin_users SET global_role='member' WHERE id=?")
+    .run(user);
+  db.raw
+    .prepare(
+      "INSERT INTO admin_memberships(user_id,site_id,role) VALUES(?,'demo','viewer')",
+    )
+    .run(user);
+  await page.reload();
+  await expect(number).toBeDisabled();
+  await expect(slider).toBeDisabled();
+  for (const label of ["広めに判定", "標準", "慎重に判定"])
+    await expect(
+      page.getByRole("radio", { name: label, exact: true }),
+    ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "下書き保存", exact: true }),
+  ).toBeDisabled();
+  expect(calls).toBe(0);
+});
 test("site creation validates copied origins before reauthentication and preserves the form when cancelled", async ({
   page,
 }) => {

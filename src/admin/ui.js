@@ -726,6 +726,51 @@ function newCampaign() {
     content: { title: "", body: "", linkLabel: "" },
   };
 }
+const thresholdPresets = [
+  {
+    value: 0.6,
+    label: "広めに判定",
+    description: "当てはまる可能性がある人にも届ける",
+  },
+  {
+    value: 0.7,
+    label: "標準",
+    description: "関心・状態への当てはまりを標準的な基準で判断する",
+  },
+  {
+    value: 0.85,
+    label: "慎重に判定",
+    description: "当てはまると強く判断できる人に絞る",
+  },
+];
+function thresholdControl(value) {
+  const preset = thresholdPresets.find((p) => p.value === value);
+  return `<fieldset class="threshold-control" aria-describedby="thresholdHint"><legend>対象者判定の厳しさ</legend><p id="thresholdHint" class="hint">慎重にするほど、表示対象になりにくくなります。購入率や施策効果を設定するものではありません。</p><div class="threshold-choices">${thresholdPresets.map((p, i) => `<label class="threshold-choice"><input type="radio" name="thresholdPreset" value="${p.value}" data-threshold-preset aria-label="${p.label}" aria-describedby="thresholdDescription${i}" ${p.value === value ? "checked" : ""}><span><strong>${p.label}${p.value === 0.7 ? '<small class="threshold-default">初期設定</small>' : ""}</strong><span id="thresholdDescription${i}">${p.description}</span></span></label>`).join("")}</div><p id="thresholdSelection" class="hint" aria-live="polite">現在：${preset?.label || "カスタム設定"}</p><details class="threshold-details" ${preset ? "" : "open"}><summary>詳細設定（しきい値を調整）</summary><div class="threshold-advanced"><label class="threshold-slider-label" for="thresholdRange">スライダーで調整</label><input id="thresholdRange" type="range" min="0.5" max="0.99" step="any" value="${esc(value)}" aria-describedby="thresholdBounds" aria-valuetext="${esc(value)}（${preset?.label || "カスタム"}）"><div class="threshold-scale" aria-hidden="true"><span>広め</span><span>慎重</span></div><label class="field">しきい値を数値で指定<input type="number" name="threshold" min="0.5" max="0.99" step="any" required value="${esc(value)}" aria-describedby="thresholdBounds"></label><p class="hint" id="thresholdBounds">0.5〜0.99で指定します。判定値がこの値を上回る場合に対象とします。同じ値なら対象になりません。</p></div></details></fieldset>`;
+}
+function syncThresholdControls(target) {
+  const number = document.querySelector('#campaignForm [name="threshold"]');
+  const slider = $("thresholdRange");
+  if (!number || !slider || target.matches(":disabled")) return;
+  if (target.matches("[data-threshold-preset]")) number.value = target.value;
+  else if (target === slider)
+    number.value = String(Math.round(Number(slider.value) * 100) / 100);
+  const value = Number(number.value);
+  const valid = number.value !== "" && number.validity.valid;
+  const preset = valid && thresholdPresets.find((p) => p.value === value);
+  for (const input of document.querySelectorAll("[data-threshold-preset]"))
+    input.checked = valid && Number(input.value) === value;
+  if (valid) {
+    slider.value = number.value;
+    slider.setAttribute(
+      "aria-valuetext",
+      `${number.value}（${preset?.label || "カスタム"}）`,
+    );
+  }
+  number.setAttribute("aria-invalid", String(!valid));
+  $("thresholdSelection").textContent = valid
+    ? `現在：${preset?.label || "カスタム設定"}`
+    : "しきい値は0.5〜0.99の範囲で入力してください。";
+}
 function editor() {
   const c = state.edit;
   const disabled =
@@ -796,14 +841,7 @@ function editor() {
       select("複数の判定の組み合わせ", "combination", c.combination, {
         all: "すべてに該当（AND）",
         any: "いずれかに該当（OR）",
-      }) +
-      field(
-        "判定の閾値",
-        "threshold",
-        c.threshold,
-        "この値を上回る判定値を対象とします。購入率や施策効果の予測ではありません。",
-        { type: "number", min: 0.5, step: 0.01 },
-      );
+      }) + thresholdControl(c.threshold);
   } else if (state.tab === "content")
     fields =
       select(
@@ -1309,6 +1347,15 @@ function readEditor() {
   const form = $("campaignForm");
   if (!form) return;
   for (const [key, value] of new FormData(form)) {
+    if (key === "thresholdPreset") continue;
+    if (
+      key === "threshold" &&
+      (value === "" ||
+        !Number.isFinite(Number(value)) ||
+        Number(value) < 0.5 ||
+        Number(value) > 0.99)
+    )
+      throw Error("しきい値は0.5〜0.99の範囲で入力してください。");
     if (key === "questionsJSON") {
       try {
         state.edit.questions = JSON.parse(value);
@@ -2089,6 +2136,12 @@ document.addEventListener("submit", (event) => {
 });
 document.addEventListener("input", (event) => {
   if (event.target.closest("#siteForm")) event.target.setCustomValidity?.("");
+  if (
+    event.target.matches(
+      '[data-threshold-preset],#thresholdRange,#campaignForm [name="threshold"]',
+    )
+  )
+    syncThresholdControls(event.target);
   if (event.target.name?.startsWith("design.")) updateMiniPreview();
   if (event.target.closest("#campaignForm")) {
     markDirty();
@@ -2104,6 +2157,25 @@ document.addEventListener("input", (event) => {
     markDirty();
   if (["campaignSearch", "campaignFilter"].includes(event.target.name))
     filterCampaigns();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.target.id !== "thresholdRange" || event.target.matches(":disabled"))
+    return;
+  const value = Number(event.target.value);
+  const next = {
+    ArrowLeft: value - 0.01,
+    ArrowDown: value - 0.01,
+    ArrowRight: value + 0.01,
+    ArrowUp: value + 0.01,
+    PageDown: value - 0.1,
+    PageUp: value + 0.1,
+    Home: 0.5,
+    End: 0.99,
+  }[event.key];
+  if (next === undefined) return;
+  event.preventDefault();
+  event.target.value = String(Math.max(0.5, Math.min(0.99, next)));
+  event.target.dispatchEvent(new Event("input", { bubbles: true }));
 });
 function filterCampaigns() {
   const query =
