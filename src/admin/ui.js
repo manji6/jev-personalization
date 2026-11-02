@@ -5,6 +5,7 @@ import {
 import { guidedQuestions } from "../questions.js";
 import { renderOffer } from "../offer-renderer.js";
 import { DEFAULT_DESIGN } from "../offer-model.js";
+import { secureOrLoopback } from "../url-policy.js";
 import { bytesToBase64 } from "./crypto.js";
 const $ = (id) => document.getElementById(id);
 const esc = (v) =>
@@ -477,17 +478,30 @@ async function api(path, method = "GET", body, revision, retry = true) {
   });
   const data = await r.json();
   if (r.status === 428 && retry) {
-    if (
-      await confirmAction(
+    // Suspend the input dialog while reauthenticating. Keep its DOM nodes so
+    // cancellation, authentication failure and validation errors retain input.
+    const suspended = [...$("modalRoot").childNodes];
+    const focus = document.activeElement;
+    const returnFocus = previousFocus;
+    suspended.forEach((node) => node.remove());
+    let confirmed = false;
+    try {
+      confirmed = await confirmAction(
         "もう一度、本人確認をお願いします",
         "<p>重要な変更の前に、パスキーで本人確認します。</p>",
         "パスキーで確認",
-      )
-    ) {
-      await authenticate("/auth/reauth");
-      return api(path, method, body, revision, false);
+      );
+      if (confirmed) await authenticate("/auth/reauth");
+    } finally {
+      closeDialog();
+      if (state.session && suspended.length) {
+        $("modalRoot").replaceChildren(...suspended);
+        previousFocus = returnFocus;
+        focus?.focus?.();
+      }
     }
-    throw Error("操作を取り消しました。");
+    if (!confirmed) throw Error("操作を取り消しました。");
+    return api(path, method, body, revision, false);
   }
   if (!r.ok) {
     if (r.status === 401 && state.session) {
@@ -539,7 +553,7 @@ function renderAuth(kind = "login") {
   let title = "おかえりなさい。",
     desc = "パスキーでログインして、あなたのサイトの施策を管理しましょう。";
   if (kind === "setup") {
-    title = "JevSenseを、はじめる。";
+    title = "JevSenseの初回設定";
     desc =
       "この環境の最初のSuperuserを登録します。既存サイトと施策は引き継がれます。";
     fields =
@@ -603,7 +617,7 @@ function renderAuth(kind = "login") {
             { required: true, max: 80 },
           ));
   } else if (kind === "recover") {
-    title = "パスキーが使えないとき。";
+    title = "パスキーが使えないとき";
     desc =
       "事前に保存した復旧コード、またはSuperuserから受け取った復旧リンクで新しいパスキーを登録します。登録後は、以前のパスキーとログイン状態が無効になります。";
     fields =
@@ -963,7 +977,7 @@ function updateMiniPreview() {
           presentation: { type: state.designType || "modal" },
           content: {
             title: "その人に、ちょうどいいご案内。",
-            body: "色・余白・フォントの調整を、このサイト共通のデザインとして確認できます。",
+            body: "このサイト共通のデザインとして、色・余白・フォントを調整した結果を確認できます。",
             linkLabel: "詳しく見る",
             url: "https://example.com",
           },
@@ -972,7 +986,7 @@ function updateMiniPreview() {
     offer.design = design;
     offer.content.title ||= "表示タイトル";
     offer.content.body ||=
-      "「表示コンテンツ」で入力すると、ここに表示のイメージを確認できます。";
+      "「表示コンテンツ」に入力すると、ここで表示のイメージを確認できます。";
     previewHandle = renderOffer(window, offer, {
       preview: true,
       mount: $("previewStage"),
@@ -1116,7 +1130,7 @@ function settingsPage() {
   return (
     heading(
       "SITE SETTINGS",
-      "サイトの、らしさを整える。",
+      "サイト設定",
       "計測する範囲と共通デザインを管理します。",
     ) +
     `<div class="${state.settingsTab === "design" ? "grid2" : ""}"><section class="card"><div class="tabs">${button("基本設定", "settings-tab:general", state.settingsTab === "general" ? "selected" : "")}${button("共通デザイン", "settings-tab:design", state.settingsTab === "design" ? "selected" : "")}</div><form data-form="settings" class="card-body"><fieldset ${canManage() ? "" : "disabled"}>${body}<button class="button primary" type="submit">設定を保存</button></fieldset></form></section>${state.settingsTab === "design" ? `<aside class="card preview-card"><header class="card-header"><h3>共通デザインのプレビュー</h3></header><div class="card-body segmented">${["modal", "floating", "bar"].map((type) => button(types[type], "design-type:" + type, (state.designType || "modal") === type ? "selected" : "")).join("")}</div><div class="preview-stage" id="previewStage"></div><p class="preview-caption">入力の変更をここで確認できます。サイトへは保存した時点で反映します。</p></aside>` : ""}</div>`
@@ -1127,7 +1141,7 @@ function diagnosticsPage() {
   return (
     heading(
       "LIVE DIAGNOSTICS",
-      "実際のサイトで、確かめる。",
+      "実サイトで動作確認",
       "自動取得した情報・送信内容・判定結果を、操作しているブラウザで確認できます。",
     ) +
     `<section class="card card-body"><h2>診断パネルを開く</h2>${info("サイト側に最新版のSDKタグが必要です。診断は通常の判定を観測します。履歴のサーバー保存や追加のJev呼び出しは行いません。サイトでの同意取得は別途必要です。")}<form data-form="debug">${field("確認するページURL", "url", site.origins[0] + site.allowedPathPrefixes[0], "登録済みのオリジンを指定してください。", { type: "url", required: true })}<button class="button primary" ${canEdit() ? "" : "disabled"} type="submit">実サイトで診断を開始</button></form><p id="launchStatus" role="status"></p><h3>ページに設置するタグ</h3><pre><code>${esc(`<script src="${location.origin}/sdk.js" data-site="${site.id}" data-api="${location.origin}"></script>`)}</code></pre><p class="hint">利用者の同意取得後に window.JevPersonalization.consent(true) を呼んでください。すでに同意取得が済むサイトでは data-consent="granted" を指定できます。閲覧者の履歴・表示済み状態はブラウザのsessionStorageに保持します。</p></section>`
@@ -1157,7 +1171,7 @@ async function jevPage() {
   if (!usage) {
     const value = await api(sitePath() + "/jev");
     state.jevStatus = value;
-    body = `<div class="card-body">${info("このサイトで使うJevキーを管理します。保存済みのキーは再表示しません。保存操作ではJevへ接続せず、APIキーの有効性確認や課金は発生しません。")}<p>現在：<strong>${jevModes[value.mode]}</strong>${value.updatedAt ? ` · 最終更新 ${esc(new Date(value.updatedAt).toLocaleString())}` : ""}</p>${!value.encryptionAvailable ? info("サイト専用キーの保存には、環境管理者による暗号化キーの設定（JEV_KEYRING）が必要です。共通キーの利用・停止設定は保存できます。") : ""}${!value.decryptionKeyAvailable ? info("保存済みキーを復号する暗号化キーがありません。共通キーへ自動で切り替えず、Jevへの送信を停止します。環境管理者に確認してください。") : ""}<form data-form="jev"><fieldset>${select("使用するキー", "mode", value.mode, jevModes, "共通キーは環境のJEV_API_KEYです。サイト専用キーが使えない場合に共通キーへ自動で戻ることはありません。")}<label class="field">新しいサイト専用APIキー<input type="password" name="apiKey" aria-label="新しいサイト専用APIキー" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="4096"><span class="hint">「サイト専用キー」を選ぶ場合だけ入力します。既に保存済みなら、空欄のままで現在のキーを保持できます。</span></label><p class="hint">共通キー：${value.instanceKeyConfigured ? "設定あり" : "未設定"} ／ サイト専用キー：${value.siteKeyConfigured ? "保存済み（値は表示しません）" : "未保存"}</p><button class="button primary" type="submit">Jev接続設定を保存</button></fieldset></form><p class="hint">変更時は必要に応じてパスキーで本人確認します。「共通キー」または「利用停止」へ変更すると保存済みサイトキーを削除します。再利用には入力し直してください。失敗時はオファーを表示せず保留します。</p></div>`;
+    body = `<div class="card-body">${info("このサイトで使うJevキーを管理します。保存済みのキーは再表示しません。保存操作ではJevへ接続せず、APIキーの有効性確認や課金は発生しません。")}<p>現在：<strong>${jevModes[value.mode]}</strong>${value.updatedAt ? ` · 最終更新 ${esc(new Date(value.updatedAt).toLocaleString())}` : ""}</p>${!value.encryptionAvailable ? info("サイト専用キーの保存には、環境管理者による暗号化キーの設定（JEV_KEYRING）が必要です。共通キーの利用・停止設定は保存できます。") : ""}${!value.decryptionKeyAvailable ? info("保存済みキーを復号する暗号化キーがありません。共通キーへ自動で切り替えず、Jevへの送信を停止します。環境管理者に確認してください。") : ""}<form data-form="jev"><fieldset>${select("使用するキー", "mode", value.mode, jevModes, "共通キーは環境のJEV_API_KEYです。サイト専用キーが使えない場合に共通キーへ自動で戻ることはありません。")}<label class="field">新しいサイト専用APIキー<input type="password" name="apiKey" aria-label="新しいサイト専用APIキー" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="4096"><span class="hint">「サイト専用キー」を選ぶ場合だけ入力します。既に保存済みなら、空欄のままで現在のキーを保持できます。</span></label><p class="hint">共通キー：${value.instanceKeyConfigured ? "設定あり" : "未設定"} ／ サイト専用キー：${value.siteKeyConfigured ? "保存済み（値は表示しません）" : "未保存"}</p><button class="button primary" type="submit">Jev接続設定を保存</button></fieldset></form><p class="hint">変更時は必要に応じてパスキーで本人確認します。「インスタンス共通キー」または「Jevの利用を停止」へ変更すると保存済みサイトキーを削除します。再利用には入力し直してください。キーが使えない場合やJevへの問い合わせに失敗した場合は、オファーを表示せず判断を保留します。</p></div>`;
   } else {
     const value = await api(
       sitePath() + "/jev/usage?days=" + (state.jevDays || 30),
@@ -1169,7 +1183,7 @@ async function jevPage() {
       ["エラー", value.totals.failed],
       ["結果未確定", value.totals.pending],
     ];
-    body = `<div class="card-body"><div class="filters">${select("集計期間", "jevDays", state.jevDays || 30, { 7: "過去7日", 30: "過去30日", 90: "過去90日" })}${button("更新", "jev-refresh")}</div>${info("実Jevへの呼び出し開始を記録します。Previewの固定判定、対象条件に届かない判断要求、配信前の強制プレビューは含みません。UTC日単位の集計です。課金額やJev側での受信・処理完了を保証する数値ではありません。")}<div class="stats jev-stats">${stats.map(([label, v]) => `<div class="card stat"><label>${label}</label><div class="number">${n(v)}<small>件</small></div></div>`).join("")}</div><p class="hint">送信開始前に記録し、応答後に結果を更新します。処理中断等で結果を保存できない場合は「未確定」に残ります。閲覧者のID・URL・履歴・質問・回答・キーは記録しません。最大90日の範囲を表示し、古い記録は利用・閲覧時に削除します。</p><h2>日別の利用数（UTC）</h2>${value.daily.length ? `<div class="table-wrap"><table><thead><tr><th>日付</th><th>開始</th><th>正常</th><th>エラー</th><th>未確定</th></tr></thead><tbody>${value.daily.map((v) => `<tr><td>${esc(v.day)}</td><td>${n(v.started)}</td><td>${n(v.succeeded)}</td><td>${n(v.failed)}</td><td>${n(v.pending)}</td></tr>`).join("")}</tbody></table></div>` : "<p>この期間の実Jev呼び出し記録はありません。</p>"}<h2>最近の呼び出し（最大100件）</h2><div class="table-wrap"><table><thead><tr><th>開始日時（端末の時刻）</th><th>結果</th><th>モデル</th><th>HTTP</th><th>遅延</th><th>キーの種類</th></tr></thead><tbody>${value.recent.map((v) => `<tr><td>${esc(new Date(v.startedAt).toLocaleString())}</td><td>${jevOutcomes[v.outcome]}</td><td>${esc(v.actualModel || v.configuredModel)}${v.actualModel ? "" : "（要求モデル）"}</td><td>${v.httpStatus ?? "—"}</td><td>${v.elapsedMs === null ? "—" : n(v.elapsedMs) + " ms"}</td><td>${jevModes[v.keySource]}</td></tr>`).join("")}</tbody></table></div><p class="hint">キーの変更前後を含む、このサイト全体の記録です。記録開始はこの機能を導入した後です。過去の呼び出しやJevの請求データは取り込みません。費用上限・同時実行数は引き続きインスタンス全体で共有します。</p></div>`;
+    body = `<div class="card-body"><div class="filters">${select("集計期間", "jevDays", state.jevDays || 30, { 7: "過去7日", 30: "過去30日", 90: "過去90日" })}${button("更新", "jev-refresh")}</div>${info("Jev APIの呼び出し開始処理を記録します。Previewの固定判定、対象条件に届かない判断要求、配信前の強制プレビューは含みません。UTC日単位の集計です。課金額やJev側での受信・処理完了を保証する数値ではありません。")}<div class="stats jev-stats">${stats.map(([label, v]) => `<div class="card stat"><label>${label}</label><div class="number">${n(v)}<small>件</small></div></div>`).join("")}</div><p class="hint">送信開始前に記録し、応答後に結果を更新します。処理中断等で結果を保存できない場合は「未確定」のままになります。閲覧者のID・URL・履歴・質問・回答・キーは記録しません。最大90日の範囲を表示し、古い記録は利用・閲覧時に削除します。</p><h2>日別の利用数（UTC）</h2>${value.daily.length ? `<div class="table-wrap"><table><thead><tr><th>日付</th><th>開始</th><th>正常</th><th>エラー</th><th>未確定</th></tr></thead><tbody>${value.daily.map((v) => `<tr><td>${esc(v.day)}</td><td>${n(v.started)}</td><td>${n(v.succeeded)}</td><td>${n(v.failed)}</td><td>${n(v.pending)}</td></tr>`).join("")}</tbody></table></div>` : "<p>この期間にJevを呼び出した記録はありません。</p>"}<h2>最近の呼び出し（最大100件）</h2><div class="table-wrap"><table><thead><tr><th>開始日時（端末の時刻）</th><th>結果</th><th>モデル</th><th>HTTP</th><th>遅延</th><th>キーの種類</th></tr></thead><tbody>${value.recent.map((v) => `<tr><td>${esc(new Date(v.startedAt).toLocaleString())}</td><td>${jevOutcomes[v.outcome]}</td><td>${esc(v.actualModel || v.configuredModel)}${v.actualModel ? "" : "（要求モデル）"}</td><td>${v.httpStatus ?? "—"}</td><td>${v.elapsedMs === null ? "—" : n(v.elapsedMs) + " ms"}</td><td>${jevModes[v.keySource]}</td></tr>`).join("")}</tbody></table></div><p class="hint">キーの変更前後を含むこのサイト全体の記録です。記録開始はこの機能を導入した後です。過去の呼び出しやJevの請求データは取り込みません。費用上限・同時実行数は引き続きインスタンス全体で共有します。</p></div>`;
   }
   return (
     heading(
@@ -1185,7 +1199,7 @@ async function membersPage() {
   return (
     heading(
       "YOUR TEAM",
-      "一緒につくる、メンバー。",
+      "メンバー管理",
       "ユーザーは複数サイトに所属できます。権限はサイトごとに設定します。",
       canManage() ? button("メンバーを招待", "invite", "primary") : "",
     ) +
@@ -1203,10 +1217,10 @@ async function accountPage() {
   return (
     heading(
       "YOUR ACCOUNT",
-      "あなたの、アカウント。",
+      "アカウント設定",
       "表示名・パスキー・復旧方法を管理します。",
     ) +
-    `<div class="grid2"><section class="card card-body"><h2>プロフィール</h2><form data-form="profile">${field("表示名", "displayName", state.session.user.displayName, "この環境の全サイトで共通です。", { required: true, max: 80 })}${field("メールアドレス", "email", state.session.user.email, "ログインIDです。この画面では変更できません。", { readonly: true })}<button class="button primary" type="submit">プロフィールを保存</button>${button("変更を取り消す", "profile-cancel")}</form><h2>パスキー</h2>${keys.passkeys.map((k) => `<div class="meta-row"><span>${esc(k.label)}<small>${k.backed_up ? "同期可能なパスキー" : "端末またはセキュリティキー"}</small></span><button class="button small" data-key-remove="${k.id}" ${keys.passkeys.length <= 1 ? "disabled" : ""}>削除</button></div>`).join("")}${button("別のパスキーを追加", "add-passkey")}<p class="hint">最後の1つは削除できません。別の端末やセキュリティキーも登録しておくと安心です。</p></section><section class="card card-body"><h2>復旧コード</h2><p>端末を失った場合に新しいパスキーを登録できます。コードは発行時に一度だけ表示します。再発行すると以前のコードは無効になります。</p>${button("復旧コードを発行・再発行", "recovery-codes")}<h2>ログイン中のセッション</h2>${sessions.sessions.map((s) => `<div class="meta-row"><span>${s.current ? "このブラウザ" : "別のログイン"}<small>最終利用 ${new Date(s.lastSeen).toLocaleString()}</small></span></div>`).join("")}${button("他のログインをすべて終了", "revoke-sessions")}<p class="hint">30分間操作しない場合、またはログインから12時間で再ログインが必要です。</p></section></div>`
+    `<div class="grid2"><section class="card card-body account-profile"><h2>プロフィール</h2><form data-form="profile">${field("表示名", "displayName", state.session.user.displayName, "この環境の全サイトで共通です。", { required: true, max: 80 })}${field("メールアドレス", "email", state.session.user.email, "ログインIDです。この画面では変更できません。", { readonly: true })}<button class="button primary" type="submit">プロフィールを保存</button>${button("変更を取り消す", "profile-cancel")}</form><h2>パスキー</h2>${keys.passkeys.map((k) => `<div class="meta-row passkey-row"><span class="passkey-info"><strong class="passkey-label">${esc(k.label)}</strong><small>${k.backed_up ? "同期可能なパスキー" : "端末またはセキュリティキー"}</small></span><button class="button small" data-key-remove="${k.id}" ${keys.passkeys.length <= 1 ? "disabled" : ""}>削除</button></div>`).join("")}${button("別のパスキーを追加", "add-passkey")}<p class="hint">最後の1つは削除できません。別の端末やセキュリティキーも登録しておくと安心です。</p></section><section class="card card-body"><h2>復旧コード</h2><p>端末を失った場合に新しいパスキーを登録できます。コードは発行時に一度だけ表示します。再発行すると以前のコードは無効になります。</p>${button("復旧コードを発行・再発行", "recovery-codes")}<h2>ログイン中のセッション</h2>${sessions.sessions.map((s) => `<div class="meta-row"><span>${s.current ? "このブラウザ" : "別のログイン"}<small>最終利用 ${new Date(s.lastSeen).toLocaleString()}</small></span></div>`).join("")}${button("他のログインをすべて終了", "revoke-sessions")}<p class="hint">30分間操作しない場合、またはログインから12時間で再ログインが必要です。</p></section></div>`
   );
 }
 async function installationPage() {
@@ -1222,7 +1236,7 @@ async function installationPage() {
   return (
     heading(
       "INSTALLATION",
-      "JevSense全体を、管理する。",
+      "JevSense全体の管理",
       "Superuserはすべてのサイト・ユーザー・環境設定を管理できます。",
       button("サイトを追加", "new-site", "primary"),
     ) +
@@ -1267,7 +1281,7 @@ async function render() {
       heading(
         route === "campaigns" ? "CAMPAIGNS" : "YOUR WORKSPACE",
         route === "campaigns"
-          ? "伝えたいことを、ちょうどいい人へ。"
+          ? "施策一覧"
           : `こんにちは、${state.session.user.displayName}さん。`,
         "施策の対象者・内容・配信状況を確認できます。",
         button(
@@ -1587,7 +1601,7 @@ async function handleAction(action) {
     if (
       await confirmAction(
         "配信内容を確認",
-        `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.judgment?.offer || c.intent)}</p><p>この内容で配信を開始します。実サイトでの確認は、一覧のプレビューから実行できます。</p>`,
+        `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.judgment?.offer || c.intent)}</p><p>この内容で配信を開始します。実サイトでの確認は一覧のプレビューから実行できます。</p>`,
         "この内容で配信開始",
       )
     ) {
@@ -1685,7 +1699,7 @@ async function handleAction(action) {
   if (action === "new-site") {
     dialog(
       "サイトを追加",
-      `<form id="siteForm">${field("サイトID", "id", "", "英数字・ハイフン・アンダースコア。後から変更できません。", { required: true, max: 64 })}${field("サイト名", "name", "", "", { required: true, max: 80 })}${field("オリジン", "origin", "", "例：https://example.com", { required: true, type: "url" })}${field("収集する経路", "path", "/", "前方一致。フォーム等は追加後に除外経路を設定してください。", { required: true })}</form>`,
+      `<form id="siteForm">${field("サイトID", "id", "", "英数字・ハイフン・アンダースコア。後から変更できません。", { required: true, max: 64 })}${field("サイト名", "name", "", "", { required: true, max: 80 })}${field("オリジン", "origin", "", "例：https://example.com。ページの経路は含めず、下の「収集する経路」に入力してください。", { required: true, type: "url" })}${field("収集する経路", "path", "/", "前方一致。フォーム等は追加後に除外経路を設定してください。", { required: true, max: 200 })}</form>`,
       button("キャンセル", "dialog-close") +
         button("サイトを追加", "create-site", "primary"),
     );
@@ -1693,12 +1707,39 @@ async function handleAction(action) {
   }
   if (action === "create-site") {
     const form = $("siteForm");
+    for (const input of form.elements) input.setCustomValidity?.("");
+    const values = form.elements;
+    if (
+      !/^[a-zA-Z0-9_-]+$/.test(values.id.value.trim()) ||
+      ["__proto__", "constructor", "prototype"].includes(values.id.value.trim())
+    )
+      values.id.setCustomValidity(
+        "サイトIDには英数字・ハイフン・アンダースコアを使ってください。予約された名前は使えません。",
+      );
+    let origin;
+    try {
+      const url = new URL(values.origin.value.trim());
+      if (
+        !secureOrLoopback(url.href) ||
+        url.pathname !== "/" ||
+        url.search ||
+        url.hash
+      )
+        throw Error();
+      origin = url.origin;
+    } catch {
+      values.origin.setCustomValidity(
+        "オリジンを確認してください。HTTPSのURLから経路・クエリ・ハッシュ・認証情報を除いて入力します。HTTPはローカル開発用のアドレスだけ使えます。",
+      );
+    }
+    if (!values.path.value.trim().startsWith("/"))
+      values.path.setCustomValidity("収集する経路は / から始めてください。");
     if (!form.reportValidity()) return;
     const f = Object.fromEntries(new FormData(form));
     await api("/admin/api/v2/sites", "POST", {
       id: f.id,
       name: f.name,
-      origins: [f.origin],
+      origins: [origin],
       allowedPathPrefixes: [f.path],
       excludedPathPrefixes: [],
       metadataEnabled: false,
@@ -2047,6 +2088,7 @@ document.addEventListener("submit", (event) => {
   });
 });
 document.addEventListener("input", (event) => {
+  if (event.target.closest("#siteForm")) event.target.setCustomValidity?.("");
   if (event.target.name?.startsWith("design.")) updateMiniPreview();
   if (event.target.closest("#campaignForm")) {
     markDirty();

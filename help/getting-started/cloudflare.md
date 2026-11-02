@@ -57,7 +57,7 @@ npx wrangler d1 create YOUR-PREVIEW-DATABASE
 
 `npm run cf:configure -- <D1 UUID> <Worker名>`は本番側のIDとWorker名だけを更新する補助です。account_id、Origin、Preview、移行用設定は別途編集します。
 
-Preview名は、現在の配備スクリプトでは固定AUTH_ORIGINのホスト名から決めます。例：`review-YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev`なら名前は`review`です。
+Preview名は現在の配備スクリプトでは固定AUTH_ORIGINのホスト名から決めます。例：`review-YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev`なら名前は`review`です。
 
 ## 4. PreviewのAccess保護を設定する
 
@@ -78,7 +78,7 @@ Worker側もJWTの署名・発行元・audience・期限を検証します。設
 
 Preview用AUTH_SECRETは、32文字以上の独立したランダムな値です。通常変数やGitへ保存しません。
 
-初回配置では、ローカルの権限を制限したJSONファイルへAUTH_SECRETだけを設定し、`PREVIEW_SECRETS_FILE`で渡す方法が使えます。たとえばファイル名を、Git対象外の`.dev.vars.preview-secrets.json`にします。値は自分で生成した32文字以上の独立した乱数へ置き換えます。
+初回配置では、ローカルの権限を制限したJSONファイルへAUTH_SECRETだけを設定し、`PREVIEW_SECRETS_FILE`で渡す方法が使えます。たとえばファイル名をGit対象外の`.dev.vars.preview-secrets.json`にします。値は自分で生成した32文字以上の独立した乱数へ置き換えます。
 
 ```json
 {
@@ -93,7 +93,7 @@ PREVIEW_SECRETS_FILE=.dev.vars.preview-secrets.json npm run cf:preview
 
 PowerShellでは`$env:PREVIEW_SECRETS_FILE`にファイルパスを設定して実行します。値をコマンドの引数や通常変数へ書かず、ファイルをGitへ追加しないでください。登録後、不要なローカルのSecretファイルは安全に削除できます。
 
-既存のPreviewへは、対話入力でも登録できます。
+既存のPreviewへは対話入力でも登録できます。
 
 ```sh
 npx wrangler preview secret put AUTH_SECRET --name YOUR-PREVIEW-NAME
@@ -114,7 +114,7 @@ npm run test:browser
 npm run cf:preview
 ```
 
-確認用DBへの移行、初期サイトの登録、Previewへの配備を行います。Accessで入場し、表示名とパスキーを登録します。確認環境の最初のユーザーは、Accessで認証されたメールに固定されます。
+確認用DBへの移行、初期サイトの登録、Previewへの配備を行います。Accessで入場し、表示名とパスキーを登録します。確認環境の最初のユーザーはAccessで認証されたメールに固定されます。
 
 ## 7. 本番のSecretを設定する
 

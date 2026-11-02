@@ -953,6 +953,30 @@ td.empty {
 .meta-row span:first-child {
   color: #9aa38f;
 }
+.passkey-row {
+  align-items: center;
+  gap: 16px;
+}
+.passkey-info {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+.passkey-label {
+  color: var(--ink);
+  font-size: 14px;
+}
+.passkey-info small {
+  color: #5e6d64;
+  font-size: 12px;
+}
+.passkey-row > button {
+  flex-shrink: 0;
+}
+.account-profile form {
+  margin-bottom: 24px;
+}
 .color-row {
   display: flex;
   align-items: center;

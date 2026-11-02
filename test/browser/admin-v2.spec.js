@@ -98,6 +98,140 @@ test.beforeEach(async ({ page, context }) => {
   authenticator = await virtualPasskey(page);
 });
 test.afterEach(async () => app.close());
+test("site creation validates copied origins before reauthentication and preserves the form when cancelled", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.locator('a[data-nav="installation"]').click();
+  await page.getByRole("button", { name: "サイトを追加", exact: true }).click();
+  await page.getByLabel("サイトID", { exact: true }).fill("new-site");
+  await page.getByLabel("サイト名", { exact: true }).fill("新しいサイト");
+  await page
+    .getByLabel("オリジン", { exact: true })
+    .fill("https://new.example.com/");
+  db.raw
+    .prepare("UPDATE admin_sessions SET authenticated_at=?")
+    .run(Date.now() - 600000);
+  await page
+    .getByRole("button", { name: "サイトを追加", exact: true })
+    .last()
+    .click();
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  await expect(page.getByLabel("サイトID", { exact: true })).toHaveValue(
+    "new-site",
+  );
+  expect(
+    db.raw
+      .prepare("SELECT count(*) AS n FROM admin_sites WHERE id='new-site'")
+      .get().n,
+  ).toBe(0);
+  await page
+    .getByRole("button", { name: "サイトを追加", exact: true })
+    .last()
+    .click();
+  await page
+    .getByRole("button", { name: "パスキーで確認", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "サイト設定" })).toBeVisible();
+  const site = JSON.parse(
+    db.raw.prepare("SELECT body FROM admin_sites WHERE id='new-site'").get()
+      .body,
+  );
+  expect(site.origins).toEqual(["https://new.example.com"]);
+  expect(site.name).toBe("新しいサイト");
+  expect(site.allowedPathPrefixes).toEqual(["/"]);
+  expect(calls).toBe(0);
+});
+
+test("site form explains invalid origins before requesting a passkey and keeps input after server errors", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.locator('a[data-nav="installation"]').click();
+  await page.getByRole("button", { name: "サイトを追加", exact: true }).click();
+  await page.getByLabel("サイトID", { exact: true }).fill("test-site");
+  await page.getByLabel("サイト名", { exact: true }).fill("テストサイト");
+  const input = page.getByLabel("オリジン", { exact: true });
+  db.raw
+    .prepare("UPDATE admin_sessions SET authenticated_at=?")
+    .run(Date.now() - 600000);
+  for (const value of [
+    "https://new.example.com/ja/",
+    "https://user:password@new.example.com",
+    "https://new.example.com/?x=1",
+    "http://new.example.com",
+  ]) {
+    await input.fill(value);
+    await page
+      .getByRole("button", { name: "サイトを追加", exact: true })
+      .last()
+      .click();
+    await expect(
+      page.getByRole("button", { name: "パスキーで確認", exact: true }),
+    ).toHaveCount(0);
+    expect(await input.evaluate((el) => el.validationMessage)).toContain(
+      "オリジン",
+    );
+  }
+  await input.fill("https://new.example.com/");
+  await page.route(origin + "/admin/api/v2/sites", async (route) => {
+    const authenticatedAt = db.raw
+      .prepare("SELECT authenticated_at FROM admin_sessions")
+      .get().authenticated_at;
+    if (Date.now() - authenticatedAt > 300000) return route.fallback();
+    await route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "invalid_request",
+        issues: [{ path: ["id"], message: "Invalid input" }],
+      }),
+    });
+  });
+  await page
+    .getByRole("button", { name: "サイトを追加", exact: true })
+    .last()
+    .click();
+  await page
+    .getByRole("button", { name: "パスキーで確認", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "入力内容を確認してください",
+  );
+  await expect(page.getByLabel("サイト名", { exact: true })).toHaveValue(
+    "テストサイト",
+  );
+  await expect(input).toHaveValue("https://new.example.com/");
+});
+
+test("account passkey labels and details occupy separate readable lines on desktop and mobile", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.locator('a[data-nav="account"]').click();
+  const row = page.locator(".passkey-row").first();
+  await expect(row.locator(".passkey-label")).toHaveText("最初のパスキー");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const boxes = await row.evaluate((el) => {
+      const label = el.querySelector(".passkey-label").getBoundingClientRect(),
+        detail = el.querySelector("small").getBoundingClientRect();
+      return {
+        labelBottom: label.bottom,
+        detailTop: detail.top,
+        color: getComputedStyle(el.querySelector(".passkey-label")).color,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    expect(boxes.detailTop).toBeGreaterThanOrEqual(boxes.labelBottom);
+    expect(boxes.color).toBe("rgb(35, 60, 49)");
+    expect(boxes.overflow).toBe(false);
+    await page.screenshot({
+      path: testInfo.outputPath(`account-${width}.png`),
+      fullPage: true,
+    });
+  }
+});
 test("real passkey setup, secure cookie, profile persistence, logout and signed login", async ({
   page,
 }) => {
@@ -112,7 +246,7 @@ test("real passkey setup, secure cookie, profile persistence, logout and signed 
   expect(cookie.sameSite).toBe("Lax");
   await page.locator('a[data-nav="account"]').click();
   await expect(
-    page.getByRole("heading", { name: "あなたの、アカウント。" }),
+    page.getByRole("heading", { name: "アカウント設定" }),
   ).toBeVisible();
   await page.getByLabel("表示名", { exact: true }).fill("三浦 さくら");
   await page.getByRole("button", { name: "プロフィールを保存" }).click();
@@ -170,9 +304,7 @@ test("guided editing saves isolated draft, renders question preview, publishes a
   await page
     .getByRole("button", { name: "この内容で配信開始", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "伝えたいことを、ちょうどいい人へ。" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "施策一覧" })).toBeVisible();
   expect((await admin.repo.publicConfig()).sites[0].campaigns.length).toBe(2);
   expect(calls).toBe(0);
   await page.locator('a[data-nav="settings"]').click();

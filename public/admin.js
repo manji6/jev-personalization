@@ -267,7 +267,7 @@ function formOffer() {
 }
 function updatePreview() {
   $("previewTitle").textContent =
-    $("title").value || "あなたのオファーが、ここに表示されます。";
+    $("title").value || "あなたのオファーがここに表示されます。";
   $("previewBody").textContent = $("body").value;
   $("previewLink").textContent = $("linkLabel").value;
   $("previewState").textContent =

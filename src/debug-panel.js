@@ -7,15 +7,15 @@ const labels = {
   qualified: "条件成立・表示対象を決定",
   no_match_or_uncertain: "判定の閾値を満たさず保留",
   model_error: "Jevとの通信・応答エラー",
-  model_not_configured: "Jevのキーが未設定",
+  model_not_configured: "Jevの接続設定が利用できません",
   budget_exhausted: "日次の問い合わせ上限",
   busy: "同時処理の上限",
   rate_limited: "通信回数の上限",
   debug_session_invalid: "診断の認可が無効・期限切れ",
-  too_brief: "最低閲覧時間に未到達",
+  too_brief: "最低閲覧時間に達していません",
   enabled: "施策が有効",
   target: "表示対象ページ",
-  not_dismissed: "未クローズ",
+  not_dismissed: "まだ閉じていない",
   show_limit: "表示回数",
   fact: "除外状態の確認",
   initial: "ページを取得",
@@ -73,7 +73,7 @@ export function createDebugger(
     const o = trace.observation;
     el(
       "p",
-      `最低閲覧時間 ${(o.minVisibleMs / 1000).toFixed(1)}秒 ／ 必要 ${o.minQualifiedVisits}ページ ／ 適格 ${o.qualifiedVisits}ページ`,
+      `最低閲覧時間 ${(o.minVisibleMs / 1000).toFixed(1)}秒 ／ 必要 ${o.minQualifiedVisits}ページ ／ 有効 ${o.qualifiedVisits}ページ`,
       parent,
     );
     for (const visit of o.visits)
@@ -161,7 +161,11 @@ export function createDebugger(
         content,
       );
       el("p", s.hidden ? "タブは非表示です" : "タブは表示中です", content);
-      el("p", s.current?.path ?? "収集対象の現在ページはありません", content);
+      el(
+        "p",
+        s.current?.path ?? "収集対象となる現在のページ情報はありません",
+        content,
+      );
       if (s.current)
         el(
           "p",
@@ -189,7 +193,7 @@ export function createDebugger(
         el("p", `${v.page.path} · ${(v.visibleMs / 1000).toFixed(1)}秒`, card);
         json(card, "取得したページ情報", v.page);
       }
-      json(content, "現在ページの取得元", s.sources);
+      json(content, "現在のページの取得元", s.sources);
       json(content, "許可された操作・状態", {
         actions: s.state.actions,
         facts: s.state.facts,

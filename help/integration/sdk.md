@@ -12,7 +12,7 @@
 ></script>
 ```
 
-`data-site`は管理画面のサイトIDと一致させます。APIのOriginはHTTPSです。ローカル開発のlocalhostだけHTTPを許可します。
+`data-site`は管理画面のサイトIDと一致させます。APIにはHTTPSのOriginを指定します。ローカル開発のlocalhostだけHTTPを許可します。
 
 管理画面の「動作確認」に、選択中サイトのタグ例も表示します。APIのJevキーや管理用トークンをタグへ入れないでください。
 
