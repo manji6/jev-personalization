@@ -1,3 +1,4 @@
+import { createMetadataSettings } from "./metadata-ui.js";
 import {
   startRegistration,
   startAuthentication,
@@ -395,6 +396,10 @@ const errors = {
     "保存済みキーを復号できません。環境管理者に確認するか、新しいキーで置き換えてください。",
   setup_unauthorized: "初回登録用の管理トークンを確認してください。",
   rate_limited: "操作が集中しています。少し待ってお試しください。",
+  metadata_inspection_expired:
+    "取得確認の期限が切れたか、権限が変わりました。ページを開き直してください。",
+  metadata_not_approved:
+    "サイトの基本設定でメタデータ送信を有効にしてください。",
   preview_target_rejected:
     "サイトの許可URL・収集範囲・施策の表示対象に一致するURLを指定してください。",
 };
@@ -646,7 +651,34 @@ async function refreshSession() {
   if (!state.session.sites.some((s) => s.id === state.siteId))
     state.siteId = state.session.sites[0]?.id || null;
 }
+const metadataSettings = createMetadataSettings({
+  value: () => state.value,
+  canManage,
+  api,
+  path: sitePath,
+  field,
+  select,
+  dialog,
+  closeDialog,
+  enhance: enhanceSelects,
+  render,
+  dirty: markDirty,
+  toast,
+  async save(policy) {
+    await api(
+      sitePath() + "/settings",
+      "PUT",
+      { settings: { metadataExtraction: policy } },
+      state.value.revision,
+    );
+    state.dirty = false;
+    await loadSite();
+    await render();
+    toast("ページ情報の取得方法を保存しました。");
+  },
+});
 async function loadSite() {
+  metadataSettings.reset();
   state.value = state.siteId ? await api(sitePath()) : null;
 }
 async function enter() {
@@ -672,6 +704,7 @@ async function navigate(route) {
     ))
   )
     return;
+  metadataSettings.reset();
   state.dirty = false;
   state.edit = null;
   state.tab = "audience";
@@ -1037,6 +1070,16 @@ function updateMiniPreview() {
 function settingsPage() {
   const site = state.value.site;
   const d = site.design;
+  if (state.settingsTab === "metadata")
+    return (
+      heading(
+        "SITE SETTINGS",
+        "ページ情報の取得",
+        "ページ名と説明の取得方法を、サイトの構造に合わせて設定します。",
+      ) +
+      `<div class="tabs">${button("基本設定", "settings-tab:general")}${button("共通デザイン", "settings-tab:design")}${button("ページ情報の取得", "settings-tab:metadata", "selected")}</div>` +
+      metadataSettings.html()
+    );
   let body = "";
   if (state.settingsTab === "general")
     body =
@@ -1171,7 +1214,7 @@ function settingsPage() {
       "サイト設定",
       "計測する範囲と共通デザインを管理します。",
     ) +
-    `<div class="${state.settingsTab === "design" ? "grid2" : ""}"><section class="card"><div class="tabs">${button("基本設定", "settings-tab:general", state.settingsTab === "general" ? "selected" : "")}${button("共通デザイン", "settings-tab:design", state.settingsTab === "design" ? "selected" : "")}</div><form data-form="settings" class="card-body"><fieldset ${canManage() ? "" : "disabled"}>${body}<button class="button primary" type="submit">設定を保存</button></fieldset></form></section>${state.settingsTab === "design" ? `<aside class="card preview-card"><header class="card-header"><h3>共通デザインのプレビュー</h3></header><div class="card-body segmented">${["modal", "floating", "bar"].map((type) => button(types[type], "design-type:" + type, (state.designType || "modal") === type ? "selected" : "")).join("")}</div><div class="preview-stage" id="previewStage"></div><p class="preview-caption">入力の変更をここで確認できます。サイトへは保存した時点で反映します。</p></aside>` : ""}</div>`
+    `<div class="${state.settingsTab === "design" ? "grid2" : ""}"><section class="card"><div class="tabs">${button("基本設定", "settings-tab:general", state.settingsTab === "general" ? "selected" : "")}${button("共通デザイン", "settings-tab:design", state.settingsTab === "design" ? "selected" : "")}${button("ページ情報の取得", "settings-tab:metadata")}</div><form data-form="settings" class="card-body"><fieldset ${canManage() ? "" : "disabled"}>${body}<button class="button primary" type="submit">設定を保存</button></fieldset></form></section>${state.settingsTab === "design" ? `<aside class="card preview-card"><header class="card-header"><h3>共通デザインのプレビュー</h3></header><div class="card-body segmented">${["modal", "floating", "bar"].map((type) => button(types[type], "design-type:" + type, (state.designType || "modal") === type ? "selected" : "")).join("")}</div><div class="preview-stage" id="previewStage"></div><p class="preview-caption">入力の変更をここで確認できます。サイトへは保存した時点で反映します。</p></aside>` : ""}</div>`
   );
 }
 function diagnosticsPage() {
@@ -1342,6 +1385,7 @@ async function render() {
   enhanceSelects();
   updateQuestionPreview();
   updateMiniPreview();
+  metadataSettings.mount();
 }
 function readEditor() {
   const form = $("campaignForm");
@@ -1553,6 +1597,7 @@ async function handleAction(action) {
       ))
     )
       return;
+    metadataSettings.reset();
     await api("/auth/logout", "POST", {});
     state.session = null;
     state.dirty = false;
@@ -1594,6 +1639,7 @@ async function handleAction(action) {
     )
       return;
     state.dirty = false;
+    metadataSettings.reset();
     state.settingsTab = action.slice(13);
     return render();
   }

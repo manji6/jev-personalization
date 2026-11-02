@@ -1,0 +1,3 @@
+-- Short-lived control-plane tickets. No page HTML, JSON-LD, output, or visitor history.
+CREATE TABLE IF NOT EXISTS admin_metadata_tickets (  token_hash TEXT PRIMARY KEY,  session_hash TEXT NOT NULL REFERENCES admin_sessions(token_hash) ON DELETE CASCADE,  user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,  site_id TEXT NOT NULL REFERENCES admin_sites(id) ON DELETE CASCADE,  origin TEXT NOT NULL, path TEXT NOT NULL, nonce TEXT NOT NULL,  policy TEXT NOT NULL, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0 );
+CREATE INDEX IF NOT EXISTS admin_metadata_tickets_expiry ON admin_metadata_tickets(expires_at);

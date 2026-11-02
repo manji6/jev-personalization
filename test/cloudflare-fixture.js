@@ -76,7 +76,11 @@ export async function cloudflareFixture(options = {}) {
     .bind(JSON.stringify(config), "test-initial")
     .run();
   if (options.passkey)
-    for (const migration of ["0002_administration.sql", "0003_site_jev.sql"])
+    for (const migration of [
+      "0002_administration.sql",
+      "0003_site_jev.sql",
+      "0004_metadata_inspections.sql",
+    ])
       await db.exec(
         (await readFile("migrations/" + migration, "utf8"))
           .replace(/^--.*$/gm, "")

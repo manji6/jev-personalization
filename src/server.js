@@ -1,3 +1,4 @@
+import { publicMetadata, metadataMismatch } from "./metadata-policy.js";
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { timingSafeEqual, createHash } from "node:crypto";
@@ -58,7 +59,7 @@ export async function buildApp({
       req.headers.origin = administration.origin;
     if (
       administration &&
-      /^\/(admin(?:[/.?]|$)|auth(?:[/?]|$)|control\.(js|css)|v1\/preview\/)/.test(
+      /^\/(admin(?:[/.?]|$)|auth(?:[/?]|$)|control\.(js|css)|v1\/(?:preview|metadata)\/)/.test(
         req.url,
       )
     ) {
@@ -274,6 +275,7 @@ export async function buildApp({
     const s = siteFor(req, reply, req.params.siteId);
     if (!s) return;
     return {
+      ...(await publicMetadata(s)),
       id: s.id,
       allowedPathPrefixes: s.allowedPathPrefixes,
       excludedPathPrefixes: s.excludedPathPrefixes,
@@ -315,6 +317,8 @@ export async function buildApp({
         decision: "hold",
         reason: "metadata_not_approved",
       });
+    const mismatch = await metadataMismatch(site, input);
+    if (mismatch) return respond({ ...base, ...mismatch });
     const prepared = prepare(site, input);
     if (prepared.reason)
       return respond({ ...base, decision: "hold", reason: prepared.reason });

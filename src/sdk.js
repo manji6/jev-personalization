@@ -1,135 +1,12 @@
+import { installMetadataInspection } from "./metadata-inspection-sdk.js";
 import { installPreview } from "./preview-sdk.js";
 import { secureOrLoopback } from "./url-policy.js";
 import { pathAllowed } from "./engine.js";
 import { renderOffer } from "./offer-renderer.js";
 import { createDebugger } from "./debug-panel.js";
-const clean = (v, max) =>
-  typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "";
-const safeText = (v, max) => {
-  const s = clean(v, max);
-  return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?:\d[ -]?){9,}/i.test(s) ? "" : s;
-};
-export function extractPage(doc, location, provenance) {
-  const url = new URL(location.href);
-  url.search = "";
-  url.hash = "";
-  const meta = (key) =>
-    doc.querySelector(`meta[property="${key}"],meta[name="${key}"]`)?.content;
-  const nodes = [];
-  function walk(v, depth = 0) {
-    if (depth > 8 || nodes.length > 200) return;
-    if (Array.isArray(v)) v.slice(0, 100).forEach((x) => walk(x, depth + 1));
-    else if (v && typeof v === "object") {
-      nodes.push(v);
-      if (v["@graph"]) walk(v["@graph"], depth + 1);
-      if (v.mainEntity) walk(v.mainEntity, depth + 1);
-    }
-  }
-  for (const s of [
-    ...doc.querySelectorAll('script[type="application/ld+json"]'),
-  ].slice(0, 10)) {
-    if (s.textContent.length > 100000) continue;
-    try {
-      walk(JSON.parse(s.textContent));
-    } catch {}
-  }
-  const resolve = (v) =>
-    v?.["@id"]
-      ? (nodes.find(
-          (n) => n["@id"] === v["@id"] && Object.keys(n).length > 1,
-        ) ?? v)
-      : v;
-  const same = (v) => {
-    try {
-      const u = new URL(v, url);
-      return (
-        u.origin === url.origin &&
-        u.pathname.replace(/\/$/, "") === url.pathname.replace(/\/$/, "")
-      );
-    } catch {
-      return false;
-    }
-  };
-  const types = [
-    "WebPage",
-    "Article",
-    "NewsArticle",
-    "BlogPosting",
-    "Product",
-    "Service",
-    "JobPosting",
-    "Course",
-    "Event",
-  ];
-  const kind = (n) =>
-    [].concat(n?.["@type"] ?? []).find((t) => types.includes(t));
-  const webPages = nodes.filter((n) => kind(n) === "WebPage");
-  const pageNode =
-    webPages.find((n) => same(n.url) || same(n["@id"])) ??
-    (webPages.length === 1 ? webPages[0] : undefined);
-  // Only top-level/@graph nodes and explicit mainEntity are considered, never itemListElement.
-  let entity = resolve(pageNode?.mainEntity);
-  if (!kind(entity))
-    entity = nodes.find(
-      (n) =>
-        kind(n) &&
-        kind(n) !== "WebPage" &&
-        (same(n.url) ||
-          same(n.mainEntityOfPage?.["@id"] ?? n.mainEntityOfPage)),
-    );
-  if (!entity) entity = pageNode;
-  if (!entity) {
-    const primary = nodes.filter((n) => kind(n) && kind(n) !== "WebPage");
-    if (primary.length === 1) entity = primary[0];
-  }
-  const name = safeText(
-    entity?.name ??
-      entity?.headline ??
-      entity?.title ??
-      meta("og:title") ??
-      doc.title,
-    160,
-  );
-  const description = safeText(
-    entity?.description ?? meta("og:description") ?? meta("description"),
-    400,
-  );
-  const page = { path: url.pathname, name: name || "Untitled" };
-  if (description) page.description = description;
-  if (kind(entity)) page.type = kind(entity);
-  const themes = []
-    .concat(entity?.articleSection ?? entity?.keywords ?? [])
-    .filter((x) => typeof x === "string")
-    .flatMap((x) => x.split(","))
-    .map((x) => safeText(x, 80))
-    .filter(Boolean)
-    .slice(0, 8);
-  if (themes.length) page.themes = themes;
-  if (provenance)
-    Object.assign(provenance, {
-      name:
-        entity?.name != null ||
-        entity?.headline != null ||
-        entity?.title != null
-          ? "JSON-LD"
-          : meta("og:title") != null
-            ? "OGP"
-            : "title",
-      ...(description
-        ? {
-            description:
-              entity?.description != null
-                ? "JSON-LD"
-                : meta("og:description") != null
-                  ? "OGP"
-                  : "meta",
-          }
-        : {}),
-      ...(page.type ? { type: "JSON-LD" } : {}),
-      ...(themes.length ? { themes: "JSON-LD" } : {}),
-    });
-  return page;
-}
+import { extractPage, observePageMetadata } from "./metadata-extractor.js";
+import { safeText } from "./legacy-metadata.js";
+export { extractPage };
 export function restoreState(saved, config) {
   if (
     !saved ||
@@ -181,7 +58,14 @@ export function restoreState(saved, config) {
     }));
   return {
     updated: saved.updated,
-    visits,
+    visits:
+      (saved.metadataRevision ?? "legacy") ===
+      (config.metadataRevision ?? "legacy")
+        ? visits
+        : [],
+    ...(config.metadataRevision
+      ? { metadataRevision: config.metadataRevision }
+      : {}),
     actions: saved.actions
       .slice(-30)
       .filter(
@@ -229,6 +113,16 @@ export function install(win, script) {
     win.location.origin === endpoint
       ? "same-origin"
       : "omit";
+  const inspection = installMetadataInspection(win, {
+    siteId,
+    endpoint,
+    credentials,
+  });
+  if (inspection) {
+    win.JevPersonalization = inspection;
+    if (script.dataset.consent === "granted") void inspection.consent(true);
+    return inspection;
+  }
   const preview = installPreview(win, { siteId, endpoint, credentials });
   if (preview) {
     win.JevPersonalization = preview;
@@ -246,7 +140,9 @@ export function install(win, script) {
     suspended = false,
     deferredOffer = null,
     overlay = null;
-  let qualificationTimer, decisionTimer;
+  let qualificationTimer,
+    decisionTimer,
+    configRefreshes = 0;
   let state = {
     visits: [],
     actions: [],
@@ -260,7 +156,13 @@ export function install(win, script) {
     credentials,
     snapshot() {
       const sources = {};
-      if (enabled && current) extractPage(win.document, win.location, sources);
+      if (enabled && current)
+        extractPage(
+          win.document,
+          win.location,
+          sources,
+          config?.metadataExtraction,
+        );
       const visibleMs = current
         ? Math.min(
             86400000,
@@ -336,7 +238,15 @@ export function install(win, script) {
       persist();
       return;
     }
-    current = { page: extractPage(win.document, win.location), visibleMs: 0 };
+    current = {
+      page: extractPage(
+        win.document,
+        win.location,
+        undefined,
+        config.metadataExtraction,
+      ),
+      visibleMs: 0,
+    };
     observationVersion++;
     state.visits.push(current);
     state.visits = state.visits.slice(-50);
@@ -391,9 +301,14 @@ export function install(win, script) {
     }
   });
   // Keep asynchronously updated standard metadata current, without starting a new visit.
-  const observer = new win.MutationObserver(() => {
+  observePageMetadata(win, () => {
     if (enabled && current && allowed(win.location.pathname)) {
-      const page = extractPage(win.document, win.location);
+      const page = extractPage(
+        win.document,
+        win.location,
+        undefined,
+        config.metadataExtraction,
+      );
       if (JSON.stringify(page) !== JSON.stringify(current.page)) {
         current.page = page;
         observationVersion++;
@@ -402,13 +317,6 @@ export function install(win, script) {
       }
     }
   });
-  if (win.document.head)
-    observer.observe(win.document.head, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      characterData: true,
-    });
   function removeOverlay() {
     if (overlay) debug.record("removed");
     overlay?.destroy();
@@ -497,7 +405,13 @@ export function install(win, script) {
     if (key === lastDecisionKey) return;
     const generation = epoch,
       path = win.location.pathname;
-    const payload = { siteId, ...state };
+    const payload = {
+      siteId,
+      ...state,
+      ...(config.metadataRevision
+        ? { metadataRevision: config.metadataRevision }
+        : {}),
+    };
     delete payload.updated;
     let body = JSON.stringify(payload);
     if (new TextEncoder().encode(body).length > 64000) return;
@@ -526,6 +440,39 @@ export function install(win, script) {
           result,
         });
       if (!r.ok) return;
+      if (
+        result.reason === "metadata_revision_changed" &&
+        generation === epoch &&
+        enabled &&
+        configRefreshes < 2
+      ) {
+        configRefreshes++;
+        const response = await win.fetch(
+          `${endpoint}/v1/sites/${encodeURIComponent(siteId)}`,
+          { credentials, cache: "no-store", signal: AbortSignal.timeout(3000) },
+        );
+        if (!response.ok || generation !== epoch || !enabled) return;
+        const fresh = await response.json();
+        if (generation !== epoch || !enabled) return;
+        if (
+          !fresh.metadataEnabled ||
+          fresh.metadataRevision !== result.metadataRevision
+        )
+          return;
+        accrue();
+        config = fresh;
+        state = restoreState(state, config) || { ...state, visits: [] };
+        state.metadataRevision = config.metadataRevision;
+        current = null;
+        epoch++;
+        lastDecisionKey = null;
+        removeOverlay();
+        debug.record("metadata_rules_changed", {
+          revision: config.metadataRevision,
+        });
+        capture("settings_changed");
+        return;
+      }
       if (
         enabled &&
         generation === epoch &&
@@ -573,6 +520,7 @@ export function install(win, script) {
       debug.record("consent", { granted: false });
       return;
     }
+    configRefreshes = 0;
     const generation = epoch;
     try {
       const r = await win.fetch(
@@ -580,8 +528,14 @@ export function install(win, script) {
         { credentials, signal: AbortSignal.timeout(3000) },
       );
       if (!r.ok) return;
-      config = await r.json();
-      if (generation !== epoch || !config.metadataEnabled) return;
+      const loaded = await r.json();
+      if (generation !== epoch || !loaded.metadataEnabled) return;
+      config = loaded;
+      if (
+        (state.metadataRevision ?? "legacy") !==
+        (config.metadataRevision ?? "legacy")
+      )
+        state.visits = [];
       try {
         const saved = restoreState(
           JSON.parse(win.sessionStorage.getItem(key)),
@@ -589,6 +543,8 @@ export function install(win, script) {
         );
         if (saved) state = saved;
       } catch {}
+      if (config.metadataRevision)
+        state.metadataRevision = config.metadataRevision;
       enabled = true;
       debug.record("consent", { granted: true });
       capture();

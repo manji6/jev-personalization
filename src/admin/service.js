@@ -1,3 +1,4 @@
+import { metadataPolicySchema, standardMetadata } from "../metadata-policy.js";
 import { z } from "zod";
 import {
   generateRegistrationOptions,
@@ -642,6 +643,79 @@ export function createAdministration({
       fail(400, "preview_target_rejected");
     return url;
   }
+  async function publicMetadataInspection(request, url) {
+    const siteId = url.searchParams.get("siteId");
+    const value = await repo.site(siteId);
+    const pageOrigin =
+      request.headers.get("Origin") ||
+      (request.headers.get("Sec-Fetch-Site") === "same-origin"
+        ? url.origin
+        : null);
+    if (!value || !value.site.origins.includes(pageOrigin))
+      fail(403, "origin_rejected");
+    const cors = {
+      "Access-Control-Allow-Origin": pageOrigin,
+      Vary: "Origin",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "POST",
+    };
+    if (request.method === "OPTIONS")
+      return new Response(null, { status: 204, headers: cors });
+    if (request.method !== "POST" || url.pathname !== "/v1/metadata/redeem")
+      fail(404);
+    const b = z
+      .object({
+        token: z.string().regex(/^[-\w]{43}$/),
+        nonce: z.string().regex(/^[-\w]{43}$/),
+        path: z
+          .string()
+          .startsWith("/")
+          .max(512)
+          .refine((v) => !/[?#]/.test(v)),
+      })
+      .strict()
+      .parse(await readAdminJSON(request));
+    const ticket = await repo.one(
+      "SELECT * FROM admin_metadata_tickets WHERE token_hash=? AND site_id=? AND origin=? AND path=? AND nonce=? AND used=0 AND expires_at>?",
+      await hash(b.token),
+      siteId,
+      pageOrigin,
+      b.path,
+      b.nonce,
+      clock(),
+    );
+    if (!ticket) fail(410, "metadata_inspection_expired");
+    await previewTarget(
+      value.site,
+      { target: { mode: "all", paths: [] } },
+      pageOrigin + b.path,
+    );
+    if (!value.site.metadataEnabled) fail(409, "metadata_not_approved");
+    const changed = await repo.run(
+      `UPDATE admin_metadata_tickets SET used=1 WHERE token_hash=? AND used=0 AND expires_at>? AND ${actorAdmin} AND EXISTS(SELECT 1 FROM admin_sessions s JOIN admin_users u ON u.id=s.user_id WHERE s.token_hash=admin_metadata_tickets.session_hash AND s.user_id=admin_metadata_tickets.user_id AND s.user_version=u.version AND u.status='active' AND s.expires_at>? AND s.last_seen>?) AND EXISTS(SELECT 1 FROM admin_sites WHERE id=? AND revision=?)`,
+      ticket.token_hash,
+      clock(),
+      ticket.user_id,
+      siteId,
+      clock(),
+      clock() - IDLE,
+      siteId,
+      value.revision,
+    );
+    if (!changed) fail(410, "metadata_inspection_expired");
+    return out(
+      {
+        mode: "metadata",
+        siteId,
+        nonce: b.nonce,
+        policy: metadataPolicySchema.parse(JSON.parse(ticket.policy)),
+        expiresAt: ticket.expires_at,
+      },
+      200,
+      cors,
+    );
+  }
+
   async function publicPreview(request, url) {
     const siteId = url.searchParams.get("siteId"),
       value = await repo.site(siteId),
@@ -814,6 +888,8 @@ export function createAdministration({
     const url = new URL(request.url),
       path = url.pathname;
     try {
+      if (path.startsWith("/v1/metadata/"))
+        return await publicMetadataInspection(request, url);
       if (path.startsWith("/v1/preview/"))
         return await publicPreview(request, url);
       if (url.origin !== origin) fail(403, "origin_rejected");
@@ -1256,7 +1332,11 @@ export function createAdministration({
       if (route === "/sites" && request.method === "POST") {
         superuser(session);
         recent(session);
-        const value = siteSchema.parse(await readAdminJSON(request));
+        const raw = await readAdminJSON(request);
+        const value = siteSchema.parse({
+          ...raw,
+          metadataExtraction: raw.metadataExtraction ?? standardMetadata(),
+        });
         if ((await repo.one("SELECT count(*) AS n FROM admin_sites")).n >= 100)
           fail(409, "site_limit");
         if (
@@ -1276,7 +1356,9 @@ export function createAdministration({
       const siteId = match[1],
         tail = match[2] || "",
         kind =
-          tail === "jev" || tail === "jev/usage"
+          tail === "jev" ||
+          tail === "jev/usage" ||
+          tail === "metadata-inspection"
             ? "admin"
             : request.method === "GET"
               ? "view"
@@ -1466,6 +1548,57 @@ export function createAdministration({
           siteId,
         );
         return out({ ok: true });
+      }
+      if (tail === "metadata-inspection" && request.method === "POST") {
+        const b = z
+          .object({
+            url: z.url().max(2048),
+            nonce: z.string().regex(/^[-\w]{43}$/),
+            policy: metadataPolicySchema,
+          })
+          .strict()
+          .parse(await readAdminJSON(request));
+        if (!site.metadataEnabled) fail(409, "metadata_not_approved");
+        const target = await previewTarget(
+          site,
+          { target: { mode: "all", paths: [] } },
+          b.url,
+        );
+        const token = randomToken(),
+          expiresAt = clock() + FIVE;
+        await repo.run(
+          "DELETE FROM admin_metadata_tickets WHERE expires_at<? OR session_hash NOT IN (SELECT token_hash FROM admin_sessions)",
+          clock(),
+        );
+        if (
+          (
+            await repo.one(
+              "SELECT count(*) AS n FROM admin_metadata_tickets WHERE user_id=? AND used=0",
+              session.user_id,
+            )
+          ).n >= 20
+        )
+          fail(429, "rate_limited");
+        await repo.run(
+          "INSERT INTO admin_metadata_tickets(token_hash,session_hash,user_id,site_id,origin,path,nonce,policy,expires_at) VALUES(?,?,?,?,?,?,?,?,?)",
+          await hash(token),
+          session.token_hash,
+          session.user_id,
+          siteId,
+          target.origin,
+          target.pathname,
+          b.nonce,
+          JSON.stringify(b.policy),
+          expiresAt,
+        );
+        await repo.audit(session.user_id, "metadata.inspect", siteId);
+        return out({
+          token,
+          expiresAt,
+          siteId,
+          url: target.href,
+          origin: target.origin,
+        });
       }
       if (tail === "debug" && request.method === "POST") {
         const b = z
@@ -1685,7 +1818,7 @@ export function createAdministration({
       fail(404);
     } catch (error) {
       let cors = {};
-      if (path.startsWith("/v1/preview/")) {
+      if (path.startsWith("/v1/preview/") || path.startsWith("/v1/metadata/")) {
         const target = await repo.site(url.searchParams.get("siteId"));
         const o = request.headers.get("Origin");
         if (target?.site.origins.includes(o))

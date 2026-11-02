@@ -78,7 +78,11 @@ export async function migrateAdminDatabase(db, config) {
       .prepare("UPDATE app_config SET body=?,revision=? WHERE id=1")
       .bind(JSON.stringify(config), crypto.randomUUID())
       .run();
-  for (const migration of ["0002_administration.sql", "0003_site_jev.sql"])
+  for (const migration of [
+    "0002_administration.sql",
+    "0003_site_jev.sql",
+    "0004_metadata_inspections.sql",
+  ])
     await db.exec(
       await readFile(
         new URL("../../migrations/" + migration, import.meta.url),

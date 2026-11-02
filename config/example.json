@@ -7,6 +7,7 @@
       "allowedPathPrefixes": ["/products/", "/guides/"],
       "excludedPathPrefixes": ["/account", "/checkout", "/search"],
       "metadataEnabled": false,
+      "metadataExtraction": { "mode": "standard", "rules": [] },
       "actionNames": ["guide_download"],
       "factNames": ["registered"],
       "minVisibleMs": 5000,

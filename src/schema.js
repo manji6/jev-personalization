@@ -4,6 +4,8 @@ import { guidedJudgmentSchema } from "./questions.js";
 import { secureOrLoopback } from "./url-policy.js";
 import { validCustomCode } from "./custom-code.js";
 
+import { metadataPolicySchema } from "./metadata-policy.js";
+
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 export const designSchema = z
   .object({
@@ -58,6 +60,10 @@ export const pageSchema = z
 export const inputSchema = z
   .object({
     siteId: id,
+    metadataRevision: z
+      .string()
+      .regex(/^(legacy|[a-f0-9]{32})$/)
+      .optional(),
     visits: z
       .array(
         z
@@ -203,6 +209,7 @@ export const siteSchema = z
     allowedPathPrefixes: z.array(text(200).startsWith("/")).min(1).max(30),
     excludedPathPrefixes: z.array(text(200).startsWith("/")).max(30),
     metadataEnabled: z.boolean().default(false),
+    metadataExtraction: metadataPolicySchema.optional(),
     design: designSchema.default(() => structuredClone(DEFAULT_DESIGN)),
     allowCustomJavaScript: z.boolean().default(false),
     actionNames: z.array(id).max(30),

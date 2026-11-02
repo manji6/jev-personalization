@@ -867,3 +867,292 @@ test("editors cannot see Jev navigation or open credential and usage endpoints t
       (await browserAPI(page, "/admin/api/v2/sites/demo/jev" + tail)).status,
     ).toBe(403);
 });
+
+async function metadataTab(page) {
+  await page.locator('a[data-nav="settings"]').click();
+  await page
+    .getByRole("button", { name: "ページ情報の取得", exact: true })
+    .click();
+}
+test("metadata settings follow the approved layout, validate/edit/order rules, save with CAS and render at mobile widths", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await metadataTab(page);
+  await expect(page.locator("#metadataSettings")).toContainText(
+    "従来のJSON-LD優先",
+  );
+  await page
+    .getByRole("button", { name: "サイト独自のルール", exact: true })
+    .click();
+  await expect(page.locator(".metadata-rule")).toHaveCount(3);
+  await page
+    .locator(".metadata-rule")
+    .first()
+    .getByRole("button", { name: "編集", exact: true })
+    .click();
+  let modal = page.getByRole("dialog");
+  await modal.locator('[name="nameOutput.prefix"]').fill("製品：");
+  await page.getByRole("button", { name: "候補を保存", exact: true }).click();
+  await expect(page.locator(".metadata-rule").first()).toContainText("製品：");
+  await page
+    .locator(".metadata-rule")
+    .nth(1)
+    .getByRole("button", { name: "↑", exact: true })
+    .click();
+  await expect(page.locator(".metadata-rule").first()).toContainText(
+    "OGPから取得",
+  );
+  await page
+    .getByText("導入前に取得値を手動入力して試す", { exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "人工データで確認", exact: true })
+    .click();
+  await expect(page.locator("#metadataResult")).toContainText(
+    "夏のポロシャツ特集",
+  );
+  await expect(page.locator("#metadataResult")).toContainText("人工データ");
+  await page
+    .getByRole("button", { name: "変更内容を確認", exact: true })
+    .click();
+  await page.getByRole("button", { name: "保存する", exact: true }).click();
+  await expect(page.locator("#toast")).toContainText("取得方法を保存");
+  const stored = (await browserAPI(page, "/admin/api/v2/sites/demo")).site
+    .metadataExtraction;
+  expect(stored.mode).toBe("custom");
+  expect(stored.rules[0].id).toBe("ogp");
+  expect(stored.rules[1].nameOutput.prefix).toBe("製品：");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBe(true);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({
+      path: testInfo.outputPath(`metadata-${width}.png`),
+      fullPage: true,
+    });
+  }
+  await page
+    .getByRole("button", { name: "標準の自動取得", exact: true })
+    .click();
+  await page.getByRole("button", { name: "基本設定", exact: true }).click();
+  await page.getByRole("button", { name: "切り替える", exact: true }).click();
+  await page
+    .getByRole("button", { name: "ページ情報の取得", exact: true })
+    .click();
+  await expect(page.locator(".metadata-rule")).toHaveCount(3);
+  expect(calls).toBe(0);
+});
+test("live metadata inspection respects consent, evaluates unsaved rules, refreshes DOM and never starts normal collection", async ({
+  page,
+  context,
+}) => {
+  await setup(page);
+  await metadataTab(page);
+  await page
+    .getByRole("button", { name: "サイト独自のルール", exact: true })
+    .click();
+  const requests = [];
+  context.on("request", (req) => requests.push(req.url()));
+  await context.route("https://www.example.com/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><meta charset="utf-8"><title>HTML title</title><meta property="og:title" content="OGP title"><script type="application/ld+json">{"@type":"Product","sku":"SECRET-SKU","name":"実ページの商品","description":"商品の説明"}</script><script src="${origin}/sdk.js" data-site="demo" defer></script><h1>実ページ</h1>`,
+    }),
+  );
+  await page
+    .getByLabel("確認するページURL", { exact: true })
+    .fill("https://www.example.com/products/polo?variant=blue#size");
+  const opening = page.waitForEvent("popup");
+  await page
+    .getByRole("button", { name: "このURLで確認", exact: true })
+    .click();
+  const popup = await opening;
+  await expect(page.locator("#metadataResult")).toContainText("同意");
+  expect(
+    await admin.repo.one("SELECT used FROM admin_metadata_tickets"),
+  ).toMatchObject({ used: 0 });
+  expect(
+    requests.filter((u) => u.includes("/v1/metadata/redeem")),
+  ).toHaveLength(0);
+  await popup.evaluate(() => window.JevPersonalization.consent(true));
+  await expect(page.locator("#metadataResult")).toContainText(
+    "商品詳細：実ページの商品",
+  );
+  await expect(page.locator("#metadataResult")).toContainText(
+    "実ページの取得結果",
+  );
+  await expect(page.locator("#metadataResult")).not.toContainText("SECRET-SKU");
+  expect(popup.url()).toBe(
+    "https://www.example.com/products/polo?variant=blue#size",
+  );
+  await popup.evaluate(() => {
+    document.querySelector('script[type="application/ld+json"]').textContent =
+      JSON.stringify({
+        "@type": "Product",
+        sku: "SECRET-SKU",
+        name: "更新後の商品",
+      });
+  });
+  await expect(page.locator("#metadataResult")).toContainText(
+    "商品詳細：更新後の商品",
+  );
+  await page
+    .getByRole("button", { name: "同じページから再取得", exact: true })
+    .click();
+  expect(
+    requests.filter((u) => u.includes("/v1/metadata/redeem")),
+  ).toHaveLength(1);
+  expect(
+    requests.filter(
+      (u) => u.includes("/v1/decision") || u.includes("/v1/sites/"),
+    ),
+  ).toHaveLength(0);
+  expect(
+    await popup.evaluate(() => sessionStorage.getItem("jev:v1:demo")),
+  ).toBeNull();
+  expect(
+    (await browserAPI(page, "/admin/api/v2/sites/demo")).site
+      .metadataExtraction,
+  ).toBeUndefined();
+  expect(calls).toBe(0);
+  await popup.evaluate(() => window.JevPersonalization.consent(false));
+  await expect(page.locator("#metadataResult")).toContainText("終了");
+  await popup.close();
+});
+test("inspection ignores forged messages and invalidates live results when the draft changes", async ({
+  page,
+  context,
+}) => {
+  await setup(page);
+  await metadataTab(page);
+  await page
+    .getByRole("button", { name: "標準の自動取得", exact: true })
+    .click();
+  await context.route("https://www.example.com/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><title>HTML</title><meta property="og:title" content="OGP title"><script src="${origin}/sdk.js" data-site="demo" data-consent="granted" defer></script>`,
+    }),
+  );
+  await page
+    .getByLabel("確認するページURL", { exact: true })
+    .fill("https://www.example.com/products/polo");
+  const opening = page.waitForEvent("popup");
+  await page
+    .getByRole("button", { name: "このURLで確認", exact: true })
+    .click();
+  const popup = await opening;
+  await expect(page.locator("#metadataResult")).toContainText("OGP title");
+  const nonce = (
+    await admin.repo.one("SELECT nonce FROM admin_metadata_tickets")
+  ).nonce;
+  await page.evaluate(
+    ({ nonce }) =>
+      window.postMessage(
+        {
+          type: "jevsense:metadata-result",
+          siteId: "demo",
+          nonce,
+          page: { name: "forged" },
+          provenance: { trace: [] },
+        },
+        location.origin,
+      ),
+    { nonce },
+  );
+  await expect(page.locator("#metadataResult")).not.toContainText("forged");
+  await page
+    .getByRole("button", { name: "サイト独自のルール", exact: true })
+    .click();
+  await expect(page.locator("#metadataResult")).toContainText("設定案を変更");
+  await expect(page.locator("#metadataResult")).not.toContainText("OGP title");
+  await expect(
+    popup.locator("[data-jevsense-metadata-inspection]"),
+  ).toContainText("終了");
+  expect(calls).toBe(0);
+  await popup.close();
+});
+
+test("metadata inspection expires and terminates on navigation, and the read-only role cannot launch or edit", async ({
+  page,
+  context,
+}) => {
+  await setup(page);
+  await metadataTab(page);
+  await page
+    .getByRole("button", { name: "標準の自動取得", exact: true })
+    .click();
+  await page.clock.install();
+  await context.route("https://www.example.com/**", (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: `<!doctype html><title>HTML</title><script src="${origin}/sdk.js" data-site="demo" defer></script>`,
+    }),
+  );
+  await page
+    .getByLabel("確認するページURL", { exact: true })
+    .fill("https://www.example.com/products/polo");
+  let opening = page.waitForEvent("popup");
+  await page
+    .getByRole("button", { name: "このURLで確認", exact: true })
+    .click();
+  let popup = await opening;
+  await popup.waitForFunction(() => window.JevPersonalization);
+  await popup.evaluate(() => window.JevPersonalization.consent(true));
+  await expect(page.locator("#metadataResult")).toContainText(
+    "実ページの取得結果",
+  );
+  await popup.clock.fastForward(300001);
+  await expect(page.locator("#metadataResult")).toContainText(/終了|期限/);
+  await popup.close();
+  await page.clock.setSystemTime(new Date());
+  opening = page.waitForEvent("popup");
+  await page
+    .getByRole("button", { name: "このURLで確認", exact: true })
+    .click();
+  popup = await opening;
+  await popup.waitForFunction(() => window.JevPersonalization);
+  await popup.evaluate(() => window.JevPersonalization.consent(true));
+  await expect(page.locator("#metadataResult")).toContainText(
+    "実ページの取得結果",
+  );
+  await popup.evaluate(() => history.pushState(null, "", "/products/next"));
+  await expect(page.locator("#metadataResult")).toContainText("終了");
+  await popup.close();
+  await page
+    .getByRole("button", { name: "変更内容を確認", exact: true })
+    .click();
+  await page.getByRole("button", { name: "保存する", exact: true }).click();
+  const session = await page.evaluate(
+    async () => await (await fetch("/auth/session")).json(),
+  );
+  await admin.repo.run(
+    "INSERT INTO admin_users(id,email,display_name,global_role,status,created_at) VALUES('other-superuser','other@example.com','Other','superuser','active',?)",
+    Date.now(),
+  );
+  await admin.repo.run(
+    "UPDATE admin_users SET global_role='member' WHERE id=?",
+    session.user.id,
+  );
+  await admin.repo.run(
+    "INSERT INTO admin_memberships(user_id,site_id,role) VALUES(?,'demo','editor') ON CONFLICT(user_id,site_id) DO UPDATE SET role='editor'",
+    session.user.id,
+  );
+  await page.reload();
+  await metadataTab(page);
+  await expect(
+    page.getByRole("button", { name: "このURLで確認", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "サイト独自のルール", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "変更内容を確認", exact: true }),
+  ).toBeDisabled();
+  expect(calls).toBe(0);
+});

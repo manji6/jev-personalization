@@ -1,3 +1,4 @@
+import { publicMetadata, metadataMismatch } from "../metadata-policy.js";
 import {
   previewIdentity,
   previewConfiguration,
@@ -198,7 +199,7 @@ export default {
           },
         });
         if (
-          /^\/(admin(?:[/.]|$)|auth(?:[/?]|$)|control\.(js|css)|v1\/preview\/)/.test(
+          /^\/(admin(?:[/.]|$)|auth(?:[/?]|$)|control\.(js|css)|v1\/(?:preview|metadata)\/)/.test(
             path,
           )
         ) {
@@ -404,6 +405,7 @@ export default {
         } = site;
         return finish(
           json({
+            ...(await publicMetadata(site)),
             id,
             allowedPathPrefixes,
             excludedPathPrefixes,
@@ -442,6 +444,8 @@ export default {
           decision: "hold",
           reason: "metadata_not_approved",
         });
+      const mismatch = await metadataMismatch(site, parsed.data);
+      if (mismatch) return respond({ ...base, ...mismatch });
       const prepared = prepare(site, parsed.data);
       if (prepared.reason)
         return respond({ ...base, decision: "hold", reason: prepared.reason });

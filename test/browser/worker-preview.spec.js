@@ -102,6 +102,34 @@ test("Access owner registers passkey without shared token, sees Preview banner a
       await popup.evaluate(() => sessionStorage.getItem("jev:v1:preview-demo")),
     ).toBeNull();
     await popup.close();
+    await page.locator('a[data-nav="settings"]').click();
+    await page
+      .getByRole("button", { name: "ページ情報の取得", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "サイト独自のルール", exact: true })
+      .click();
+    await page
+      .getByLabel("確認するページURL", { exact: true })
+      .fill("https://api.example.com/demo");
+    const inspection = page.waitForEvent("popup");
+    await page
+      .getByRole("button", { name: "このURLで確認", exact: true })
+      .click();
+    const inspected = await inspection;
+    await expect(page.locator("#metadataResult")).toContainText(
+      "商品詳細：吸汗速乾ポロシャツ",
+    );
+    await expect(page.locator("#metadataResult")).toContainText(
+      "実ページの取得結果",
+    );
+    expect(runtime.calls()).toBe(0);
+    expect(
+      await inspected.evaluate(() =>
+        sessionStorage.getItem("jev:v1:preview-demo"),
+      ),
+    ).toBeNull();
+    await inspected.close();
   } finally {
     await context.unrouteAll({ behavior: "wait" });
     await runtime.mf.dispose();

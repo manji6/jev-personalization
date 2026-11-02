@@ -7,6 +7,8 @@ export function fixture() {
     ),
   );
   const s = config.sites[0];
+  // The shared regression fixture represents an existing, not-yet-migrated site.
+  delete s.metadataExtraction;
   s.metadataEnabled = true;
   s.campaigns[0].enabled = true;
   return config;

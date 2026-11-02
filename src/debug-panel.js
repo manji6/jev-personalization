@@ -1,6 +1,9 @@
 const HEADER = "X-JevSense-Debug";
 const labels = {
   insufficient_observation: "情報不足で保留",
+  metadata_revision_changed: "取得ルールの更新が必要なため保留",
+  metadata_rules_changed: "取得ルールを更新し、現在のページを再取得",
+  settings_changed: "設定変更後のページを取得",
   metadata_not_approved: "メタデータ送信が無効",
   no_eligible_campaign: "配信条件を満たす施策がありません",
   excluded_page: "収集対象外のページ",

@@ -21,11 +21,11 @@ pageはpath、name、任意のdescription/type/themes。URLのqueryとfragment�
 
 ## SDKの計測・ページ情報
 
-performance.now()の差分とPage Visibility APIで表示時間を測る。非表示、pagehide、pageshow、SPA遷移で計測を確定・再開。5秒ごとの保存と判断直前に未確定分を加算。pushState/replaceState/popstateでは200ms後にページを取得する。head内の変更でメタデータを更新する。query/fragmentだけの変更は新規閲覧としない。ハッシュルーターは初期版の対象外。
+performance.now()の差分とPage Visibility APIで表示時間を測る。非表示、pagehide、pageshow、SPA遷移で計測を確定・再開。5秒ごとの保存と判断直前に未確定分を加算。pushState/replaceState/popstateでは200ms後にページを取得する。メタデータのDOM変更でページ情報を更新する。query/fragmentだけの変更は新規閲覧としない。ハッシュルーターは初期版の対象外。
 
 JSON-LDの単一オブジェクト、配列、@graph、mainEntityと文書内@id参照を扱う。対応型はWebPage、Article、NewsArticle、BlogPosting、Product、Service、JobPosting、Course、Event。明示的な現在URL・mainEntityを優先し、候補が1件の場合はそれを使う。一覧のitemListElementを走査して全商品を閲覧済みにしない。外部@context/@idを取得しない。解析深度・個数・サイズを制限する。
 
-名前・説明はJSON-LD → OGP → meta/titleへフォールバック。メール形式・長い数字列を含むメタデータの簡易除外を行う。ただし完全な個人情報除去ではない。サイトごとの許可経路とメタデータ審査が必須。type/themesは観測できるときだけ渡し、URLから心理やページ種類を捏造しない。metadataEnabledがfalseなら収集・判断を開始しない。
+標準の名前・説明はOGP → title/metaへフォールバックし、JSON-LDはカスタムで条件と優先順位を設定する。取得設定のない既存サイトは移行まで従来動作を維持する。詳細は[ページ情報取得設計](metadata-extraction-design.md)を参照。メール形式・長い数字列を含むメタデータの簡易除外を行う。ただし完全な個人情報除去ではない。サイトごとの許可経路とメタデータ審査が必須。type/themesは観測できるときだけ渡し、URLから心理やページ種類を捏造しない。metadataEnabledがfalseなら収集・判断を開始しない。
 
 ## 判断処理
 
