@@ -49,6 +49,30 @@
 .vp-doc code {
   overflow-wrap: anywhere;
 }
+.vp-doc .workflow-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 16px;
+  background: #fff;
+  margin: 24px 0 12px;
+}
+.vp-doc .workflow-scroll p {
+  margin: 0;
+}
+.vp-doc .workflow-scroll img {
+  display: block;
+  width: 100%;
+  min-width: 640px;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.vp-doc .workflow-scroll:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 4px;
+}
 .VPLocalSearchBox .result {
   border-radius: 10px;
 }
