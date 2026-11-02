@@ -1283,6 +1283,56 @@ details[open] > summary .details-chevron {
   border-color: #d7e0cc;
   font-weight: 600;
 }
+.debug-launcher {
+  margin-bottom: 24px;
+}
+.debug-launcher .panel-heading {
+  align-items: flex-start;
+}
+.debug-launcher .panel-heading > div {
+  min-width: 0;
+}
+.debug-launcher .panel-heading p {
+  max-width: 78ch;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.debug-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #edf3e8;
+  color: var(--green);
+  font-size: 22px;
+}
+.debug-launcher .panel-body {
+  display: grid;
+  gap: 18px;
+}
+.debug-launcher .panel-body > label {
+  margin: 0;
+}
+.debug-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.debug-actions .field-hint {
+  flex: 1;
+  min-width: min(240px, 100%);
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .debug-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+}
 #siteSettingsPanel,
 #campaignSettingsPanel {
   display: grid;
