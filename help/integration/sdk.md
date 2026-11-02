@@ -6,11 +6,14 @@
 
 ```html
 <script
+  defer
   src="https://YOUR-API-HOST/sdk.js"
   data-api="https://YOUR-API-HOST"
   data-site="YOUR-SITE-ID"
 ></script>
 ```
+
+`defer`によりHTMLの解析を妨げずにSDKをダウンロードし、解析完了後に実行します。タグ直後のインラインスクリプトはSDKの実行完了を待たないため、同意APIはSDKの読み込み完了後に呼んでください。
 
 `data-site`は管理画面のサイトIDと一致させます。APIにはHTTPSのOriginを指定します。ローカル開発のlocalhostだけHTTPを許可します。
 

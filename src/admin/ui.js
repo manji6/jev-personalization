@@ -1225,7 +1225,7 @@ function diagnosticsPage() {
       "実サイトで動作確認",
       "自動取得した情報・送信内容・判定結果を、操作しているブラウザで確認できます。",
     ) +
-    `<section class="card card-body"><h2>診断パネルを開く</h2>${info("サイト側に最新版のSDKタグが必要です。診断は通常の判定を観測します。履歴のサーバー保存や追加のJev呼び出しは行いません。サイトでの同意取得は別途必要です。")}<form data-form="debug">${field("確認するページURL", "url", site.origins[0] + site.allowedPathPrefixes[0], "登録済みのオリジンを指定してください。", { type: "url", required: true })}<button class="button primary" ${canEdit() ? "" : "disabled"} type="submit">実サイトで診断を開始</button></form><p id="launchStatus" role="status"></p><h3>ページに設置するタグ</h3><pre><code>${esc(`<script src="${location.origin}/sdk.js" data-site="${site.id}" data-api="${location.origin}"></script>`)}</code></pre><p class="hint">利用者の同意取得後に window.JevPersonalization.consent(true) を呼んでください。すでに同意取得が済むサイトでは data-consent="granted" を指定できます。閲覧者の履歴・表示済み状態はブラウザのsessionStorageに保持します。</p></section>`
+    `<section class="card card-body"><h2>診断パネルを開く</h2>${info("サイト側に最新版のSDKタグが必要です。診断は通常の判定を観測します。履歴のサーバー保存や追加のJev呼び出しは行いません。サイトでの同意取得は別途必要です。")}<form data-form="debug">${field("確認するページURL", "url", site.origins[0] + site.allowedPathPrefixes[0], "登録済みのオリジンを指定してください。", { type: "url", required: true })}<button class="button primary" ${canEdit() ? "" : "disabled"} type="submit">実サイトで診断を開始</button></form><p id="launchStatus" role="status"></p><h3>ページに設置するタグ</h3><pre><code>${esc(`<script defer src="${location.origin}/sdk.js" data-site="${site.id}" data-api="${location.origin}"></script>`)}</code></pre><p class="hint">defer付きでHTMLの解析後に実行します。SDKの読み込み完了後、利用者の同意を取得してから window.JevPersonalization.consent(true) を呼んでください。すでに同意取得が済むサイトでは data-consent="granted" を指定できます。閲覧者の履歴・表示済み状態はブラウザのsessionStorageに保持します。</p></section>`
   );
 }
 const jevModes = {

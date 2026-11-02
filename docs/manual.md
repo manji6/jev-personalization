@@ -131,6 +131,7 @@ contextにはcontent、variables、mount（ShadowRoot）、signal、close、repo
 
 ```html
 <script
+  defer
   src="https://YOUR-API-HOST/sdk.js"
   data-api="https://YOUR-API-HOST"
   data-site="YOUR-SITE-ID"

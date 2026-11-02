@@ -77,6 +77,7 @@ npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 
 ```html
 <script
+  defer
   src="https://YOUR-API-HOST/sdk.js"
   data-api="https://YOUR-API-HOST"
   data-site="YOUR-SITE-ID"
