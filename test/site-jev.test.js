@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildManagedApp } from "../src/app.js";
 import { createSiteJev } from "../src/site-jev.js";
 import { createJev } from "../src/jev.js";
+import { issueDebugSession, DEBUG_HEADER } from "../src/debug-auth.js";
 import { fixture, input } from "./helpers.js";
 import { hash, randomToken, SESSION_COOKIE } from "../src/admin/crypto.js";
 const origin = "https://admin.example.com";
@@ -414,6 +415,28 @@ test("completion loss stays unconfirmed; failed start persistence prevents HTTP;
     (await repo.one("SELECT count(*) AS n FROM site_jev_calls")).n,
     0,
   );
+  const owner = await f.user();
+  f.db.raw.exec("DROP TABLE site_jev_calls");
+  const debug = await issueDebugSession(
+    "test-auth-".repeat(5),
+    fixture().sites[0],
+    "https://www.example.com/products/polo",
+    Date.now(),
+    { actor: owner.id, version: 1 },
+  );
+  const blocked = await f.app.inject({
+    url: "/v1/decision?siteId=demo",
+    method: "POST",
+    headers: {
+      host: "admin.example.com",
+      origin: "https://www.example.com",
+      [DEBUG_HEADER]: debug.token,
+    },
+    payload: input(),
+  });
+  assert.equal(blocked.statusCode, 502);
+  assert.equal(blocked.json().debug.model.called, false);
+  assert.equal(f.sent.length, 0);
 });
 test("adapter records HTTP/network/timeout/format outcomes without upstream bodies, state or keys", async () => {
   const cases = [

@@ -10,7 +10,13 @@ export function createJev({
   return async ({ state, questions }) => {
     // Serialize before reserving a log row. A failed log write prevents dispatch.
     const requestBody = JSON.stringify({ model, state, questions });
-    await onDispatch?.();
+    try {
+      await onDispatch?.();
+    } catch {
+      const error = Error("Model dispatch recording unavailable");
+      error.dispatched = false;
+      throw error;
+    }
     const started = performance.now();
     let status = null,
       actualModel = null,

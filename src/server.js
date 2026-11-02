@@ -359,8 +359,9 @@ export async function buildApp({
         reason: selected ? "qualified" : "no_match_or_uncertain",
         campaign: await publicOffer(site, selected),
       });
-    } catch {
+    } catch (error) {
       if (trace) {
+        if (error.dispatched === false) trace.model.called = false;
         trace.model.elapsedMs = Math.round(performance.now() - modelStart);
         trace.model.error = "model_error";
       }
