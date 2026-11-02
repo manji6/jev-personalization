@@ -385,7 +385,7 @@ export function createAdministration({
     if (ch.kind === "setup") {
       await repo.batch([
         [
-          "INSERT OR REPLACE INTO admin_sites(id,body,revision) SELECT json_extract(value,'$.id'),json(value),lower(hex(randomblob(16))) FROM json_each((SELECT body FROM app_config WHERE id=1),'$.sites') WHERE (SELECT initialized FROM admin_settings WHERE id=1)=0",
+          "INSERT INTO admin_sites(id,body,revision) SELECT json_extract(value,'$.id'),json(value),lower(hex(randomblob(16))) FROM json_each((SELECT body FROM app_config WHERE id=1),'$.sites') WHERE (SELECT initialized FROM admin_settings WHERE id=1)=0 ON CONFLICT(id) DO UPDATE SET body=excluded.body,revision=excluded.revision",
         ],
         [
           "INSERT INTO admin_users(id,email,display_name,global_role,status,created_at) SELECT ?,?,?,'superuser','active',? WHERE (SELECT initialized FROM admin_settings WHERE id=1)=0 AND NOT EXISTS(SELECT 1 FROM admin_users)",

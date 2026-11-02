@@ -399,7 +399,19 @@ test("passkey-authenticated administrator launches scoped live diagnostics from 
 test("site Jev key form saves encrypted write-only credentials with confirmation and passkey reauthentication", async ({
   page,
 }, testInfo) => {
+  db.raw
+    .prepare(
+      "INSERT INTO site_jev_calls(id,site_id,started_at,outcome,configured_model,key_source,credential_revision) VALUES('prebootstrap-call','demo',?,'success','jev-test','instance','prebootstrap')",
+    )
+    .run(Date.now());
   await setup(page);
+  expect(
+    db.raw
+      .prepare(
+        "SELECT count(*) AS n FROM site_jev_calls WHERE id='prebootstrap-call'",
+      )
+      .get().n,
+  ).toBe(1);
   await page.locator('a[data-nav="jev"]').click();
   await expect(
     page.getByRole("heading", { name: "Jev連携", exact: true }),
