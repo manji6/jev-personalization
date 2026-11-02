@@ -5,7 +5,7 @@ Node.js 24以上、永続ディスク、HTTPSのリバースプロキシを用�
 ## インストール
 
 ```sh
-git clone --branch feature/site-jev-management https://github.com/manji6/jev-personalization.git
+git clone https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 npm run build

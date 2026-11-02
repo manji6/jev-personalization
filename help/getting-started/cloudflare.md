@@ -17,7 +17,7 @@ Accessを新規に使う場合はCloudflare Zero Trustの初期設定も行い�
 ## 1. コードを取得する
 
 ```sh
-git clone --branch feature/site-jev-management https://github.com/manji6/jev-personalization.git
+git clone https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 ```

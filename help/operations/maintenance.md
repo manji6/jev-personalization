@@ -36,7 +36,7 @@ Node.jsではSQLite本体とWALの整合性を保ちます。停止中またはS
 
 通常は予備パスキー、復旧コード、Superuserの期限付き復旧リンクを使います。[アカウント](../guides/accounts)を参照してください。
 
-全Superuserが資格を失った場合は、DBを操作できる環境運用者が、本人確認とバックアップを行って対応します。ADMIN_TOKENで既存アカウントを取り直す公開の裏口はありません。運用者向けの最終手順は[リポジトリの移行・復旧手順](https://github.com/manji6/jev-personalization/blob/feature/site-jev-management/docs/admin-v2-setup.md)に記載しています。
+全Superuserが資格を失った場合は、DBを操作できる環境運用者が、本人確認とバックアップを行って対応します。ADMIN_TOKENで既存アカウントを取り直す公開の裏口はありません。運用者向けの最終手順は[リポジトリの移行・復旧手順](https://github.com/manji6/jev-personalization/blob/main/docs/admin-v2-setup.md)に記載しています。
 
 ## 稼働確認
 

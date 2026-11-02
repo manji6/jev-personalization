@@ -60,7 +60,7 @@
 
 公開SDKは`/v1/sites/:siteId`、`/v1/decision`等を使います。管理者のログインは`/auth/*`、サイト別管理は`/admin/api/v2/*`です。
 
-管理Cookieや管理トークンをSDKへ配らないでください。実際のスキーマと競合制御は[詳細設計](https://github.com/manji6/jev-personalization/blob/feature/site-jev-management/docs/admin-v2-design.md)を参照してください。
+管理Cookieや管理トークンをSDKへ配らないでください。実際のスキーマと競合制御は[詳細設計](https://github.com/manji6/jev-personalization/blob/main/docs/admin-v2-design.md)を参照してください。
 
 ## Jev接続と記録の上限
 

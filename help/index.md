@@ -30,10 +30,6 @@ features:
     link: /guides/testing
 ---
 
-::: info このヘルプの対象
-パスキー対応の管理画面v2を対象にしています。v2は本番反映前の確認段階を含みます。管理トークンで設定を読み込む旧画面をお使いの場合は、[旧版マニュアル](https://github.com/manji6/jev-personalization/blob/main/docs/manual.md)も確認してください。
-:::
-
 ## 目的から探す
 
 | やりたいこと                       | 読むページ                                                                  |

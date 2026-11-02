@@ -6,8 +6,6 @@
 
 JevSense（ジェブセンス）は、マーケターが「何を伝えたいか」「どんな関心・状態の人に届けたいか」を入力すると、サイト上の閲覧情報を材料にJevで対象者を判定し、事前登録したオファーを表示するセルフホスト型アプリケーションです。ECだけでなく、BtoB・メディア・採用・教育・予約サービスにも使えます。
 
-> このブランチはパスキー対応の管理画面v2です。本番反映前の機能を含みます。コードを確認する場合は`feature/site-jev-management`を使用してください。稼働中の環境は別途Previewで確認してから更新します。
-
 ![JevSenseの管理画面](docs/images/admin-v2-implemented-home.png)
 
 ## 主な機能
@@ -41,7 +39,7 @@ JevSense（ジェブセンス）は、マーケターが「何を伝えたいか
 Node.js **24以上**が必要です。
 
 ```sh
-git clone --branch feature/site-jev-management https://github.com/manji6/jev-personalization.git
+git clone https://github.com/manji6/jev-personalization.git
 cd jev-personalization
 npm ci
 npm run review
