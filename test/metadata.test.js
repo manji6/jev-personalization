@@ -209,7 +209,7 @@ test("revision is stable and policy-specific; changing it discards only visits, 
   assert.deepEqual(restored.actions, saved.actions);
   assert.deepEqual(restored.facts, saved.facts);
 });
-test("SDK refreshes stale policy on demand, clears old visits, preserves delivery and never polls decisions", async () => {
+test("SDK refreshes stale policy locally, preserves delivery and does not repeat the page decision", async () => {
   const dom = documentFor({
       meta: { "og:title": "New" },
       nodes: [{ "@type": "Product", name: "Old", sku: "A" }],
@@ -273,13 +273,14 @@ test("SDK refreshes stale policy on demand, clears old visits, preserves deliver
   await api.consent(true);
   await new Promise((r) => setTimeout(r, 350));
   assert.equal(configs, 2);
-  assert.equal(sent.length, 2);
-  assert.equal(sent[1].visits.length, 1);
-  assert.equal(sent[1].visits[0].page.name, "New");
-  assert.equal(sent[1].metadataRevision, revision);
-  assert.equal(sent[1].delivery.offer.shown, 1);
+  assert.equal(sent.length, 1);
+  const local = JSON.parse(w.sessionStorage.getItem("jev:v1:demo"));
+  assert.equal(local.visits.length, 0);
+  assert.equal(local.currentVisit.page.name, "New");
+  assert.equal(local.metadataRevision, revision);
+  assert.equal(local.delivery.offer.shown, 1);
   await api.decide();
-  assert.equal(sent.length, 2);
+  assert.equal(sent.length, 1);
   await api.consent(false);
   w.close();
 });
@@ -350,7 +351,7 @@ test("a delayed settings body cannot overwrite a newer consent generation or res
   w.document.title = "Updated after consent";
   await new Promise((r) => setTimeout(r, 150));
   const saved = JSON.parse(w.sessionStorage.getItem("jev:v1:demo"));
-  assert.equal(saved.visits.at(-1).page.name, "Updated after consent");
+  assert.equal(saved.currentVisit.page.name, "Updated after consent");
   await api.consent(false);
   w.close();
 });

@@ -2101,3 +2101,34 @@ textarea.code {
   line-height: 1.7;
   margin: 16px 0;
 }
+
+.url-policy {
+  margin-bottom: 24px;
+}
+.url-policy .field {
+  margin-top: 18px;
+}
+.url-policy textarea {
+  min-height: 100px;
+}
+.url-preview {
+  padding: 12px;
+  background: #f4f7ef;
+  border-radius: 8px;
+  margin: 0 0 18px;
+  font-size: 12px;
+}
+.url-preview pre {
+  margin: 8px 0 0;
+  max-height: 130px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.url-targeting {
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+  margin: 24px 0;
+}
+.url-targeting > h3 {
+  margin-bottom: 10px;
+}

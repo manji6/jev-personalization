@@ -1,3 +1,4 @@
+import { pageWithUrl } from "./page-url.js";
 import { extractPage, observePageMetadata } from "./metadata-extractor.js";
 import { secureOrLoopback } from "./url-policy.js";
 // This mode never starts the ordinary collector, model requests or offer renderer.
@@ -42,6 +43,7 @@ export function installMetadataInspection(
     used = false,
     ended = false,
     policy = null,
+    excludedQueryKeys = [],
     expires = Date.now() + 300000,
     timer,
     mutationTimer,
@@ -112,7 +114,11 @@ export function installMetadataInspection(
       return;
     }
     const provenance = {},
-      page = extractPage(win.document, win.location, provenance, policy),
+      page = pageWithUrl(
+        extractPage(win.document, win.location, provenance, policy),
+        win.location,
+        excludedQueryKeys,
+      ),
       result = { page, provenance };
     const serialized = JSON.stringify(result);
     if (force || serialized !== lastResult) {
@@ -149,6 +155,7 @@ export function installMetadataInspection(
         {
           method: "POST",
           credentials,
+          referrerPolicy: "no-referrer",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             token: event.data.token,
@@ -170,6 +177,7 @@ export function installMetadataInspection(
         throw Error("rejected");
       if (ended || !consent) return;
       policy = data.policy;
+      excludedQueryKeys = data.excludedQueryKeys ?? [];
       expires = Math.min(expires, data.expiresAt);
       win.clearTimeout(timer);
       timer = win.setTimeout(

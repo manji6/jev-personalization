@@ -12,6 +12,9 @@ export function createDebugTrace(site, input) {
   }));
   return {
     observation: {
+      ...(input.currentPage ? { currentPage: input.currentPage } : {}),
+      ...(input.entryPage ? { entryPage: input.entryPage } : {}),
+      protocolVersion: input.protocolVersion ?? 1,
       minVisibleMs: site.minVisibleMs,
       minQualifiedVisits: site.minQualifiedVisits,
       qualifiedVisits: visits.filter((v) => v.reason === "qualified").length,
@@ -30,7 +33,21 @@ export function createDebugTrace(site, input) {
         : null,
       threshold: c.threshold,
       combination: c.combination,
-      checks: campaignChecks(c, input),
+      decisionMode: c.decisionMode ?? "model",
+      minimumHistory: c.minimumHistory ?? site.minQualifiedVisits,
+      checks: [
+        ...campaignChecks(c, input),
+        ...(input.currentPage
+          ? [
+              {
+                key: "history",
+                passed:
+                  visits.filter((v) => v.reason === "qualified").length >=
+                  (c.minimumHistory ?? site.minQualifiedVisits),
+              },
+            ]
+          : []),
+      ],
     })),
     model: { called: false },
   };
@@ -55,6 +72,11 @@ export function finishModelTrace(trace, prepared, result, elapsedMs) {
   );
   prepared.candidates.forEach((c, i) => {
     const entry = trace.campaigns.find((v) => v.id === c.id);
+    if (c.decisionMode === "rules") {
+      entry.questions = [];
+      entry.matched = true;
+      return;
+    }
     entry.questions = c.questions.map((q, j) => {
       const value = result.answers?.[`c${i}q${j}`]?.noul;
       const valid =

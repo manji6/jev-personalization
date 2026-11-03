@@ -72,14 +72,15 @@ test("consent prevents collection/network; revoke clears tab history; unknown fa
   api.setFact("registered", false);
   api.track("download", true);
   let state = JSON.parse(w.sessionStorage.getItem("jev:v1:demo"));
-  assert.equal(state.visits.length, 1);
+  assert.equal(state.visits.length, 0);
+  assert.equal(state.currentVisit.page.path, "/guides/a");
   assert.deepEqual(state.facts, { registered: false });
   assert.equal(state.actions.length, 1);
   await api.consent(false);
   assert.equal(w.sessionStorage.length, 0);
   w.close();
 });
-test("SPA records distinct visits, strips queries and skips excluded routes", async () => {
+test("SPA keeps pending visits separate, excludes configured query keys and skips excluded routes", async () => {
   const dom = new JSDOM("<title>A</title>", {
     url: "https://example.com/guides/a",
     pretendToBeVisual: true,
@@ -89,6 +90,7 @@ test("SPA records distinct visits, strips queries and skips excluded routes", as
     ok: true,
     json: async () => ({
       metadataEnabled: true,
+      excludedQueryKeys: ["email"],
       allowedPathPrefixes: ["/guides/"],
       excludedPathPrefixes: ["/guides/private"],
       actionNames: [],
@@ -104,12 +106,13 @@ test("SPA records distinct visits, strips queries and skips excluded routes", as
   let state = JSON.parse(w.sessionStorage.getItem("jev:v1:demo"));
   assert.deepEqual(
     state.visits.map((v) => v.page.path),
-    ["/guides/a", "/guides/b"],
+    [],
   );
+  assert.equal(state.currentVisit.page.url, "https://example.com/guides/b");
   w.history.pushState({}, "", "/guides/private");
   await new Promise((r) => setTimeout(r, 250));
   state = JSON.parse(w.sessionStorage.getItem("jev:v1:demo"));
-  assert.equal(state.visits.length, 2);
+  assert.equal(state.visits.length, 0);
   w.close();
 });
 test("restore revalidates stored history against current policy and expires old state", () => {

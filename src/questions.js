@@ -9,6 +9,6 @@ export function guidedQuestions(value) {
   const { offer, conditions } = guidedJudgmentSchema.parse(value);
   return conditions.map((condition, index) => ({
     key: `condition_${index + 1}`,
-    instructions: `今回案内する内容：${offer}\n閲覧履歴と連携された行動・状態の情報に基づき、この閲覧者に「${condition}」が当てはまりますか？`,
+    instructions: `今回案内する内容：${offer}\n現在ページ・流入ページ・有効な閲覧履歴と、連携された行動・状態の情報に基づき、この閲覧者に「${condition}」が当てはまりますか？`,
   }));
 }

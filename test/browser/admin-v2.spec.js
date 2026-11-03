@@ -956,6 +956,14 @@ test("live metadata inspection respects consent, evaluates unsaved rules, refres
   await page
     .getByRole("button", { name: "サイト独自のルール", exact: true })
     .click();
+  await page
+    .getByLabel("取得しないGETパラメータのキー", { exact: true })
+    .fill("email");
+  const inspectionBodies = [];
+  page.on("request", (req) => {
+    if (req.url().endsWith("/metadata-inspection"))
+      inspectionBodies.push(req.postDataJSON());
+  });
   const requests = [];
   context.on("request", (req) => requests.push(req.url()));
   await context.route("https://www.example.com/**", (route) =>
@@ -966,7 +974,9 @@ test("live metadata inspection respects consent, evaluates unsaved rules, refres
   );
   await page
     .getByLabel("確認するページURL", { exact: true })
-    .fill("https://www.example.com/products/polo?variant=blue#size");
+    .fill(
+      "https://www.example.com/products/polo?variant=blue&email=PRIVATE-URL#size",
+    );
   const opening = page.waitForEvent("popup");
   await page
     .getByRole("button", { name: "このURLで確認", exact: true })
@@ -987,8 +997,21 @@ test("live metadata inspection respects consent, evaluates unsaved rules, refres
     "実ページの取得結果",
   );
   await expect(page.locator("#metadataResult")).not.toContainText("SECRET-SKU");
+  await expect(page.locator("#metadataResult")).not.toContainText(
+    "PRIVATE-URL",
+  );
+  await expect(page.locator("#metadataResult")).toContainText(
+    "https://www.example.com/products/polo?variant=blue",
+  );
+  expect(inspectionBodies).toHaveLength(1);
+  expect(inspectionBodies[0].url).toBe("https://www.example.com/products/polo");
+  expect(inspectionBodies[0].excludedQueryKeys).toEqual(["email"]);
+  expect(JSON.stringify(inspectionBodies)).not.toContain("PRIVATE-URL");
+  expect(
+    (await admin.repo.one("SELECT policy FROM admin_metadata_tickets")).policy,
+  ).not.toContain("PRIVATE-URL");
   expect(popup.url()).toBe(
-    "https://www.example.com/products/polo?variant=blue#size",
+    "https://www.example.com/products/polo?variant=blue&email=PRIVATE-URL#size",
   );
   await popup.evaluate(() => {
     document.querySelector('script[type="application/ld+json"]').textContent =
@@ -1154,5 +1177,125 @@ test("metadata inspection expires and terminates on navigation, and the read-onl
   await expect(
     page.getByRole("button", { name: "変更内容を確認", exact: true }),
   ).toBeDisabled();
+  expect(calls).toBe(0);
+});
+
+test("URL exclusions save independently of metadata mode and preview removed values without leaking markup", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await metadataTab(page);
+  await page
+    .getByLabel("取得しないGETパラメータのキー", { exact: true })
+    .fill("email\ntoken");
+  await page
+    .locator("#metadataURL")
+    .fill(
+      "https://www.example.com/guides/a?cid=mail_runner&email=PRIVATE&token=SECRET#private",
+    );
+  await expect(page.locator("#sanitizedURL")).toHaveText(
+    "https://www.example.com/guides/a?cid=mail_runner",
+  );
+  await page
+    .getByRole("button", { name: "変更内容を確認", exact: true })
+    .click();
+  await page.getByRole("button", { name: "保存する", exact: true }).click();
+  await expect(page.locator("#toast")).toContainText("取得方法を保存");
+  const stored = (await browserAPI(page, "/admin/api/v2/sites/demo")).site;
+  expect(stored.excludedQueryKeys).toEqual(["email", "token"]);
+  expect(stored.metadataExtraction).toBeUndefined();
+  await page.reload();
+  await metadataTab(page);
+  await expect(
+    page.getByLabel("取得しないGETパラメータのキー", { exact: true }),
+  ).toHaveValue("email\ntoken");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`url-policy-${width}.png`),
+      fullPage: true,
+    });
+  }
+  expect(calls).toBe(0);
+});
+
+test("URL-only campaign editor saves an entry cid condition with zero required history and no Jev questions", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.getByRole("button", { name: "新しい施策", exact: true }).click();
+  await page.locator('[name="name"]').fill("メールからのランナー向け案内");
+  const choose = async (name, label) => {
+    await page
+      .getByRole("combobox", {
+        name: {
+          decisionMode: "表示対象の判定方法",
+          "urlTargeting.conditions.0.source": "対象のページ",
+        }[name],
+        exact: true,
+      })
+      .click();
+    await page.getByRole("option", { name: label, exact: true }).click();
+  };
+  await choose("decisionMode", "URLの確定条件だけで判定する");
+  await expect(page.locator(".threshold-control")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "URL条件を追加", exact: true })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "対象のページ", exact: true }),
+  ).toContainText("流入ページ（同意後の初回）");
+  await page.locator('[name="urlTargeting.conditions.0.key"]').fill("cid");
+  await page.locator('[name="urlTargeting.conditions.0.value"]').fill("runner");
+  const draft = await saveThresholdDraft(page);
+  expect(draft.decisionMode).toBe("rules");
+  expect(draft.minimumHistory).toBe(0);
+  expect(draft.questions).toEqual([]);
+  expect(draft.urlTargeting.conditions[0]).toEqual({
+    source: "entry",
+    field: "query",
+    key: "cid",
+    operator: "contains",
+    value: "runner",
+  });
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`url-campaign-${width}.png`),
+      fullPage: true,
+    });
+  }
+  await page
+    .getByRole("button", { name: "表示コンテンツ", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "表示タイトル", exact: true })
+    .fill("ランナー向け特集");
+  await page
+    .getByRole("button", { name: "配信内容を確認", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "この内容で配信開始", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "施策一覧", exact: true }),
+  ).toBeVisible();
+  const published = (await admin.repo.publicConfig()).sites[0].campaigns.find(
+    (c) => c.id === draft.id,
+  );
+  expect(published.enabled).toBe(true);
+  expect(published.decisionMode).toBe("rules");
+  expect(published.urlTargeting.conditions[0].value).toBe("runner");
+  expect(published.questions).toEqual([]);
   expect(calls).toBe(0);
 });

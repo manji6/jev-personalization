@@ -44,8 +44,8 @@ JSON-LD条件と取得値は必ず同じオブジェクトに結合する。条�
 
 管理画面から任意URLをfetchしない。CORS・JavaScript実行後のDOM・SSRFの問題を避け、対象サイトに設置したSDKで確認する。
 
-1. `POST /admin/api/v2/sites/:id/metadata-inspection`へURL・未保存の取得設定・32byte nonceを送る。既存のCookieセッション、正確なOrigin、CSRF、サイト管理権限を必須にする。
-2. HTTPS（開発時localhostのHTTPのみ可）・登録origin・収集/除外path・メタデータ送信有効を検証する。実ページのquery/hashは表示に必要な場合があるため保持し、DBにはorigin/pathだけ保存する。
+1. `POST /admin/api/v2/sites/:id/metadata-inspection`へorigin/pathだけのURL・未保存の取得設定・除外キー・32byte nonceを送る。既存のCookieセッション、正確なOrigin、CSRF、サイト管理権限を必須にする。
+2. HTTPS（開発時localhostのHTTPのみ可）・登録origin・収集/除外path・メタデータ送信有効を検証する。実ページのquery/hashは管理画面のメモリにだけ保持し、管理APIには送らない。DBにはorigin/pathだけ保存する。
 3. ランダム32byteのticketを生成する。DBにはSHA-256ハッシュ、管理者セッションハッシュ/ユーザー/サイト/origin/path/nonce/設定案/有効期限だけを保存する。5分間、1ユーザー最大20件の未使用ticket。期限切れは発行時に削除。ログアウト時はFKで削除する。監査は操作名とサイトのみでURLや結果を含めない。
 4. 別タブのfragmentへ管理画面origin・nonce・元hashを載せる。ticketはURLに載せず、管理画面に保持する。SDKはマーカーを取り除き、queryと元hashを戻す。このモードでは通常SDKの収集・判定・表示処理を開始しない。不正なマーカーは通常配信へフォールバックしない。
 5. SDKはサイトの同意を待つ。同意後、openerへreadyを送り、管理画面はsource/origin/site/nonceを検証してticketをpostMessageする。SDKも対称に検証し、targetOriginは固定する。
@@ -60,3 +60,7 @@ SDK未設置・旧SDK・同意待ち・期限切れ・COOP・CSP・ポップア�
 `0004_metadata_inspections.sql`をNode/Cloudflareで適用する。既存サイトbodyの一括変更、閲覧者ID・履歴DBの追加、キーの再発行は行わない。
 
 テストは標準/カスタム、欠損/曖昧なJSON-LD、型の完全一致、AND/OR、原子性、上限、危険キー、版変更/履歴維持、CAS/CSRF/役割、ticketの束縛/再使用/失効、D1/workerd、実ブラウザの同意/DOM更新/未保存確認/偽メッセージ/モバイルを対象とする。APIとブラウザのモデルはテスト用で、実Jev呼び出しは行わない。実行結果は`metadata-extraction-validation.md`へ記録する。
+
+## ページURL・初期判断との統合
+
+取得結果のpageには、設定案のexcludedQueryKeysで除外したURLを加える。管理画面へ返す前・表示する前の両方で除外する。取得ルールとは独立してURL除外設定を保存できる。通常SDKの判断は初回1回だけとし、版が違えばローカル設定を再取得しても同じページで再POSTしない。詳細は[ページ文脈設計](page-context-design.md)を参照。

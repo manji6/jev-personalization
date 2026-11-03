@@ -708,7 +708,11 @@ export function createAdministration({
         mode: "metadata",
         siteId,
         nonce: b.nonce,
-        policy: metadataPolicySchema.parse(JSON.parse(ticket.policy)),
+        policy: metadataPolicySchema.parse(
+          JSON.parse(ticket.policy).metadataExtraction ??
+            JSON.parse(ticket.policy),
+        ),
+        excludedQueryKeys: JSON.parse(ticket.policy).excludedQueryKeys ?? [],
         expiresAt: ticket.expires_at,
       },
       200,
@@ -857,6 +861,34 @@ export function createAdministration({
   function normalizeCampaign(value, publish) {
     const c = structuredClone(value);
     let draftJudgment;
+    if (c.decisionMode === "rules") {
+      delete c.judgment;
+      c.questions = [];
+    }
+    const draftUrlTargeting =
+      !publish && c.urlTargeting ? structuredClone(c.urlTargeting) : null;
+    if (
+      !publish &&
+      c.decisionMode === "rules" &&
+      !c.urlTargeting?.conditions?.length
+    )
+      c.urlTargeting = {
+        combination: "all",
+        conditions: [
+          {
+            source: "entry",
+            field: "query",
+            key: "cid",
+            operator: "contains",
+            value: "validation",
+          },
+        ],
+      };
+    if (!publish && c.urlTargeting)
+      for (const rule of c.urlTargeting.conditions) {
+        if (!rule.value?.trim()) rule.value = "validation";
+        if (rule.field === "query" && !rule.key) rule.key = "validation";
+      }
     if (c.judgment) {
       if (publish) c.questions = guidedQuestions(c.judgment);
       else {
@@ -882,6 +914,9 @@ export function createAdministration({
     const parsed = campaignSchema.parse(c);
     if (emptyTitle) parsed.content.title = "";
     if (draftJudgment) parsed.judgment = draftJudgment;
+    if (draftUrlTargeting) parsed.urlTargeting = draftUrlTargeting;
+    else if (!publish && c.decisionMode === "rules")
+      parsed.urlTargeting = { combination: "all", conditions: [] };
     return parsed;
   }
   async function handle(request) {
@@ -1555,6 +1590,10 @@ export function createAdministration({
             url: z.url().max(2048),
             nonce: z.string().regex(/^[-\w]{43}$/),
             policy: metadataPolicySchema,
+            excludedQueryKeys: z
+              .array(z.string().min(1).max(100))
+              .max(50)
+              .default([]),
           })
           .strict()
           .parse(await readAdminJSON(request));
@@ -1588,7 +1627,10 @@ export function createAdministration({
           target.origin,
           target.pathname,
           b.nonce,
-          JSON.stringify(b.policy),
+          JSON.stringify({
+            metadataExtraction: b.policy,
+            excludedQueryKeys: b.excludedQueryKeys,
+          }),
           expiresAt,
         );
         await repo.audit(session.user_id, "metadata.inspect", siteId);

@@ -6,6 +6,7 @@ import { renderOffer } from "./offer-renderer.js";
 import { createDebugger } from "./debug-panel.js";
 import { extractPage, observePageMetadata } from "./metadata-extractor.js";
 import { safeText } from "./legacy-metadata.js";
+import { pageWithUrl, sanitizePageUrl } from "./page-url.js";
 export { extractPage };
 export function restoreState(saved, config) {
   if (
@@ -32,11 +33,19 @@ export function restoreState(saved, config) {
         typeof v.page.path === "string" &&
         v.page.path.length <= 512 &&
         pathAllowed(v.page.path, config) &&
+        (!v.page.url ||
+          (sanitizePageUrl(v.page.url, config.excludedQueryKeys) &&
+            (!config.collectionOrigin ||
+              new URL(v.page.url).origin === config.collectionOrigin) &&
+            new URL(v.page.url).pathname === v.page.path)) &&
         Number.isFinite(v.visibleMs) &&
-        v.visibleMs >= 0,
+        v.visibleMs >= (config.minVisibleMs ?? 5000),
     )
     .map((v) => ({
       page: {
+        ...(sanitizePageUrl(v.page.url, config.excludedQueryKeys)
+          ? { url: sanitizePageUrl(v.page.url, config.excludedQueryKeys) }
+          : {}),
         path: v.page.path,
         name: safeText(v.page.name, 160) || "Untitled",
         ...(safeText(v.page.description, 400)
@@ -56,7 +65,40 @@ export function restoreState(saved, config) {
       },
       visibleMs: Math.min(86400000, v.visibleMs),
     }));
+  const normalizeEntry = (value) => {
+    if (
+      !value ||
+      typeof value.path !== "string" ||
+      value.path.length > 512 ||
+      !pathAllowed(value.path, config)
+    )
+      return undefined;
+    const url = sanitizePageUrl(value.url, config.excludedQueryKeys);
+    if (
+      (value.url && !url) ||
+      (url &&
+        config.collectionOrigin &&
+        new URL(url).origin !== config.collectionOrigin) ||
+      (url && new URL(url).pathname !== value.path)
+    )
+      return undefined;
+    return {
+      path: value.path,
+      name: safeText(value.name, 160) || "Untitled",
+      ...(url ? { url } : {}),
+    };
+  };
+  const entryPage =
+    (saved.metadataRevision ?? "legacy") ===
+    (config.metadataRevision ?? "legacy")
+      ? normalizeEntry(saved.entryPage)
+      : undefined;
   return {
+    version: 2,
+    ...(entryPage ? { entryPage } : {}),
+    ...(config.urlPolicyRevision
+      ? { urlPolicyRevision: config.urlPolicyRevision }
+      : {}),
     updated: saved.updated,
     visits:
       (saved.metadataRevision ?? "legacy") ===
@@ -129,40 +171,54 @@ export function install(win, script) {
     return preview;
   }
   const key = `jev:v1:${siteId}`;
-  let enabled = false,
-    config = null,
-    current = null,
-    start = 0,
-    inflight = false,
-    epoch = 0,
-    observationVersion = 0,
-    lastDecisionKey = null,
-    suspended = false,
-    deferredOffer = null,
-    overlay = null;
-  let qualificationTimer,
-    decisionTimer,
-    configRefreshes = 0;
-  let state = {
+  const emptyState = () => ({
+    version: 2,
     visits: [],
     actions: [],
     facts: {},
     delivery: {},
     updated: Date.now(),
-  };
+  });
+  let state = emptyState(),
+    config = null,
+    enabled = false,
+    current = null,
+    recorded = false,
+    start = 0,
+    epoch = 0,
+    view = 0,
+    attempted = false,
+    inflight = false,
+    stateVersion = 0,
+    suspended = false,
+    overlay = null,
+    deferredOffer = null;
+  let qualificationTimer, navigationTimer;
+  const allowed = (path) => config && pathAllowed(path, config);
+  const qualificationMs = () => config?.minVisibleMs ?? 5000;
+  const pageNow = (sources) =>
+    pageWithUrl(
+      extractPage(
+        win.document,
+        win.location,
+        sources,
+        config?.metadataExtraction,
+      ),
+      win.location,
+      config?.excludedQueryKeys,
+    );
   const debug = createDebugger(win, {
     siteId,
     endpoint,
     credentials,
     snapshot() {
       const sources = {};
-      if (enabled && current)
-        extractPage(
-          win.document,
-          win.location,
-          sources,
-          config?.metadataExtraction,
-        );
+      if (enabled && current) {
+        pageNow(sources);
+        sources.url = current.page.url
+          ? "location.href（除外キー・資格情報・fragmentを除去）"
+          : "URLを省略（不正または4,096文字超過）";
+      }
       const visibleMs = current
         ? Math.min(
             86400000,
@@ -179,31 +235,34 @@ export function install(win, script) {
         sources,
         state: {
           ...state,
+          currentPage: current?.page ?? null,
+          entryPage: state.entryPage ?? null,
+          currentVisit: current
+            ? { page: current.page, visibleMs, qualified: recorded }
+            : null,
           visits: state.visits.map((v) =>
-            v === current ? { ...v, visibleMs } : v,
+            v === current ? { page: v.page, visibleMs } : v,
           ),
         },
       };
     },
   });
-  const allowed = (path) => config && pathAllowed(path, config);
-  const qualificationMs = () => config?.minVisibleMs ?? 5000;
-  // Continuous dwell time is still sent raw, but is not a reason to query again.
-  // Only crossing the configured qualification boundary changes this key.
-  const decisionKey = () =>
-    JSON.stringify([
-      epoch,
-      observationVersion,
-      state.visits.map((v) => v.visibleMs >= qualificationMs()),
-    ]);
-  function requestDecision(reason = "queued") {
-    win.clearTimeout(decisionTimer);
-    decisionTimer = win.setTimeout(() => decide(reason), 100);
+  function commitCurrent() {
+    if (current && !recorded && current.visibleMs >= qualificationMs()) {
+      state.visits.push(current);
+      state.visits = state.visits.slice(-50);
+      recorded = true;
+      debug.record("qualification_local", {
+        page: current.page,
+        visibleMs: current.visibleMs,
+      });
+    }
   }
   function persist() {
     state.updated = Date.now();
+    const value = { ...state, ...(current ? { currentVisit: current } : {}) };
     try {
-      win.sessionStorage.setItem(key, JSON.stringify(state));
+      win.sessionStorage.setItem(key, JSON.stringify(value));
     } catch {}
   }
   function accrue() {
@@ -213,6 +272,7 @@ export function install(win, script) {
         current.visibleMs + Math.max(0, win.performance.now() - start),
       );
       start = 0;
+      commitCurrent();
     }
   }
   function resume() {
@@ -225,98 +285,148 @@ export function install(win, script) {
           accrue();
           resume();
           persist();
-          requestDecision("qualification");
         }, Math.ceil(remaining));
     }
+  }
+  function setEntry() {
+    if (!state.entryPage && current)
+      state.entryPage = {
+        path: current.page.path,
+        name: current.page.name,
+        ...(current.page.url ? { url: current.page.url } : {}),
+      };
   }
   function capture(reason = "initial") {
     if (!enabled || !config?.metadataEnabled) return;
     accrue();
-    const path = win.location.pathname;
-    if (!allowed(path)) {
+    if (!allowed(win.location.pathname)) {
       current = null;
       persist();
       return;
     }
-    current = {
-      page: extractPage(
-        win.document,
-        win.location,
-        undefined,
-        config.metadataExtraction,
-      ),
-      visibleMs: 0,
-    };
-    observationVersion++;
-    state.visits.push(current);
-    state.visits = state.visits.slice(-50);
+    current = { page: pageNow(), visibleMs: 0 };
+    recorded = false;
+    view++;
+    attempted = false;
+    setEntry();
     resume();
     persist();
     debug.record("page", { page: current.page, reason });
     void decide(reason);
   }
-  let navigationTimer;
+  async function loadConfig(generation) {
+    const response = await win.fetch(
+      `${endpoint}/v1/sites/${encodeURIComponent(siteId)}`,
+      {
+        credentials,
+        referrerPolicy: "no-referrer",
+        cache: "no-store",
+        signal: AbortSignal.timeout(3000),
+      },
+    );
+    if (!response.ok) return null;
+    const value = await response.json();
+    if (generation !== epoch) return null;
+    return { ...value, collectionOrigin: win.location.origin };
+  }
+  function applyConfig(fresh) {
+    const oldCurrent = current;
+    const saved = {
+      ...state,
+      visits: state.visits.filter((v) => v !== oldCurrent),
+      updated: Date.now(),
+    };
+    config = fresh;
+    state = restoreState(saved, config) || emptyState();
+    if (fresh.metadataRevision) state.metadataRevision = fresh.metadataRevision;
+    if (fresh.urlPolicyRevision)
+      state.urlPolicyRevision = fresh.urlPolicyRevision;
+    if (oldCurrent) {
+      current = { page: pageNow(), visibleMs: oldCurrent.visibleMs };
+      recorded = false;
+      commitCurrent();
+      setEntry();
+    }
+  }
   function navigate() {
+    if (!enabled) return;
     accrue();
-    observationVersion++;
+    persist();
+    epoch++;
+    view++;
+    attempted = false;
     current = null;
+    recorded = false;
     deferredOffer = null;
     win.clearTimeout(qualificationTimer);
-    removeOverlay();
     win.clearTimeout(navigationTimer);
-    navigationTimer = win.setTimeout(() => capture("navigation"), 200);
+    removeOverlay();
+    const generation = epoch;
+    navigationTimer = win.setTimeout(async () => {
+      try {
+        const fresh = await loadConfig(generation);
+        if (!fresh || generation !== epoch || !enabled) return;
+        applyConfig(fresh);
+        if (!fresh.metadataEnabled) {
+          current = null;
+          persist();
+          return;
+        }
+        capture("navigation");
+      } catch {
+        debug.record("network_error");
+      }
+    }, 200);
+  }
+  function updateMetadata() {
+    if (enabled && current && allowed(win.location.pathname)) {
+      const page = pageNow();
+      if (JSON.stringify(page) !== JSON.stringify(current.page)) {
+        if (page.url !== current.page.url) stateVersion++;
+        current.page = page;
+        persist();
+        debug.record("metadata_local", { page });
+      }
+    }
   }
   for (const method of ["pushState", "replaceState"]) {
     const original = win.history[method];
     win.history[method] = function (...args) {
-      const before = win.location.pathname;
-      const r = original.apply(this, args);
-      if (before !== win.location.pathname) navigate();
-      return r;
+      const path = win.location.pathname;
+      const result = original.apply(this, args);
+      if (path !== win.location.pathname) navigate();
+      else updateMetadata();
+      return result;
     };
   }
-  win.addEventListener("popstate", navigate);
+  win.addEventListener("popstate", () => {
+    if (current?.page.path !== win.location.pathname) navigate();
+    else updateMetadata();
+  });
   win.document.addEventListener("visibilitychange", () => {
     accrue();
     if (enabled) {
       resume();
       persist();
-      requestDecision("visible");
+      if (win.document.visibilityState !== "hidden") void decide("visible");
     }
   });
   win.addEventListener("pagehide", () => {
     accrue();
     suspended = true;
     win.clearTimeout(qualificationTimer);
-    win.clearTimeout(decisionTimer);
     removeOverlay();
     if (enabled) persist();
   });
   win.addEventListener("pageshow", () => {
+    accrue();
     suspended = false;
     if (enabled) {
-      accrue();
       resume();
-      requestDecision("visible");
+      void decide("visible");
     }
   });
-  // Keep asynchronously updated standard metadata current, without starting a new visit.
-  observePageMetadata(win, () => {
-    if (enabled && current && allowed(win.location.pathname)) {
-      const page = extractPage(
-        win.document,
-        win.location,
-        undefined,
-        config.metadataExtraction,
-      );
-      if (JSON.stringify(page) !== JSON.stringify(current.page)) {
-        current.page = page;
-        observationVersion++;
-        debug.record("metadata", { page });
-        requestDecision("metadata");
-      }
-    }
-  });
+  observePageMetadata(win, updateMetadata);
   function removeOverlay() {
     if (overlay) debug.record("removed");
     overlay?.destroy();
@@ -393,126 +503,151 @@ export function install(win, script) {
     resume();
     persist();
     if (!allowed(win.location.pathname)) return;
-    const key = decisionKey();
     if (deferredOffer) {
       const saved = deferredOffer;
       deferredOffer = null;
-      if (saved.key === key) {
+      if (
+        saved.view === view &&
+        saved.epoch === epoch &&
+        saved.stateVersion === stateVersion
+      ) {
         display(saved.campaign);
         return;
       }
     }
-    if (key === lastDecisionKey) return;
+    if (attempted) return;
+    attempted = true;
     const generation = epoch,
+      requestView = view,
+      version = stateVersion,
       path = win.location.pathname;
     const payload = {
+      protocolVersion: 2,
       siteId,
-      ...state,
       ...(config.metadataRevision
         ? { metadataRevision: config.metadataRevision }
         : {}),
+      ...(config.urlPolicyRevision
+        ? { urlPolicyRevision: config.urlPolicyRevision }
+        : {}),
+      currentPage: current.page,
+      ...(state.entryPage ? { entryPage: state.entryPage } : {}),
+      visits: state.visits.filter((v) => v !== current),
+      actions: state.actions,
+      facts: state.facts,
+      delivery: state.delivery,
     };
-    delete payload.updated;
     let body = JSON.stringify(payload);
-    if (new TextEncoder().encode(body).length > 64000) return;
+    while (
+      new TextEncoder().encode(body).length > 64000 &&
+      payload.visits.length
+    ) {
+      payload.visits.shift();
+      body = JSON.stringify(payload);
+    }
+    if (new TextEncoder().encode(body).length > 64000) {
+      debug.record("request_too_large");
+      return;
+    }
     inflight = true;
-    lastDecisionKey = key;
-    const requestStarted = win.performance.now();
+    await debug.waitForAuthorization();
+    if (!enabled || generation !== epoch || requestView !== view) {
+      inflight = false;
+      if (enabled && current && !attempted) void decide("navigation_queued");
+      return;
+    }
+    const started = win.performance.now();
     debug.record("request", { reason, body: JSON.parse(body) });
     try {
-      const r = await win.fetch(
+      const response = await win.fetch(
         `${endpoint}/v1/decision?siteId=${encodeURIComponent(siteId)}`,
         {
           method: "POST",
           mode: "cors",
           credentials,
+          referrerPolicy: "no-referrer",
           headers: { "Content-Type": "application/json", ...debug.headers() },
           body,
           signal: AbortSignal.timeout(3000),
         },
       );
-      const result = await r.json();
-      if (generation === epoch)
+      const result = await response.json();
+      if (generation === epoch && requestView === view)
         debug.record("response", {
-          status: r.status,
-          elapsedMs: Math.round(win.performance.now() - requestStarted),
+          status: response.status,
+          elapsedMs: Math.round(win.performance.now() - started),
           reason: result.reason ?? result.error,
           result,
         });
-      if (!r.ok) return;
+      if (!response.ok) return;
       if (
-        result.reason === "metadata_revision_changed" &&
+        ["metadata_revision_changed", "url_policy_revision_changed"].includes(
+          result.reason,
+        ) &&
         generation === epoch &&
-        enabled &&
-        configRefreshes < 2
+        requestView === view &&
+        enabled
       ) {
-        configRefreshes++;
-        const response = await win.fetch(
-          `${endpoint}/v1/sites/${encodeURIComponent(siteId)}`,
-          { credentials, cache: "no-store", signal: AbortSignal.timeout(3000) },
-        );
-        if (!response.ok || generation !== epoch || !enabled) return;
-        const fresh = await response.json();
-        if (generation !== epoch || !enabled) return;
+        const fresh = await loadConfig(generation);
+        if (!fresh || generation !== epoch || requestView !== view || !enabled)
+          return;
         if (
-          !fresh.metadataEnabled ||
+          result.metadataRevision &&
           fresh.metadataRevision !== result.metadataRevision
         )
           return;
+        if (
+          result.urlPolicyRevision &&
+          fresh.urlPolicyRevision !== result.urlPolicyRevision
+        )
+          return;
         accrue();
-        config = fresh;
-        state = restoreState(state, config) || { ...state, visits: [] };
-        state.metadataRevision = config.metadataRevision;
-        current = null;
-        epoch++;
-        lastDecisionKey = null;
-        removeOverlay();
-        debug.record("metadata_rules_changed", {
-          revision: config.metadataRevision,
-        });
-        capture("settings_changed");
+        applyConfig(fresh);
+        persist();
+        debug.record("settings_local", { reason: result.reason });
         return;
       }
       if (
         enabled &&
         generation === epoch &&
+        requestView === view &&
         path === win.location.pathname &&
-        key === decisionKey() &&
+        version === stateVersion &&
         result.decision === "show"
       ) {
         if (suspended || win.document.visibilityState === "hidden")
-          deferredOffer = { key, campaign: result.campaign };
+          deferredOffer = {
+            epoch: generation,
+            view: requestView,
+            stateVersion: version,
+            campaign: result.campaign,
+          };
         else display(result.campaign);
       } else if (result.decision === "show")
         debug.record("stale", {
-          reason: "ページ・同意・判断材料が更新されたため表示しません",
+          reason: "ページ・同意・連携された状態が更新されたため表示しません",
         });
     } catch {
       if (generation === epoch) debug.record("network_error");
     } finally {
       inflight = false;
-      if (enabled && current && decisionKey() !== lastDecisionKey)
-        requestDecision();
+      if (enabled && current && !attempted) void decide("navigation_queued");
     }
   }
   async function consent(value) {
+    if (value && enabled) return;
     epoch++;
     enabled = false;
     accrue();
     win.clearTimeout(qualificationTimer);
-    win.clearTimeout(decisionTimer);
-    lastDecisionKey = null;
-    deferredOffer = null;
+    win.clearTimeout(navigationTimer);
     current = null;
+    recorded = false;
+    attempted = false;
+    deferredOffer = null;
     removeOverlay();
     if (!value) {
-      state = {
-        visits: [],
-        actions: [],
-        facts: {},
-        delivery: {},
-        updated: Date.now(),
-      };
+      state = emptyState();
       debug.clear();
       try {
         win.sessionStorage.removeItem(key);
@@ -520,31 +655,20 @@ export function install(win, script) {
       debug.record("consent", { granted: false });
       return;
     }
-    configRefreshes = 0;
     const generation = epoch;
     try {
-      const r = await win.fetch(
-        `${endpoint}/v1/sites/${encodeURIComponent(siteId)}`,
-        { credentials, signal: AbortSignal.timeout(3000) },
-      );
-      if (!r.ok) return;
-      const loaded = await r.json();
-      if (generation !== epoch || !loaded.metadataEnabled) return;
-      config = loaded;
-      if (
-        (state.metadataRevision ?? "legacy") !==
-        (config.metadataRevision ?? "legacy")
-      )
-        state.visits = [];
+      const fresh = await loadConfig(generation);
+      if (!fresh || generation !== epoch || !fresh.metadataEnabled) return;
+      config = fresh;
+      let saved = state;
       try {
-        const saved = restoreState(
-          JSON.parse(win.sessionStorage.getItem(key)),
-          config,
-        );
-        if (saved) state = saved;
+        saved = JSON.parse(win.sessionStorage.getItem(key)) ?? state;
       } catch {}
+      state = restoreState(saved, config) || emptyState();
       if (config.metadataRevision)
         state.metadataRevision = config.metadataRevision;
+      if (config.urlPolicyRevision)
+        state.urlPolicyRevision = config.urlPolicyRevision;
       enabled = true;
       debug.record("consent", { granted: true });
       capture();
@@ -556,31 +680,29 @@ export function install(win, script) {
     track(name, value) {
       if (
         enabled &&
-        config.actionNames.includes(name) &&
+        (config.actionNames ?? []).includes(name) &&
         ["boolean", "number", "undefined"].includes(typeof value) &&
         (typeof value !== "number" || Number.isFinite(value))
       ) {
         state.actions.push(value === undefined ? { name } : { name, value });
         state.actions = state.actions.slice(-30);
-        observationVersion++;
+        stateVersion++;
         persist();
-        debug.record("action", { name, value });
-        requestDecision("action");
+        debug.record("action_local", { name, value });
       }
     },
     setFact(name, value) {
       if (
         enabled &&
-        config.factNames.includes(name) &&
+        (config.factNames ?? []).includes(name) &&
         ["boolean", "number"].includes(typeof value) &&
-        Number.isFinite(typeof value === "number" ? value : 0) &&
+        (typeof value !== "number" || Number.isFinite(value)) &&
         state.facts[name] !== value
       ) {
         state.facts[name] = value;
-        observationVersion++;
+        stateVersion++;
         persist();
-        debug.record("fact", { name, value });
-        requestDecision("fact_changed");
+        debug.record("fact_local", { name, value });
       }
     },
   };
@@ -592,7 +714,7 @@ export function install(win, script) {
       persist();
     }
   }, 5000);
-  if (script.dataset.consent === "granted") consent(true);
+  if (script.dataset.consent === "granted") void consent(true);
   return api;
 }
 if (typeof window !== "undefined" && document.currentScript)

@@ -9,6 +9,7 @@ test.beforeEach(async ({ context }) => {
   const config = fixture();
   config.sites[0].minVisibleMs = 1000;
   config.sites[0].minQualifiedVisits = 1;
+  config.sites[0].campaigns[0].minimumHistory = 0;
   config.sites[0].campaigns[0].threshold = 0.99;
   runtime = await cloudflareFixture({ config });
   await context.route("https://api.example.com/**", async (route) => {
@@ -165,6 +166,8 @@ test("expiration clears records and diagnostic headers while normal decisions co
   await popup.evaluate(() =>
     window.JevPersonalization.setFact("registered", false),
   );
+  expect(requests.filter((r) => r.path === "/v1/decision")).toHaveLength(count);
+  await popup.goto("https://www.example.com/guides/next");
   await expect
     .poll(() => requests.filter((r) => r.path === "/v1/decision").length)
     .toBe(count + 1);
@@ -173,7 +176,7 @@ test("expiration clears records and diagnostic headers while normal decisions co
       "x-jevsense-debug"
     ],
   ).toBeUndefined();
-  await expect(ui).not.toContainText("mock-jev");
+  await expect(panel(popup)).toHaveCount(0);
 });
 
 test("normal visitors and forged diagnostic messages cannot open the panel", async ({

@@ -1,3 +1,4 @@
+import { sanitizePageUrl, pageWithUrl, sanitizePage } from "../page-url.js";
 import { z } from "zod";
 import {
   metadataPolicySchema,
@@ -18,6 +19,7 @@ const reportSchema = z
   .object({
     page: z
       .object({
+        url: z.url().max(4096).optional(),
         path: z
           .string()
           .startsWith("/")
@@ -88,6 +90,7 @@ const label = (s) =>
 export function createMetadataSettings(ctx) {
   let owner = "",
     policy = null,
+    excluded = [],
     rules = [],
     editing = null,
     creating = false,
@@ -96,12 +99,13 @@ export function createMetadataSettings(ctx) {
     connection = null,
     busy = false;
   const current = () => ctx.value();
-  const fingerprint = () => JSON.stringify(policy);
+  const fingerprint = () => JSON.stringify({ policy, excluded });
   function sync() {
     const key = current().site.id + ":" + current().revision;
     if (key !== owner) {
       owner = key;
       policy = clone(current().site.metadataExtraction ?? null);
+      excluded = clone(current().site.excludedQueryKeys ?? []);
       rules = clone(
         policy?.rules.length ? policy.rules : defaultMetadataRules(),
       );
@@ -143,7 +147,7 @@ export function createMetadataSettings(ctx) {
   function html() {
     sync();
     const readOnly = !ctx.canManage();
-    return `<div id="metadataSettings"><section class="card card-body"><div class="metadata-mode-heading"><div><h2>取得方法</h2><p class="hint">標準はOGP → title・meta。JSON-LDや条件・接頭辞を使う場合はカスタムを選びます。</p></div><span class="pill">サイト共通の設定</span></div>${!policy ? '<p class="notice">このサイトは従来のJSON-LD優先の取得を使用しています。取得方法を選んで保存するまで、現在の動作を維持します。</p>' : ""}<div class="segmented">${btn("標準の自動取得", "mode:standard", readOnly, policy?.mode === "standard" ? "selected" : "")}${btn("サイト独自のルール", "mode:custom", readOnly, policy?.mode === "custom" ? "selected" : "")}</div><p class="hint">保存すると、SDKが次に設定を取得したときに反映します。タグの差し替えは不要です。</p>${readOnly ? '<p class="notice">取得ルールの編集と実ページの取得確認は、サイト管理者・Superuserが利用できます。</p>' : ""}</section><div class="metadata-grid"><div><div id="metadataRules">${ruleList()}</div><div class="editor-footer"><p class="hint">保存前の設定案で実ページを確認できます。保存すると、以前の取得ルールによる閲覧履歴は次回設定反映時に破棄します。表示済み状態は維持します。</p>${btn("変更内容を確認", "review", readOnly || !policy, "primary")}</div></div><aside class="card metadata-test"><header class="card-header"><h3>取得結果を確認</h3></header><div class="card-body"><label class="field">確認するページURL<input id="metadataURL" aria-label="確認するページURL" type="url" autocomplete="off" spellcheck="false" value="${esc(current().site.origins[0] + current().site.allowedPathPrefixes[0])}"><small>登録済みのサイト・収集経路にあるページを指定してください。</small></label>${btn("このURLで確認", "inspect", readOnly || !policy, "primary")}<p class="hint">別タブのSDKから、保存前の設定案による取得結果を受け取ります。計測同意と最新版のSDKが必要です。Jev判定・オファー表示・履歴保存は行いません。</p><div id="metadataResult" aria-live="polite"></div>${btn("同じページから再取得", "refresh", !connection || !result, "small")}<details class="metadata-manual"><summary>導入前に取得値を手動入力して試す</summary><p class="hint">人工データでの確認用です。実ページから取得した結果とは区別して表示します。</p><label class="field">ページ情報のサンプルJSON<textarea id="metadataSample" spellcheck="false">${esc(JSON.stringify({ url: "https://example.com/products/polo", title: "HTMLのページ名", meta: { "og:title": "夏のポロシャツ特集", "og:description": "暑い日の着心地を考えた特集です。" }, jsonld: [{ "@type": "Product", sku: "POLO-A", name: "吸汗速乾ポロシャツ", description: "さらりとした着心地の一着。" }] }, null, 2))}</textarea></label>${btn("人工データで確認", "sample", !policy)}</details></div></aside></div></div>`;
+    return `<div id="metadataSettings"><section class="card card-body url-policy"><h2>ページURLの取得</h2><p class="hint">現在ページ・有効閲覧履歴・流入ページにURLを持たせます。除外が空ならGETパラメータをすべて保持します。#以降とURL内のユーザー名・パスワードは常に除きます。</p><label class="field">取得しないGETパラメータのキー<textarea id="excludedQueryKeys" aria-label="取得しないGETパラメータのキー" ${readOnly ? "disabled" : ""} placeholder="email&#10;token">${esc(excluded.join("\n"))}</textarea><small>1行に1キー、最大50件。大文字小文字を区別した完全一致です。同じキーの値はすべて除き、保存・送信・診断へ残しません。未指定の値は送信されるため、対象URLを確認してください。</small></label></section><section class="card card-body"><div class="metadata-mode-heading"><div><h2>取得方法</h2><p class="hint">標準はOGP → title・meta。JSON-LDや条件・接頭辞を使う場合はカスタムを選びます。</p></div><span class="pill">サイト共通の設定</span></div>${!policy ? '<p class="notice">このサイトは従来のJSON-LD優先の取得を使用しています。取得方法を選んで保存するまで、現在の動作を維持します。</p>' : ""}<div class="segmented">${btn("標準の自動取得", "mode:standard", readOnly, policy?.mode === "standard" ? "selected" : "")}${btn("サイト独自のルール", "mode:custom", readOnly, policy?.mode === "custom" ? "selected" : "")}</div><p class="hint">保存すると、SDKが次に設定を取得したときに反映します。タグの差し替えは不要です。</p>${readOnly ? '<p class="notice">取得ルールの編集と実ページの取得確認は、サイト管理者・Superuserが利用できます。</p>' : ""}</section><div class="metadata-grid"><div><div id="metadataRules">${ruleList()}</div><div class="editor-footer"><p class="hint">保存前の設定案で実ページを確認できます。保存すると、以前の取得ルールによる閲覧履歴は次回設定反映時に破棄します。表示済み状態は維持します。</p>${btn("変更内容を確認", "review", readOnly, "primary")}</div></div><aside class="card metadata-test"><header class="card-header"><h3>取得結果を確認</h3></header><div class="card-body"><label class="field">確認するページURL<input id="metadataURL" aria-label="確認するページURL" type="url" autocomplete="off" spellcheck="false" value="${esc(current().site.origins[0] + current().site.allowedPathPrefixes[0])}"><small>登録済みのサイト・収集経路にあるページを指定してください。</small></label><div class="url-preview"><strong>保存・送信するURL</strong><pre id="sanitizedURL"></pre></div>${btn("このURLで確認", "inspect", readOnly || !policy, "primary")}<p class="hint">別タブのSDKから、保存前の設定案による取得結果を受け取ります。計測同意と最新版のSDKが必要です。Jev判定・オファー表示・履歴保存は行いません。</p><div id="metadataResult" aria-live="polite"></div>${btn("同じページから再取得", "refresh", !connection || !result, "small")}<details class="metadata-manual"><summary>導入前に取得値を手動入力して試す</summary><p class="hint">人工データでの確認用です。実ページから取得した結果とは区別して表示します。</p><label class="field">ページ情報のサンプルJSON<textarea id="metadataSample" spellcheck="false">${esc(JSON.stringify({ url: "https://example.com/products/polo", title: "HTMLのページ名", meta: { "og:title": "夏のポロシャツ特集", "og:description": "暑い日の着心地を考えた特集です。" }, jsonld: [{ "@type": "Product", sku: "POLO-A", name: "吸汗速乾ポロシャツ", description: "さらりとした着心地の一着。" }] }, null, 2))}</textarea></label>${btn("人工データで確認", "sample", !policy)}</details></div></aside></div></div>`;
   }
   function ruleList() {
     if (!policy)
@@ -156,11 +160,26 @@ export function createMetadataSettings(ctx) {
   function mount() {
     if (!document.getElementById("metadataSettings")) return;
     paintResult();
+    paintUrl();
   }
   function repaint() {
     document.getElementById("metadataRules").innerHTML = ruleList();
     ctx.enhance();
     paintResult();
+  }
+  function paintUrl() {
+    const output = document.getElementById("sanitizedURL");
+    if (!output) return;
+    if (excluded.length > 50 || excluded.some((k) => k.length > 100)) {
+      output.textContent =
+        "除外キーは50件以内・各100文字以内で指定してください。";
+      return;
+    }
+    output.textContent =
+      sanitizePageUrl(
+        document.getElementById("metadataURL")?.value,
+        excluded,
+      ) || "収集可能なURLを入力してください（4,096文字まで）。";
   }
   function paintResult() {
     const root = document.getElementById("metadataResult");
@@ -224,8 +243,9 @@ export function createMetadataSettings(ctx) {
       fp = fingerprint();
     try {
       const data = await ctx.api(ctx.path() + "/metadata-inspection", "POST", {
-        url: url.href,
+        url: url.origin + url.pathname,
         policy,
+        excludedQueryKeys: excluded,
         nonce,
       });
       if (
@@ -237,7 +257,7 @@ export function createMetadataSettings(ctx) {
         return;
       }
       connection = { ...data, tab, nonce, key, fp };
-      const target = new URL(data.url);
+      const target = new URL(url.href);
       target.hash =
         "jevsense-metadata=" +
         encodeURIComponent(
@@ -305,12 +325,26 @@ export function createMetadataSettings(ctx) {
       doc.head.append(tag);
     }
     const provenance = {};
-    result = { page: extractPage(doc, url, provenance, config()), provenance };
+    result = {
+      page: pageWithUrl(
+        extractPage(doc, url, provenance, config()),
+        url,
+        excluded,
+      ),
+      provenance,
+    };
     resultMessage =
       "手動入力した人工データの確認結果です。実ページは取得していません。";
     paintResult();
   }
   async function action(value) {
+    if (
+      excluded.length > 50 ||
+      excluded.some((k) => k.length > 100 || /[\u0000-\u001f\u007f]/.test(k))
+    )
+      throw Error(
+        "除外キーは50件以内・各100文字以内で、制御文字を含めずに指定してください。",
+      );
     const [kind, id] = value.split(":");
     if (kind === "sample") {
       sample();
@@ -344,16 +378,16 @@ export function createMetadataSettings(ctx) {
       return;
     }
     if (kind === "review") {
-      const next = config();
+      const next = policy ? config() : null;
       ctx.dialog(
         "ページ情報の取得方法を保存",
-        `<p>このサイトのすべてのページへ適用します。次回SDKが設定を取得したときに反映します。過去のページ情報は新しいルールで再抽出できないため、ブラウザ内の閲覧履歴を破棄します。表示済み状態は維持します。</p><p>取得方法：${next.mode === "standard" ? "標準（OGP → title・meta）" : "サイト独自のルール"}</p>${next.mode === "custom" ? `<ol>${next.rules.map((r) => `<li>${esc(r.name)}${r.enabled ? "" : "（無効）"}</li>`).join("")}</ol>` : ""}`,
+        `<p>このサイトのすべてのページへ適用します。次回SDKが設定を取得したときに反映します。過去のページ情報は新しいルールで再抽出できないため、ブラウザ内の閲覧履歴を破棄します。表示済み状態は維持します。</p><p>取得方法：${!next ? "従来の取得方法を維持" : next.mode === "standard" ? "標準（OGP → title・meta）" : "サイト独自のルール"}</p>${next?.mode === "custom" ? `<ol>${next.rules.map((r) => `<li>${esc(r.name)}${r.enabled ? "" : "（無効）"}</li>`).join("")}</ol>` : ""}`,
         btn("キャンセル", "cancel") + btn("保存する", "save", false, "primary"),
       );
       return;
     }
     if (kind === "save") {
-      await ctx.save(config());
+      await ctx.save(policy ? config() : null, excluded);
       ctx.closeDialog();
       return;
     }
@@ -431,6 +465,21 @@ export function createMetadataSettings(ctx) {
       .catch((e) => ctx.toast(e.message))
       .finally(() => (busy = false));
   });
+  document.addEventListener("input", (event) => {
+    if (event.target.id === "excludedQueryKeys" && ctx.canManage()) {
+      excluded = [
+        ...new Set(
+          event.target.value
+            .split("\n")
+            .map((v) => v.trim())
+            .filter(Boolean),
+        ),
+      ];
+      changed();
+      paintUrl();
+    }
+    if (event.target.id === "metadataURL") paintUrl();
+  });
   document.addEventListener("change", (event) => {
     const target = event.target;
     if (target.dataset.metadataEnable && ctx.canManage()) {
@@ -485,7 +534,10 @@ export function createMetadataSettings(ctx) {
       });
       if (!parsed.success) return;
       clearTimeout(c.timer);
-      result = parsed.data;
+      result = {
+        ...parsed.data,
+        page: sanitizePage(parsed.data.page, excluded),
+      };
       resultMessage =
         "実ページの取得結果です。表示中のメタ情報が変わると結果を更新します。";
       paintResult();

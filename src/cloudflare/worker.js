@@ -1,3 +1,5 @@
+import { publicUrlPolicy, urlPolicyMismatch } from "../context-policy.js";
+import { sanitizeDecisionInput, pageUrlMatchesSite } from "../page-url.js";
 import { canonicalAdminRedirect } from "../admin-origin.js";
 import { publicMetadata, metadataMismatch } from "../metadata-policy.js";
 import {
@@ -9,7 +11,13 @@ import {
 import { createAdministration } from "../admin/service.js";
 import { z } from "zod";
 import { configSchema, inputSchema } from "../schema.js";
-import { prepare, select, draftIntent, ALGORITHM_VERSION } from "../engine.js";
+import {
+  prepare,
+  select,
+  draftIntent,
+  ALGORITHM_VERSION,
+  CONTEXT_ALGORITHM_VERSION,
+} from "../engine.js";
 import { createJev } from "../jev.js";
 import { D1Store, revisionOf } from "./store.js";
 export { ModelBudget } from "./budget.js";
@@ -411,6 +419,7 @@ export default {
         return finish(
           json({
             ...(await publicMetadata(site)),
+            ...(await publicUrlPolicy(site)),
             id,
             allowedPathPrefixes,
             excludedPathPrefixes,
@@ -427,6 +436,14 @@ export default {
       const parsed = inputSchema.safeParse(await readJSON(request));
       if (!parsed.success) fail("invalid_request", 400);
       if (parsed.data.siteId !== siteId) fail("site_mismatch", 400);
+      const allPages = [
+        parsed.data.currentPage,
+        parsed.data.entryPage,
+        ...parsed.data.visits.map((v) => v.page),
+      ].filter(Boolean);
+      if (allPages.some((page) => !pageUrlMatchesSite(page, site)))
+        fail("page_url_rejected", 400);
+      const input = sanitizeDecisionInput(site, parsed.data);
       const debugToken = request.headers.get(DEBUG_HEADER);
       if (
         debugToken &&
@@ -436,11 +453,14 @@ export default {
         )(debugToken, siteId, origin))
       )
         fail("debug_session_invalid", 401);
-      const trace = debugToken ? createDebugTrace(site, parsed.data) : null;
+      const trace = debugToken ? createDebugTrace(site, input) : null;
       const respond = (body, status = 200) =>
         finish(json(trace ? { ...body, debug: trace } : body, status), headers);
       const base = {
-        algorithmVersion: ALGORITHM_VERSION,
+        algorithmVersion:
+          input.protocolVersion === 2
+            ? CONTEXT_ALGORITHM_VERSION
+            : ALGORITHM_VERSION,
         configVersion: (await revisionOf(site)).slice(0, 16),
       };
       if (!site.metadataEnabled)
@@ -449,11 +469,28 @@ export default {
           decision: "hold",
           reason: "metadata_not_approved",
         });
-      const mismatch = await metadataMismatch(site, parsed.data);
+      const mismatch =
+        (await metadataMismatch(site, input)) ||
+        (await urlPolicyMismatch(site, input));
       if (mismatch) return respond({ ...base, ...mismatch });
-      const prepared = prepare(site, parsed.data);
+      const prepared = prepare(site, input);
       if (prepared.reason)
         return respond({ ...base, decision: "hold", reason: prepared.reason });
+      if (!Object.keys(prepared.questions).length) {
+        const selected = select(prepared, { answers: {} });
+        if (trace)
+          for (const campaign of prepared.candidates) {
+            const entry = trace.campaigns.find((c) => c.id === campaign.id);
+            entry.questions = [];
+            entry.matched = true;
+          }
+        return respond({
+          ...base,
+          decision: selected ? "show" : "hold",
+          reason: selected ? "deterministic_match" : "no_match_or_uncertain",
+          campaign: await publicOffer(site, selected),
+        });
+      }
       const stub = isPreview && env.PREVIEW_MODEL_MODE === "stub";
       if (!administration && !env.JEV_API_KEY && !stub)
         return respond(

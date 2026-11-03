@@ -1,3 +1,5 @@
+import { publicUrlPolicy, urlPolicyMismatch } from "./context-policy.js";
+import { sanitizeDecisionInput, pageUrlMatchesSite } from "./page-url.js";
 import { publicMetadata, metadataMismatch } from "./metadata-policy.js";
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
@@ -6,7 +8,13 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { configSchema, inputSchema } from "./schema.js";
-import { ALGORITHM_VERSION, prepare, select, draftIntent } from "./engine.js";
+import {
+  ALGORITHM_VERSION,
+  CONTEXT_ALGORITHM_VERSION,
+  prepare,
+  select,
+  draftIntent,
+} from "./engine.js";
 import { Store } from "./store.js";
 import { createJev } from "./jev.js";
 import { publicOffer, customModule } from "./offer-response.js";
@@ -276,6 +284,7 @@ export async function buildApp({
     if (!s) return;
     return {
       ...(await publicMetadata(s)),
+      ...(await publicUrlPolicy(s)),
       id: s.id,
       allowedPathPrefixes: s.allowedPathPrefixes,
       excludedPathPrefixes: s.excludedPathPrefixes,
@@ -289,11 +298,19 @@ export async function buildApp({
     const parsed = inputSchema.safeParse(req.body);
     if (!parsed.success)
       return reply.code(400).send({ error: "invalid_request" });
-    const input = parsed.data;
+    let input = parsed.data;
     if (req.query.siteId !== input.siteId)
       return reply.code(400).send({ error: "site_mismatch" });
     const site = siteFor(req, reply, input.siteId);
     if (!site) return;
+    const allPages = [
+      input.currentPage,
+      input.entryPage,
+      ...input.visits.map((v) => v.page),
+    ].filter(Boolean);
+    if (allPages.some((page) => !pageUrlMatchesSite(page, site)))
+      return reply.code(400).send({ error: "page_url_rejected" });
+    input = sanitizeDecisionInput(site, input);
     const debugToken = req.headers[DEBUG_HEADER.toLowerCase()];
     if (
       debugToken &&
@@ -310,18 +327,41 @@ export async function buildApp({
       .update(JSON.stringify(site))
       .digest("hex")
       .slice(0, 16);
-    const base = { algorithmVersion: ALGORITHM_VERSION, configVersion };
+    const base = {
+      algorithmVersion:
+        input.protocolVersion === 2
+          ? CONTEXT_ALGORITHM_VERSION
+          : ALGORITHM_VERSION,
+      configVersion,
+    };
     if (!site.metadataEnabled)
       return respond({
         ...base,
         decision: "hold",
         reason: "metadata_not_approved",
       });
-    const mismatch = await metadataMismatch(site, input);
+    const mismatch =
+      (await metadataMismatch(site, input)) ||
+      (await urlPolicyMismatch(site, input));
     if (mismatch) return respond({ ...base, ...mismatch });
     const prepared = prepare(site, input);
     if (prepared.reason)
       return respond({ ...base, decision: "hold", reason: prepared.reason });
+    if (!Object.keys(prepared.questions).length) {
+      const selected = select(prepared, { answers: {} });
+      if (trace)
+        for (const campaign of prepared.candidates) {
+          const entry = trace.campaigns.find((c) => c.id === campaign.id);
+          entry.questions = [];
+          entry.matched = true;
+        }
+      return respond({
+        ...base,
+        decision: selected ? "show" : "hold",
+        reason: selected ? "deterministic_match" : "no_match_or_uncertain",
+        campaign: await publicOffer(site, selected),
+      });
+    }
     const today = new Date().toISOString().slice(0, 10);
     if (day !== today) {
       day = today;

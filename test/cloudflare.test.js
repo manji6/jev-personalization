@@ -306,3 +306,75 @@ test("Workers issues scoped debug authorization and returns trace only on author
   assert.equal(hold.debug.model.called, false);
   assert.equal(hold.reason, "insufficient_observation");
 });
+
+test("Workers initial context supports entry URL rules without paid calls or quota and strips excluded values before Jev", async (t) => {
+  const { fixture } = await import("./helpers.js");
+  const { urlPolicyRevision } = await import("../src/context-policy.js");
+  const config = fixture(),
+    site = config.sites[0],
+    c = site.campaigns[0];
+  site.excludedQueryKeys = ["email", "token"];
+  c.minimumHistory = 0;
+  c.decisionMode = "rules";
+  c.questions = [];
+  c.urlTargeting = {
+    combination: "all",
+    conditions: [
+      {
+        source: "entry",
+        field: "query",
+        key: "cid",
+        operator: "contains",
+        value: "runner",
+      },
+    ],
+  };
+  const f = await setup(t, { config, budget: "0" });
+  const page = (url) => ({ path: new URL(url).pathname, name: "Polo", url });
+  const payload = {
+    siteId: "demo",
+    protocolVersion: 2,
+    metadataRevision: "legacy",
+    urlPolicyRevision: await urlPolicyRevision(site),
+    currentPage: page("https://www.example.com/guides/b"),
+    entryPage: page(
+      "https://www.example.com/guides/a?cid=mail_runner&email=PRIVATE&token=SECRET",
+    ),
+    visits: [],
+    actions: [],
+    facts: {},
+    delivery: {},
+  };
+  let r = await f.decision(payload);
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).reason, "deterministic_match");
+  assert.equal(f.calls(), 0);
+  r = await f.decision({ ...payload, urlPolicyRevision: "0".repeat(32) });
+  assert.equal((await r.json()).reason, "url_policy_revision_changed");
+  assert.equal(f.calls(), 0);
+  assert.equal(
+    (
+      await f.decision({
+        ...payload,
+        currentPage: page("https://evil.example/guides/b"),
+      })
+    ).status,
+    400,
+  );
+  c.decisionMode = "model";
+  c.questions = [
+    { key: "interest", instructions: "案内する内容に関心がありますか？" },
+  ];
+  const g = await setup(t, { config });
+  r = await g.decision(payload);
+  assert.equal(r.status, 200);
+  assert.equal(g.calls(), 1);
+  assert.equal(g.sent().state.current_page.url, payload.currentPage.url);
+  assert.equal(
+    g.sent().state.entry_page.url,
+    "https://www.example.com/guides/a?cid=mail_runner",
+  );
+  assert.equal(JSON.stringify(g.sent()).includes("PRIVATE"), false);
+  assert.equal(JSON.stringify(g.sent()).includes("SECRET"), false);
+  assert.deepEqual(g.sent().state.browsing_history_oldest_first, []);
+});

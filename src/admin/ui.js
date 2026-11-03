@@ -1,3 +1,4 @@
+import { urlTargetingFields } from "./url-targeting-ui.js";
 import { createMetadataSettings } from "./metadata-ui.js";
 import {
   startRegistration,
@@ -664,11 +665,16 @@ const metadataSettings = createMetadataSettings({
   render,
   dirty: markDirty,
   toast,
-  async save(policy) {
+  async save(policy, excludedQueryKeys) {
     await api(
       sitePath() + "/settings",
       "PUT",
-      { settings: { metadataExtraction: policy } },
+      {
+        settings: {
+          ...(policy ? { metadataExtraction: policy } : {}),
+          excludedQueryKeys,
+        },
+      },
       state.value.revision,
     );
     state.dirty = false;
@@ -747,6 +753,9 @@ function newCampaign() {
     id: "c_" + crypto.randomUUID().replaceAll("-", "").slice(0, 20),
     name: "",
     enabled: false,
+    decisionMode: "model",
+    minimumHistory: 0,
+    urlTargeting: { combination: "all", conditions: [] },
     intent: "判定条件を入力してください",
     judgment: { offer: "", conditions: [""] },
     questions: [{ key: "draft", instructions: "下書き" }],
@@ -817,7 +826,37 @@ function editor() {
       "管理するための名前です。サイト上には表示されません。",
       { max: 120 },
     );
-    if (c.judgment)
+    fields += select(
+      "表示対象の判定方法",
+      "decisionMode",
+      c.decisionMode ?? "model",
+      {
+        model: "Jevで関心・状態を判定する",
+        rules: "URLの確定条件だけで判定する",
+      },
+      "URL条件のみならJevへの問い合わせは発生しません。",
+    );
+    fields += select(
+      "判定に必要な過去の有効閲覧数",
+      "minimumHistory",
+      c.minimumHistory === undefined ? "" : String(c.minimumHistory),
+      {
+        "": "サイト設定を使う",
+        0: "履歴を必須にしない（0件）",
+        ...Object.fromEntries(
+          Array.from({ length: 10 }, (_, i) => [
+            String(i + 1),
+            `${i + 1}件以上`,
+          ]),
+        ),
+      },
+      "現在ページは過去の有効閲覧に数えません。流入条件だけなら0件で判定できます。",
+    );
+    if (c.decisionMode === "rules")
+      fields += info(
+        "URL条件を1つ以上設定してください。条件に一致した場合、表示回数などの配信制約を確認して表示します。",
+      );
+    else if (c.judgment)
       fields +=
         field(
           "何を伝えたいですか？",
@@ -870,11 +909,13 @@ function editor() {
           { area: true, code: true },
         ) +
         button("入力支援に切り替える", "guided", "small", disabled);
-    fields +=
-      select("複数の判定の組み合わせ", "combination", c.combination, {
-        all: "すべてに該当（AND）",
-        any: "いずれかに該当（OR）",
-      }) + thresholdControl(c.threshold);
+    fields += urlTargetingFields(c, { select, field, button, disabled });
+    if (c.decisionMode !== "rules")
+      fields +=
+        select("複数の判定の組み合わせ", "combination", c.combination, {
+          all: "すべてに該当（AND）",
+          any: "いずれかに該当（OR）",
+        }) + thresholdControl(c.threshold);
   } else if (state.tab === "content")
     fields =
       select(
@@ -1418,8 +1459,12 @@ function readEditor() {
       continue;
     }
     let parsed = value;
-    if (["threshold", "priority", "maxShows"].includes(key))
+    if (["threshold", "priority", "maxShows", "minimumHistory"].includes(key))
       parsed = Number(value);
+    if (key === "minimumHistory" && value === "") {
+      delete state.edit.minimumHistory;
+      continue;
+    }
     if (key === "target.paths") parsed = lines(value);
     if (
       [
@@ -1447,7 +1492,10 @@ function readEditor() {
     if (state.edit.presentation.type === "custom")
       state.edit.custom ??= { code: "", variables: {} };
   }
-  if (state.edit.judgment) {
+  if (state.edit.decisionMode === "rules") {
+    state.edit.questions = [];
+    state.edit.intent = state.edit.name || "URLの確定条件で配信";
+  } else if (state.edit.judgment) {
     state.edit.intent =
       (
         state.edit.judgment.offer +
@@ -1641,6 +1689,28 @@ async function handleAction(action) {
     state.dirty = false;
     metadataSettings.reset();
     state.settingsTab = action.slice(13);
+    return render();
+  }
+  if (
+    action === "url-condition-add" ||
+    action.startsWith("url-condition-remove:")
+  ) {
+    readEditor();
+    const target = (state.edit.urlTargeting ??= {
+      combination: "all",
+      conditions: [],
+    });
+    if (action === "url-condition-add" && target.conditions.length < 5)
+      target.conditions.push({
+        source: "entry",
+        field: "query",
+        key: "cid",
+        operator: "contains",
+        value: "",
+      });
+    else if (action.startsWith("url-condition-remove:"))
+      target.conditions.splice(Number(action.split(":")[1]), 1);
+    markDirty();
     return render();
   }
   if (action === "condition-add") {
@@ -2266,7 +2336,25 @@ document.addEventListener("change", (event) => {
       await render();
     });
   }
-  if (event.target.name === "presentation.type") {
+  if (
+    event.target.name === "decisionMode" ||
+    /^urlTargeting\.conditions\.\d+\.field$/.test(event.target.name)
+  ) {
+    try {
+      readEditor();
+      if (
+        state.edit.decisionMode === "rules" &&
+        state.edit.minimumHistory === undefined
+      )
+        state.edit.minimumHistory = 0;
+      if (state.edit.decisionMode === "model")
+        state.edit.judgment ??= { offer: "", conditions: [""] };
+      markDirty();
+      render();
+    } catch (e) {
+      toast(e.message);
+    }
+  } else if (event.target.name === "presentation.type") {
     try {
       readEditor();
       markDirty();

@@ -16,6 +16,8 @@ test.beforeEach(async ({ page }) => {
   c.sites[0].origins = ["https://www.example.com"];
   c.sites[0].minQualifiedVisits = 1;
   c.sites[0].minVisibleMs = 1000;
+  c.sites[0].excludedQueryKeys = ["email"];
+  c.sites[0].campaigns[0].minimumHistory = 0;
   await store.save(c);
   app = await buildApp({
     store,

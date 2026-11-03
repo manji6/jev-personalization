@@ -1,6 +1,16 @@
 const HEADER = "X-JevSense-Debug";
 const labels = {
   insufficient_observation: "情報不足で保留",
+  qualification_local: "有効閲覧へ保存（通信なし）",
+  metadata_local: "ページ情報を更新（通信なし）",
+  action_local: "イベントを保存（次ページで判定）",
+  fact_local: "状態を保存（次ページで判定）",
+  settings_local: "取得設定を更新（同じページでは再判定しません）",
+  url_policy_revision_changed: "URL除外設定の更新が必要なため保留",
+  deterministic_match: "URLの確定条件に一致",
+  url: "URLの確定条件",
+  history: "必要な過去の有効閲覧数",
+  request_too_large: "判定要求がサイズ上限を超えています",
   metadata_revision_changed: "取得ルールの更新が必要なため保留",
   metadata_rules_changed: "取得ルールを更新し、現在のページを再取得",
   settings_changed: "設定変更後のページを取得",
@@ -45,6 +55,7 @@ export function createDebugger(
     timer,
     expiryTimer,
     generation = 0,
+    authorizeReady,
     activeTab = "status",
     events = [],
     bytes = 0;
@@ -68,12 +79,15 @@ export function createDebugger(
     if (!trace) {
       el(
         "p",
-        "詳細な診断情報はありません。この要求が診断開始前の場合は、次の通常イベントから記録されます。",
+        "詳細な診断情報はありません。この要求が診断開始前の場合は、次のページの初期判定から記録されます。",
         parent,
       );
       return;
     }
     const o = trace.observation;
+    if (o.currentPage)
+      json(parent, "現在ページ（有効閲覧履歴とは別）", o.currentPage);
+    if (o.entryPage) json(parent, "流入ページ（同意後の初回）", o.entryPage);
     el(
       "p",
       `最低閲覧時間 ${(o.minVisibleMs / 1000).toFixed(1)}秒 ／ 必要 ${o.minQualifiedVisits}ページ ／ 有効 ${o.qualifiedVisits}ページ`,
@@ -122,7 +136,9 @@ export function createDebugger(
         el("p", `${check.passed ? "✓" : "×"} ${describe(check.key)}`, details);
       el(
         "p",
-        `閾値：${c.threshold}を超える ／ ${c.combination === "all" ? "すべて成立（AND）" : "いずれか成立（OR）"} ／ 優先順位：${c.priority}`,
+        c.decisionMode === "rules"
+          ? `URLの確定条件だけで判定 ／ 必要な過去の有効閲覧：${c.minimumHistory}件 ／ 優先順位：${c.priority}`
+          : `閾値：${c.threshold}を超える ／ ${c.combination === "all" ? "すべて成立（AND）" : "いずれか成立（OR）"} ／ 優先順位：${c.priority}`,
         details,
       );
       if (!c.questions) el("p", "この施策のJev判定は未実行です。", details);
@@ -179,7 +195,7 @@ export function createDebugger(
         "p",
         s.offerVisible
           ? "オファー表示中：追加の判断要求は停止しています。"
-          : "判断材料が変わったときだけ問い合わせます。定期送信はしません。",
+          : "このページの初期判定は1回だけです。閲覧時間・イベント・状態の更新はローカルへ保存します。",
         content,
       );
       el(
@@ -190,6 +206,13 @@ export function createDebugger(
       );
     } else if (activeTab === "history") {
       el("h3", "このブラウザで計測した情報", content);
+      if (s.state.currentVisit)
+        json(
+          content,
+          "現在ページの計測（有効閲覧履歴とは別）",
+          s.state.currentVisit,
+        );
+      if (s.state.entryPage) json(content, "流入ページ", s.state.entryPage);
       for (const v of s.state.visits) {
         const card = el("article", undefined, content);
         el("h4", v.page.name, card);
@@ -213,7 +236,7 @@ export function createDebugger(
       if (!events.some((event) => ["request", "response"].includes(event.type)))
         el(
           "p",
-          "診断開始前の通信は記録されません。次の通常イベントを待つか、ページを移動してください。",
+          "診断開始前の通信は記録されません。次のページへ移動すると、そのページの初期判定を記録できます。",
           content,
         );
       for (const event of [...events].reverse()) {
@@ -234,7 +257,7 @@ export function createDebugger(
             fact: "状態を変更",
             metadata: "ページ情報を更新",
             started: "診断を開始",
-          }[event.type] ?? event.type;
+          }[event.type] ?? describe(event.type);
         el(
           "summary",
           `${new Date(event.time).toLocaleTimeString("ja-JP")} ${name}${event.data.reason ? " · " + describe(event.data.reason) : ""}`,
@@ -362,6 +385,7 @@ export function createDebugger(
         `${endpoint}/v1/debug-session?siteId=${encodeURIComponent(siteId)}`,
         {
           credentials,
+          referrerPolicy: "no-referrer",
           headers: { [HEADER]: data.token },
           signal: AbortSignal.timeout(3000),
         },
@@ -375,6 +399,7 @@ export function createDebugger(
       )
         return;
       token = data.token;
+      authorizeReady?.();
       expiresAt = session.expiresAt;
       events = [];
       bytes = 0;
@@ -418,6 +443,18 @@ export function createDebugger(
   ready();
   return {
     record,
+    // A diagnostic popup can authorize the initial request without making a
+    // second decision. Ordinary pages do not wait; popup waits are bounded.
+    waitForAuthorization: () => {
+      if (!win.opener || valid()) return Promise.resolve();
+      return new Promise((resolve) => {
+        const timeout = win.setTimeout(resolve, 500);
+        authorizeReady = () => {
+          win.clearTimeout(timeout);
+          resolve();
+        };
+      });
+    },
     headers: () => (valid() ? { [HEADER]: token } : {}),
     clear: () => {
       events = [];

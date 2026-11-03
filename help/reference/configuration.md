@@ -65,3 +65,5 @@
 ## Jev接続と記録の上限
 
 サイトごとの接続モードは共通・専用・停止の3種類。専用APIキーは空白を含まない印字ASCIIで8〜4096文字です。暗号化キーストアは最大10世代、各32バイトを使います。利用記録はUTC日で最大90日、最新100件を表示します。APIキー・利用記録はサイト管理者/Superuser専用です。
+
+URL除外キーはサイト別`excludedQueryKeys`（最大50件・各100文字）。施策の`minimumHistory`は0〜10、未指定ならサイト設定を使います。URL条件は`urlTargeting.conditions`に最大5件です。判断方式は`decisionMode: model | rules`。新SDKは`protocolVersion: 2`で現在・流入ページを分離し、ページURLは4,096文字まで保持します。

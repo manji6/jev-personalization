@@ -4,6 +4,7 @@ import { guidedJudgmentSchema } from "./questions.js";
 import { secureOrLoopback } from "./url-policy.js";
 import { validCustomCode } from "./custom-code.js";
 
+import { MAX_PAGE_URL } from "./page-url.js";
 import { metadataPolicySchema } from "./metadata-policy.js";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -51,6 +52,20 @@ export const pageSchema = z
     path: text(512)
       .startsWith("/")
       .refine((v) => !/[?#]/.test(v)),
+    url: z
+      .url()
+      .max(MAX_PAGE_URL)
+      .refine((v) => {
+        const u = new URL(v);
+        return (
+          (u.protocol === "https:" ||
+            (u.protocol === "http:" && u.hostname === "localhost")) &&
+          !u.username &&
+          !u.password &&
+          !u.hash
+        );
+      }, "収集可能なURLを指定してください")
+      .optional(),
     name: text(160),
     description: z.string().max(400).optional(),
     type: z.string().max(80).optional(),
@@ -60,6 +75,13 @@ export const pageSchema = z
 export const inputSchema = z
   .object({
     siteId: id,
+    protocolVersion: z.literal(2).optional(),
+    currentPage: pageSchema.optional(),
+    entryPage: pageSchema.optional(),
+    urlPolicyRevision: z
+      .string()
+      .regex(/^[a-f0-9]{32}$/)
+      .optional(),
     metadataRevision: z
       .string()
       .regex(/^(legacy|[a-f0-9]{32})$/)
@@ -102,18 +124,61 @@ export const inputSchema = z
       .refine((v) => Object.keys(v).length <= 100)
       .default({}),
   })
-  .strict();
+  .strict()
+  .superRefine((v, c) => {
+    if (v.protocolVersion === 2 && !v.currentPage)
+      c.addIssue({
+        code: "custom",
+        message: "現在ページが必要です",
+        path: ["currentPage"],
+      });
+    if (
+      v.protocolVersion !== 2 &&
+      (v.currentPage || v.entryPage || v.urlPolicyRevision)
+    )
+      c.addIssue({ code: "custom", message: "protocolVersionが必要です" });
+  });
+
 export const campaignSchema = z
   .object({
     id,
     name: text(120).optional(),
     judgment: guidedJudgmentSchema.optional(),
+    decisionMode: z.enum(["model", "rules"]).default("model"),
+    minimumHistory: z.number().int().min(0).max(10).optional(),
+    urlTargeting: z
+      .object({
+        combination: z.enum(["all", "any"]),
+        conditions: z
+          .array(
+            z
+              .object({
+                source: z.enum(["current", "entry"]),
+                field: z.enum(["url", "query"]),
+                key: z.string().max(100).default(""),
+                operator: z.enum(["contains", "equals", "prefix"]),
+                value: text(300),
+              })
+              .strict()
+              .superRefine((v, c) => {
+                if (v.field === "query" && !v.key)
+                  c.addIssue({
+                    code: "custom",
+                    message: "GETパラメータのキーを入力してください",
+                    path: ["key"],
+                  });
+              }),
+          )
+          .max(5),
+      })
+      .strict()
+      .default(() => ({ combination: "all", conditions: [] })),
     enabled: z.boolean(),
     intent: text(1000),
     priority: z.number().int().min(0).max(100),
     questions: z
       .array(z.object({ key: id, instructions: text(1000) }).strict())
-      .min(1)
+      .min(0)
       .max(5),
     combination: z.enum(["all", "any"]),
     threshold: z.number().min(0.5).max(0.99),
@@ -168,6 +233,22 @@ export const campaignSchema = z
   })
   .strict()
   .superRefine((v, c) => {
+    if (v.decisionMode === "model" && !v.questions.length)
+      c.addIssue({
+        code: "custom",
+        message: "Jev判定には質問が必要です",
+        path: ["questions"],
+      });
+    if (
+      v.decisionMode === "rules" &&
+      (!v.urlTargeting.conditions.length || v.questions.length)
+    )
+      c.addIssue({
+        code: "custom",
+        message:
+          "URL条件のみの場合は1つ以上の条件と空のquestionsを指定してください",
+        path: ["urlTargeting"],
+      });
     if (v.content.url && !v.content.linkLabel.trim())
       c.addIssue({
         code: "custom",
@@ -209,6 +290,16 @@ export const siteSchema = z
     allowedPathPrefixes: z.array(text(200).startsWith("/")).min(1).max(30),
     excludedPathPrefixes: z.array(text(200).startsWith("/")).max(30),
     metadataEnabled: z.boolean().default(false),
+    excludedQueryKeys: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(100)
+          .refine((v) => !/[\u0000-\u001f\u007f]/.test(v)),
+      )
+      .max(50)
+      .default([]),
     metadataExtraction: metadataPolicySchema.optional(),
     design: designSchema.default(() => structuredClone(DEFAULT_DESIGN)),
     allowCustomJavaScript: z.boolean().default(false),

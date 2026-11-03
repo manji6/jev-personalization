@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
   const s = config.sites[0];
   s.minQualifiedVisits = 1;
   s.minVisibleMs = 1000;
+  s.campaigns[0].minimumHistory = 0;
   runtime = await cloudflareFixture({ config });
   await page.route("https://api.example.com/**", async (route) => {
     const req = route.request(),
@@ -64,7 +65,6 @@ test("modal renders HTML, traps focus, closes with Escape and restores focus", a
   config.sites[0].campaigns[0].presentation.type = "modal";
   await saveConfig();
   await visit(page);
-  await page.locator("#before").focus();
   await decide(page);
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "導入ガイド" })).toBeVisible();
