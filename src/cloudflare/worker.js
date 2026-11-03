@@ -17,6 +17,7 @@ import {
   draftIntent,
   ALGORITHM_VERSION,
   CONTEXT_ALGORITHM_VERSION,
+  GRAPH_ALGORITHM_VERSION,
 } from "../engine.js";
 import { createSiteJev } from "../site-jev.js";
 import { AdminDatabase } from "../admin/database.js";
@@ -457,8 +458,9 @@ export default {
       const respond = (body, status = 200) =>
         finish(json(trace ? { ...body, debug: trace } : body, status), headers);
       const base = {
-        algorithmVersion:
-          input.protocolVersion === 2
+        algorithmVersion: site.campaigns.some((c) => c.conditionGraph)
+          ? GRAPH_ALGORITHM_VERSION
+          : input.protocolVersion === 2
             ? CONTEXT_ALGORITHM_VERSION
             : ALGORITHM_VERSION,
         configVersion: (await revisionOf(site)).slice(0, 16),

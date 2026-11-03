@@ -11,6 +11,7 @@ import { configSchema, inputSchema } from "./schema.js";
 import {
   ALGORITHM_VERSION,
   CONTEXT_ALGORITHM_VERSION,
+  GRAPH_ALGORITHM_VERSION,
   prepare,
   select,
   draftIntent,
@@ -327,8 +328,9 @@ export async function buildApp({
       .digest("hex")
       .slice(0, 16);
     const base = {
-      algorithmVersion:
-        input.protocolVersion === 2
+      algorithmVersion: site.campaigns.some((c) => c.conditionGraph)
+        ? GRAPH_ALGORITHM_VERSION
+        : input.protocolVersion === 2
           ? CONTEXT_ALGORITHM_VERSION
           : ALGORITHM_VERSION,
       configVersion,

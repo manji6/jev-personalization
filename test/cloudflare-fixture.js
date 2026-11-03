@@ -61,7 +61,7 @@ export async function cloudflareFixture(options = {}) {
       if (options.error) return new Response("private error", { status: 401 });
       return Response.json({
         model: "mock-jev",
-        answers: { c0q0: { type: "noul", noul: 0.95 } },
+        answers: options.answers ?? { c0q0: { type: "noul", noul: 0.95 } },
         usage: { input_tokens: 1, output_tokens: 1 },
       });
     },

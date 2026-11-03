@@ -480,7 +480,7 @@ test("guided editing saves isolated draft, renders question preview, publishes a
   await page
     .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
     .fill("吸汗速乾機能のあるポロシャツに関心がある");
-  await expect(page.locator("#questionPreview")).toContainText(
+  await expect(page.locator("#conditionBuilder #question")).toContainText(
     "今回案内する内容：吸汗速乾ポロシャツの特集を案内する",
   );
   await page
@@ -1230,33 +1230,30 @@ test("URL-only campaign editor saves an entry cid condition with zero required h
   await setup(page);
   await page.getByRole("button", { name: "新しい施策", exact: true }).click();
   await page.locator('[name="name"]').fill("メールからのランナー向け案内");
-  const choose = async (name, label) => {
-    await page
-      .getByRole("combobox", {
-        name: {
-          decisionMode: "表示対象の判定方法",
-          "urlTargeting.conditions.0.source": "対象のページ",
-        }[name],
-        exact: true,
-      })
-      .click();
-    await page.getByRole("option", { name: label, exact: true }).click();
-  };
-  await choose("decisionMode", "URLの確定条件だけで判定する");
-  await expect(page.locator(".threshold-control")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "URL条件を追加", exact: true })
-    .click();
-  await expect(
-    page.getByRole("combobox", { name: "対象のページ", exact: true }),
-  ).toContainText("流入ページ（同意後の初回）");
-  await page.locator('[name="urlTargeting.conditions.0.key"]').fill("cid");
-  await page.locator('[name="urlTargeting.conditions.0.value"]').fill("runner");
+  const { graphFromCampaign } = await import("../../src/condition-graph.js");
+  const g = graphFromCampaign({
+    decisionMode: "rules",
+    urlTargeting: {
+      combination: "all",
+      conditions: [
+        {
+          source: "entry",
+          field: "query",
+          key: "cid",
+          operator: "contains",
+          value: "runner",
+        },
+      ],
+    },
+  });
+  await editGraphJSON(page, g);
   const draft = await saveThresholdDraft(page);
   expect(draft.decisionMode).toBe("rules");
   expect(draft.minimumHistory).toBe(0);
   expect(draft.questions).toEqual([]);
-  expect(draft.urlTargeting.conditions[0]).toEqual({
+  expect(
+    draft.conditionGraph.nodes.find((n) => n.kind === "url"),
+  ).toMatchObject({
     source: "entry",
     field: "query",
     key: "cid",
@@ -1295,7 +1292,9 @@ test("URL-only campaign editor saves an entry cid condition with zero required h
   );
   expect(published.enabled).toBe(true);
   expect(published.decisionMode).toBe("rules");
-  expect(published.urlTargeting.conditions[0].value).toBe("runner");
+  expect(
+    published.conditionGraph.nodes.find((n) => n.kind === "url").value,
+  ).toBe("runner");
   expect(published.questions).toEqual([]);
   expect(calls).toBe(0);
 });
@@ -1338,43 +1337,20 @@ for (const variant of ["current", "legacy", "original"])
           });
     delete c.judgment;
     await seedEditorCampaign(page, c);
-    await expect(
-      page.getByLabel("判定質問（JSON）", { exact: true }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByRole("combobox", {
-        name: "複数の判定の組み合わせ",
-        exact: true,
-      }),
-    ).toContainText("OR");
-    if (variant === "original") {
-      for (let i = 0; i < 5; i++)
-        await expect(
-          page.locator(`[name="questions.${i}.instructions"]`),
-        ).toHaveValue(c.questions[i].instructions);
-    } else {
-      await expect(
-        page.getByLabel("何を伝えたいですか？", { exact: true }),
-      ).toHaveValue("夏のウェアをご案内");
-      for (let i = 0; i < 5; i++)
-        await expect(
-          page.locator(`[name="judgment.conditions.${i}"]`),
-        ).toHaveValue(`関心${i + 1}に当てはまる`);
-    }
+    const host = page.locator("#conditionBuilder");
+    await expect(host.locator(".node.jev")).toHaveCount(5);
+    await expect(host.locator(".node.or")).toHaveCount(1);
+    for (let i = 0; i < 5; i++)
+      await expect(host.locator(`[data-node="jev_${i + 1}"]`)).toContainText(
+        variant === "original"
+          ? c.questions[i].instructions
+          : `関心${i + 1}に当てはまる`,
+      );
+    const { graphQuestions } = await import("../../src/condition-graph.js");
     for (let i = 0; i < 2; i++) {
-      await page
-        .getByRole("button", { name: "JSONで編集", exact: true })
-        .click();
-      expect(
-        JSON.parse(
-          await page
-            .getByLabel("判定質問（JSON）", { exact: true })
-            .inputValue(),
-        ),
-      ).toEqual(c.questions);
-      await page
-        .getByRole("button", { name: "入力支援に切り替える", exact: true })
-        .click();
+      const graph = await readGraphJSON(page);
+      expect(graphQuestions(graph)).toEqual(c.questions);
+      await applyGraphJSON(page, graph);
     }
     const draft = await saveThresholdDraft(page);
     expect(draft.questions).toEqual(c.questions);
@@ -1395,44 +1371,28 @@ for (const variant of ["current", "legacy", "original"])
     await page.reload();
     await page.locator('a[data-nav="campaigns"]').click();
     await page.locator('[data-open="guide"]').first().click();
-    await expect(
-      page.getByLabel("判定質問（JSON）", { exact: true }),
-    ).toHaveCount(0);
-    await page.getByRole("button", { name: "JSONで編集", exact: true }).click();
-    expect(
-      JSON.parse(
-        await page.getByLabel("判定質問（JSON）", { exact: true }).inputValue(),
-      ),
-    ).toEqual(c.questions);
+    await expect(host.locator(".node.jev")).toHaveCount(5);
+    const reopened = await readGraphJSON(page);
+    expect(graphQuestions(reopened)).toEqual(c.questions);
+    await page.locator("#cancelJSON").click();
     expect(calls).toBe(0);
   });
 
-test("edited JSON converts to original-question forms without retaining stale guidance or changing OR semantics", async ({
+test("edited graph JSON preserves original questions and OR semantics", async ({
   page,
 }) => {
   await setup(page);
   await page.getByRole("button", { name: "新しい施策", exact: true }).click();
-  await page.getByLabel("何を伝えたいですか？", { exact: true }).fill("案内");
-  await page
-    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
-    .fill("導入に関心がある");
-  await page.getByRole("button", { name: "JSONで編集", exact: true }).click();
+  const { graphFromCampaign } = await import("../../src/condition-graph.js");
   const questions = [
     { key: "one", instructions: "任意の原文1？" },
     { key: "two", instructions: "別の案内の原文2？" },
   ];
-  await page
-    .getByLabel("判定質問（JSON）", { exact: true })
-    .fill(JSON.stringify(questions));
-  await page
-    .getByRole("button", { name: "入力支援に切り替える", exact: true })
-    .click();
-  await expect(page.locator('[name="questions.0.instructions"]')).toHaveValue(
-    questions[0].instructions,
+  await editGraphJSON(
+    page,
+    graphFromCampaign({ questions, combination: "any" }),
   );
-  await expect(page.locator('[name="questions.1.instructions"]')).toHaveValue(
-    questions[1].instructions,
-  );
+  await expect(page.locator("#conditionBuilder .node.or")).toHaveCount(1);
   const c = await saveThresholdDraft(page);
   expect(c.questions).toEqual(questions);
   expect(c.judgment).toBeUndefined();
@@ -1544,22 +1504,49 @@ test("removing and adding guided conditions preserves surviving IDs and allows A
   });
   delete c.judgment;
   await seedEditorCampaign(page, c);
-  await page
-    .getByRole("button", { name: "この条件を削除", exact: true })
-    .first()
-    .click();
-  await page
-    .getByRole("button", { name: "判定する関心・状態を追加", exact: true })
-    .click();
-  await page.locator('[name="judgment.conditions.2"]').fill("Dに関心");
-  await page
-    .getByRole("combobox", { name: "複数の判定の組み合わせ", exact: true })
-    .click();
-  await page
-    .getByRole("option", { name: "すべてに該当（AND）", exact: true })
-    .click();
+  const host = page.locator("#conditionBuilder");
+  await host.locator('[data-delete-node="jev_2"]').click();
+  await host.locator('[data-add="jev"]').click();
+  const g = await readGraphJSON(page),
+    added = g.nodes.find(
+      (n) => n.kind === "jev" && !["a", "c"].includes(n.key),
+    );
+  added.condition = "Dに関心";
+  g.nodes.find((n) => n.kind === "or").kind = "and";
+  g.edges.push({ id: "new_edge", from: added.id, to: "model_group" });
+  await applyGraphJSON(page, g);
   const draft = await saveThresholdDraft(page);
   expect(draft.questions.map((q) => q.key)).toEqual(["a", "c", "condition_1"]);
-  expect(draft.judgment.conditions).toEqual(["Aに関心", "Cに関心", "Dに関心"]);
-  expect(draft.combination).toBe("all");
+  expect(
+    draft.conditionGraph.nodes
+      .filter((n) => n.kind === "jev")
+      .map((n) => n.condition),
+  ).toEqual(["Aに関心", "Cに関心", "Dに関心"]);
+  expect(
+    draft.conditionGraph.nodes.find((n) => n.id === "model_group").kind,
+  ).toBe("and");
 });
+
+async function openGraphJSON(page) {
+  const host = page.locator("#conditionBuilder");
+  const b = host.getByRole("button", { name: "JSONで編集", exact: true });
+  if (!(await b.isVisible()))
+    await host.getByText("条件グラフのJSONを見る", { exact: true }).click();
+  await b.click();
+}
+async function readGraphJSON(page) {
+  await openGraphJSON(page);
+  return JSON.parse(
+    await page.getByLabel("条件グラフJSON", { exact: true }).inputValue(),
+  );
+}
+async function applyGraphJSON(page, g) {
+  await page
+    .getByLabel("条件グラフJSON", { exact: true })
+    .fill(JSON.stringify(g));
+  await page.getByRole("button", { name: "JSONを反映", exact: true }).click();
+}
+async function editGraphJSON(page, g) {
+  await openGraphJSON(page);
+  await applyGraphJSON(page, g);
+}

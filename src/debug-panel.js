@@ -10,6 +10,7 @@ const labels = {
   deterministic_match: "URLの確定条件に一致",
   url: "URLの確定条件",
   history: "必要な過去の有効閲覧数",
+  graph: "ノードの条件（URLで確定・Jev待ちを含む）",
   request_too_large: "判定要求がサイズ上限を超えています",
   metadata_revision_changed: "取得ルールの更新が必要なため保留",
   metadata_rules_changed: "取得ルールを更新し、現在のページを再取得",
@@ -156,6 +157,7 @@ export function createDebugger(
           details,
         );
       json(details, "表示対象の経路条件", c.target);
+      if (c.graph) json(details, "ノードごとの判定結果", c.graph);
     }
     el("p", "判定値は購入確率・施策効果ではありません。", parent, "muted");
   }

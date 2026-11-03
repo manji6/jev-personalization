@@ -1,7 +1,7 @@
 import { installMetadataInspection } from "./metadata-inspection-sdk.js";
 import { installPreview } from "./preview-sdk.js";
 import { secureOrLoopback } from "./url-policy.js";
-import { pathAllowed } from "./engine.js";
+import { pathAllowed } from "./path-policy.js";
 import { renderOffer } from "./offer-renderer.js";
 import { createDebugger } from "./debug-panel.js";
 import { extractPage, observePageMetadata } from "./metadata-extractor.js";

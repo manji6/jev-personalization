@@ -1,3 +1,4 @@
+import { conditionGraphSchema } from "./condition-graph.js";
 import { z } from "zod";
 import { DEFAULT_DESIGN } from "./offer-model.js";
 import { guidedJudgmentSchema } from "./questions.js";
@@ -144,6 +145,7 @@ export const campaignSchema = z
     id,
     name: text(120).optional(),
     judgment: guidedJudgmentSchema.optional(),
+    conditionGraph: conditionGraphSchema.optional(),
     decisionMode: z.enum(["model", "rules"]).default("model"),
     minimumHistory: z.number().int().min(0).max(10).optional(),
     urlTargeting: z
@@ -233,13 +235,14 @@ export const campaignSchema = z
   })
   .strict()
   .superRefine((v, c) => {
-    if (v.decisionMode === "model" && !v.questions.length)
+    if (!v.conditionGraph && v.decisionMode === "model" && !v.questions.length)
       c.addIssue({
         code: "custom",
         message: "Jev判定には質問が必要です",
         path: ["questions"],
       });
     if (
+      !v.conditionGraph &&
       v.decisionMode === "rules" &&
       (!v.urlTargeting.conditions.length || v.questions.length)
     )
@@ -313,7 +316,16 @@ export const siteSchema = z
   .superRefine((v, c) => {
     if (new Set(v.campaigns.map((x) => x.id)).size !== v.campaigns.length)
       c.addIssue({ code: "custom", message: "Duplicate campaign ID" });
-    if (v.campaigns.reduce((n, x) => n + x.questions.length, 0) > 10)
+    if (
+      v.campaigns.reduce(
+        (n, x) =>
+          n +
+          (x.conditionGraph
+            ? x.conditionGraph.nodes.filter((n) => n.kind === "jev").length
+            : x.questions.length),
+        0,
+      ) > 10
+    )
       c.addIssue({ code: "custom", message: "At most ten questions per site" });
     for (const campaign of v.campaigns) {
       if (campaign.presentation.type === "custom" && !v.allowCustomJavaScript)

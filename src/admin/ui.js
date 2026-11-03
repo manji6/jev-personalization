@@ -1,3 +1,5 @@
+import { mountConditionBuilder } from "./condition-builder.js";
+import { graphQuestions, describeGraph } from "../condition-graph.js";
 import { urlTargetingFields } from "./url-targeting-ui.js";
 import { createMetadataSettings } from "./metadata-ui.js";
 import {
@@ -404,6 +406,10 @@ const errors = {
     "メールアドレス、復旧コードまたは復旧リンクを確認してください。",
   content_title_required: "表示タイトルを入力してください。",
   invalid_request: "入力内容を確認してください。",
+  test_url_rejected:
+    "登録済みオリジン・収集対象のHTTPS URLを指定してください。",
+  test_question_rejected:
+    "グラフに含まれるJev条件の判定値だけを指定してください。",
   jev_encryption_not_configured:
     "暗号化キーが未設定です。環境管理者にJEV_KEYRINGの設定を依頼してください。",
   jev_key_required: "サイト専用APIキーを入力してください。",
@@ -666,6 +672,19 @@ async function refreshSession() {
   if (!state.session.sites.some((s) => s.id === state.siteId))
     state.siteId = state.session.sites[0]?.id || null;
 }
+let conditionBuilder = null;
+function readGraphEditor() {
+  const graph = conditionBuilder?.read();
+  if (graph && state.edit) {
+    state.edit.conditionGraph = graph;
+    delete state.edit.judgment;
+    state.edit.questions = graphQuestions(graph, { draft: true });
+    state.edit.decisionMode = graph.nodes.some((n) => n.kind === "jev")
+      ? "model"
+      : "rules";
+    state.edit.urlTargeting = { combination: "all", conditions: [] };
+  }
+}
 const metadataSettings = createMetadataSettings({
   value: () => state.value,
   canManage,
@@ -738,13 +757,13 @@ function setupStatus(route) {
   const messages = [];
   const jevMessages = {
     missing_key:
-      "このサイトのJev APIキーが未設定です。Jevを使う施策の判定を開始できません。",
+      "このサイトのJev APIキーが未設定です。Jevへの問い合わせを開始できません。",
     encryption_unavailable:
       "APIキーを保管する暗号化設定がありません。環境管理者にJEV_KEYRINGの設定を依頼してください。",
     key_unavailable:
       "保存済みのJev APIキーを読み出せません。環境管理者に暗号化設定の確認を依頼してください。",
     disabled:
-      "このサイトではJevの利用を停止しています。Jevを使う施策の判定は行いません。",
+      "このサイトではJevの利用を停止しています。Jevへの問い合わせは行いません。",
   };
   if (r.jev !== "ready") {
     const text = jevMessages[r.jev] || "Jevの接続設定を確認してください。";
@@ -761,7 +780,7 @@ function setupStatus(route) {
       `配信中の施策がありません。 ${canEdit() ? '<a class="setup-link" href="#/campaigns" data-setup-nav="campaigns">施策一覧を開く</a>' : "編集者またはサイト管理者に確認してください。"}`,
     );
   if (!messages.length) return "";
-  return `<section class="setup-status" aria-label="サイトの設定状況"><h2>このサイトの設定状況</h2><ul>${messages.map((m) => `<li>${m}</li>`).join("")}</ul>${r.jev !== "ready" ? '<p class="hint">URL条件だけで判定する施策はJevキーなしで利用できます。キーの保存状態は、Jev側の有効性や残高を保証しません。</p>' : ""}${state.session.deployment?.modelMode === "stub" ? '<p class="hint">このPreviewでは固定のテスト値を使い、Jevへ接続しません。</p>' : ""}</section>`;
+  return `<section class="setup-status" aria-label="サイトの設定状況"><h2>このサイトの設定状況</h2><ul>${messages.map((m) => `<li>${m}</li>`).join("")}</ul>${r.jev !== "ready" ? '<p class="hint">URLだけで結論が出る判定は、Jevキーなしで利用できます。キーの保存状態は、Jev側の有効性や残高を保証しません。</p>' : ""}${state.session.deployment?.modelMode === "stub" ? '<p class="hint">このPreviewでは固定のテスト値を使い、Jevへ接続しません。</p>' : ""}</section>`;
 }
 function shell(route, body) {
   const current = state.session.sites.find((s) => s.id === state.siteId);
@@ -792,7 +811,7 @@ function allCampaigns() {
   return [...result.values()];
 }
 function campaignTable(rows) {
-  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : draft ? "draft" : "paused"}">${published?.enabled ? "配信中" : draft ? "下書き" : "停止中"}</span>${draft && published ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${published && canEdit() ? `<button class="button small" data-toggle="${c.id}">${published.enabled ? "停止" : "再開"}</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : draft ? "draft" : "paused"}">${published?.enabled ? "配信中" : draft ? "下書き" : "停止中"}</span>${draft && published ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${published && canEdit() ? `<button class="button small" data-toggle="${c.id}">${published.enabled ? "停止" : "再開"}</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
 }
 function newCampaign() {
   return {
@@ -858,6 +877,7 @@ function syncThresholdControls(target) {
   $("thresholdSelection").textContent = valid
     ? `現在：${preset?.label || "カスタム設定"}`
     : "しきい値は0.5〜0.99の範囲で入力してください。";
+  conditionBuilder?.invalidateTest();
 }
 function editor() {
   const c = state.edit;
@@ -873,16 +893,6 @@ function editor() {
       { max: 120 },
     );
     fields += select(
-      "表示対象の判定方法",
-      "decisionMode",
-      c.decisionMode ?? "model",
-      {
-        model: "Jevで関心・状態を判定する",
-        rules: "URLの確定条件だけで判定する",
-      },
-      "URL条件のみならJevへの問い合わせは発生しません。",
-    );
-    fields += select(
       "判定に必要な過去の有効閲覧数",
       "minimumHistory",
       c.minimumHistory === undefined ? "" : String(c.minimumHistory),
@@ -896,91 +906,10 @@ function editor() {
           ]),
         ),
       },
-      "現在ページは過去の有効閲覧に数えません。流入条件だけなら0件で判定できます。",
+      "現在ページは過去の有効閲覧に数えません。配信制約として常に適用します。",
     );
-    if (c.decisionMode === "rules")
-      fields += info(
-        "URL条件を1つ以上設定してください。条件に一致した場合、表示回数などの配信制約を確認して表示します。",
-      );
-    else if (state.questionMode === "json")
-      fields +=
-        field(
-          "判定質問（JSON）",
-          "questionsJSON",
-          JSON.stringify(c.questions, null, 2),
-          "質問IDと原文をそのままコピー・編集できます。AND/ORは下の組み合わせで設定します。",
-          { area: true, code: true },
-        ) + button("入力支援に切り替える", "guided", "small", disabled);
-    else if (c.judgment)
-      fields +=
-        field(
-          "何を伝えたいですか？",
-          "judgment.offer",
-          c.judgment.offer,
-          "案内する商品・サービス・記事などを具体的に。例：吸汗速乾ポロシャツの特集を案内する。",
-          { area: true, max: 400 },
-        ) +
-        c.judgment.conditions
-          .map(
-            (condition, i) =>
-              field(
-                `どんな関心・状態に当てはまる人ですか？${i ? `（条件${i + 1}）` : ""}`,
-                `judgment.conditions.${i}`,
-                condition,
-                "1つの関心・状態を、そのまま「〜が当てはまりますか？」と聞ける文章で書きます。",
-                { area: true, max: 400 },
-              ) +
-              (i
-                ? button(
-                    "この条件を削除",
-                    `condition-remove:${i}`,
-                    "small",
-                    disabled,
-                  )
-                : ""),
-          )
-          .join("") +
-        button(
-          "判定する関心・状態を追加",
-          "condition-add",
-          "small",
-          disabled || c.judgment.conditions.length >= 5,
-        ) +
-        `<details class="question-examples"><summary>書き方の例</summary><p>EC：吸汗速乾機能のあるポロシャツに関心がある。<br>BtoB：複数部門で顧客情報を共有する課題に関心がある。<br>メディア：家庭向けの省エネ対策に関心がある。<br>採用：エンジニアの開発環境に関心がある。</p><p>「買ってくれそう」「施策が効きそう」という予測は避けてください。確定条件と複数条件のAND/ORはコードで扱います。生成AIによる文章変換は行いません。</p></details><div id="questionPreview"></div>`;
-    else {
-      fields +=
-        info(
-          "登録済みの質問を原文のまま表示しています。独自の質問や異なる案内内容も保持し、質問ごとに編集できます。",
-        ) +
-        field(
-          "案内する内容・意図メモ",
-          "intent",
-          c.intent,
-          "保存済みのメモです。質問の文意や案内内容は下の原文で確認してください。",
-          { area: true, max: 1000 },
-        );
-      fields += c.questions
-        .map(
-          (q, i) =>
-            `<section class="metadata-section">${field(`判定する関心・状態（質問${i + 1}・原文）`, `questions.${i}.instructions`, q.instructions, "Jevへ送る独立したYes/No質問を、そのまま編集します。", { area: true, max: 1000 })}<details><summary>質問ID（詳細）</summary>${field("質問ID", `questions.${i}.key`, q.key, "JSONと共通の識別子です。質問ごとに一意にします。", { max: 64 })}</details>${i ? button("この質問を削除", `question-remove:${i}`, "small", disabled) : ""}</section>`,
-        )
-        .join("");
-      fields += button(
-        "判定質問を追加",
-        "question-add",
-        "small",
-        disabled || c.questions.length >= 5,
-      );
-    }
-    if (c.decisionMode !== "rules" && state.questionMode !== "json")
-      fields += button("JSONで編集", "questions-json", "small", disabled);
-    fields += urlTargetingFields(c, { select, field, button, disabled });
-    if (c.decisionMode !== "rules")
-      fields +=
-        select("複数の判定の組み合わせ", "combination", c.combination, {
-          all: "すべてに該当（AND）",
-          any: "いずれかに該当（OR）",
-        }) + thresholdControl(c.threshold);
+    fields +=
+      '<div id="conditionBuilder"></div>' + thresholdControl(c.threshold);
   } else if (state.tab === "content")
     fields =
       select(
@@ -1102,7 +1031,7 @@ function editor() {
       "対象者を決めて、伝える内容と配信条件を整えます。",
       button("一覧へ戻る", "back"),
     ) +
-    `<div class="grid2"><div><section class="card"><div class="tabs">${Object.entries(
+    `<div class="grid2 ${state.tab === "audience" ? "node-editor-layout" : ""}"><div><section class="card"><div class="tabs">${Object.entries(
       {
         audience: "対象者・条件",
         content: "表示コンテンツ",
@@ -1114,7 +1043,7 @@ function editor() {
       )
       .join(
         "",
-      )}</div><form id="campaignForm" class="card-body"><fieldset ${disabled ? "disabled" : ""}>${fields}</fieldset></form></section><div class="editor-footer"><span id="dirtyState">${state.dirty ? "未保存の変更があります" : "保存済みの内容です"}</span><div class="actions">${state.value.drafts.some((d) => d.campaignId === c.id) ? button("下書きを破棄", "discard-draft", "", disabled) : ""}${button("下書き保存", "save-draft", "", disabled)}${button("配信内容を確認", "review-campaign", "primary", disabled)}</div></div></div><aside class="card preview-card"><header class="card-header"><h3>表示のイメージ</h3><span class="pill">プレビュー</span></header><div class="preview-stage" id="previewStage"></div><p class="preview-caption">サイトの共通デザインを適用します。独自JavaScriptは実ページで確認してください。</p></aside></div>`
+      )}</div><form id="campaignForm" class="card-body"><fieldset ${disabled ? "disabled" : ""}>${fields}</fieldset></form></section><div class="editor-footer"><span id="dirtyState">${state.dirty ? "未保存の変更があります" : "保存済みの内容です"}</span><div class="actions">${state.value.drafts.some((d) => d.campaignId === c.id) ? button("下書きを破棄", "discard-draft", "", disabled) : ""}${button("下書き保存", "save-draft", "", disabled)}${button("配信内容を確認", "review-campaign", "primary", disabled)}</div></div></div><aside class="card preview-card ${state.tab === "audience" ? "node-editor-content-preview" : ""}"><header class="card-header"><h3>表示のイメージ</h3><span class="pill">プレビュー</span></header><div class="preview-stage" id="previewStage"></div><p class="preview-caption">サイトの共通デザインを適用します。独自JavaScriptは実ページで確認してください。</p></aside></div>`
   );
 }
 function updateQuestionPreview() {
@@ -1437,6 +1366,8 @@ async function render() {
   if (!state.session) return;
   const generation = ++renderVersion;
   closeSelectPopup();
+  conditionBuilder?.destroy();
+  conditionBuilder = null;
   previewHandle?.destroy?.();
   const route = location.hash.slice(2) || "home";
   let body;
@@ -1495,10 +1426,39 @@ async function render() {
   updateQuestionPreview();
   updateMiniPreview();
   metadataSettings.mount();
+  if ($("conditionBuilder"))
+    conditionBuilder = mountConditionBuilder($("conditionBuilder"), {
+      campaign: () => state.edit,
+      site: () => state.value.site,
+      threshold: () =>
+        Number(
+          document.querySelector('[name="threshold"]')?.value ??
+            state.edit.threshold,
+        ),
+      isDraft: () =>
+        !state.value.site.campaigns.some((c) => c.id === state.edit.id) ||
+        state.value.drafts.some((d) => d.campaignId === state.edit.id),
+      disabled:
+        !canEdit() ||
+        (state.edit.presentation.type === "custom" && !canManage()),
+      changed: (graph) => {
+        if (!state.edit) return;
+        state.edit.conditionGraph = graph;
+        delete state.edit.judgment;
+        state.edit.questions = graphQuestions(graph, { draft: true });
+        state.edit.decisionMode = graph.nodes.some((n) => n.kind === "jev")
+          ? "model"
+          : "rules";
+        state.edit.urlTargeting = { combination: "all", conditions: [] };
+        markDirty();
+      },
+      test: (body) => api(sitePath() + "/condition-test", "POST", body),
+    });
 }
 function readEditor() {
   const form = $("campaignForm");
   if (!form) return;
+  readGraphEditor();
   for (const [key, value] of new FormData(form)) {
     if (key === "thresholdPreset") continue;
     if (
@@ -1869,7 +1829,7 @@ async function handleAction(action) {
     if (
       await confirmAction(
         "配信内容を確認",
-        `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.judgment?.offer || c.intent)}</p><p>この内容で配信を開始します。実サイトでの確認は一覧のプレビューから実行できます。</p>`,
+        `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.offer || c.intent)}</p><p>この内容で配信を開始します。実サイトでの確認は一覧のプレビューから実行できます。</p>`,
         "この内容で配信開始",
       )
     ) {

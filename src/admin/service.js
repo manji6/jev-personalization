@@ -1,3 +1,9 @@
+import {
+  conditionGraphSchema,
+  draftConditionGraphSchema,
+  graphQuestions,
+  graphTest,
+} from "../condition-graph.js";
 import { metadataPolicySchema, standardMetadata } from "../metadata-policy.js";
 import { z } from "zod";
 import {
@@ -863,6 +869,38 @@ export function createAdministration({
   function normalizeCampaign(value, publish) {
     const c = structuredClone(value);
     let draftJudgment;
+    if (c.conditionGraph) {
+      const graph = (
+        publish ? conditionGraphSchema : draftConditionGraphSchema
+      ).parse(c.conditionGraph);
+      delete c.judgment;
+      c.urlTargeting = { combination: "all", conditions: [] };
+      const questions = graphQuestions(graph, { draft: !publish });
+      const mode = graph.nodes.some((n) => n.kind === "jev")
+        ? "model"
+        : "rules";
+      c.questions = questions;
+      c.decisionMode = mode;
+      if (!publish) {
+        delete c.conditionGraph;
+        c.decisionMode = "model";
+        if (!c.questions.length)
+          c.questions = [{ key: "draft", instructions: "下書き" }];
+      }
+      if (c.name === "") delete c.name;
+      const emptyTitle = !c.content?.title?.trim();
+      if (publish && emptyTitle) fail(400, "content_title_required");
+      if (emptyTitle)
+        c.content = { ...c.content, title: "validation placeholder" };
+      const parsed = campaignSchema.parse(c);
+      if (!publish) {
+        parsed.conditionGraph = graph;
+        parsed.decisionMode = mode;
+        parsed.questions = questions;
+      }
+      if (emptyTitle) parsed.content.title = "";
+      return parsed;
+    }
     if (c.decisionMode === "rules") {
       delete c.judgment;
       c.questions = [];
@@ -1400,6 +1438,34 @@ export function createAdministration({
                 : "edit";
       const value = await allowedSite(session, siteId, kind),
         site = value.site;
+      if (tail === "condition-test" && request.method === "POST") {
+        const body = z
+          .object({
+            graph: draftConditionGraphSchema,
+            currentUrl: z.string().max(4096),
+            entryUrl: z.string().max(4096),
+            threshold: z.number().min(0.5).max(0.99),
+            probabilities: z
+              .record(
+                z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+                z.number().min(0).max(1).nullable(),
+              )
+              .refine((v) => Object.keys(v).length <= 5),
+          })
+          .strict()
+          .parse(await readAdminJSON(request));
+        try {
+          return out(graphTest(site, body));
+        } catch (error) {
+          if (
+            ["test_url_rejected", "test_question_rejected"].includes(
+              error.message,
+            )
+          )
+            fail(400, error.message);
+          throw error;
+        }
+      }
       if (tail === "jev") {
         if (request.method === "GET") return out(await siteJev.status(siteId));
         if (request.method === "PUT") {

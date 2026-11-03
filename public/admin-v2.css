@@ -2161,3 +2161,14 @@ textarea.code {
   text-decoration: underline;
   font-weight: 600;
 }
+
+.node-editor-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.node-editor-content-preview {
+  display: none;
+}
+#conditionBuilder {
+  margin: 24px 0;
+  min-width: 0;
+}

@@ -606,3 +606,187 @@ test("new and legacy shared-key sites hold without dispatch, while readiness is 
     "ready",
   );
 });
+
+test("condition graph test API is scoped, CSRF protected and pure; drafts preserve incomplete nodes and publication requires complete graphs", async (t) => {
+  const { mixedGraph } = await import("./graph-fixtures.js");
+  const f = await setup(t),
+    editor = await f.user("editor"),
+    viewer = await f.user("viewer"),
+    outsider = await f.user("admin", "other");
+  const endpoint = "/admin/api/v2/sites/demo/condition-test";
+  const body = {
+    graph: mixedGraph(),
+    currentUrl: "https://www.example.com/guides/a",
+    entryUrl: "https://www.example.com/guides/a?cid=mail_runner",
+    threshold: 0.7,
+    probabilities: { comparison: 0.9, interest: null },
+  };
+  const counts = async () =>
+    Promise.all(
+      ["admin_drafts", "admin_audit", "site_jev_calls"].map((table) =>
+        f.repo.one(`SELECT count(*) AS n FROM ${table}`),
+      ),
+    );
+  const before = await counts(),
+    revision = (await f.request(editor, "/admin/api/v2/sites/demo")).json()
+      .revision;
+  let r = await f.request(editor, endpoint, "POST", body);
+  assert.equal(r.statusCode, 200, r.body);
+  assert.equal(r.json().value, true);
+  assert.deepEqual(r.json().requiredJev, ["comparison"]);
+  assert.deepEqual(await counts(), before);
+  assert.equal(f.sent.length, 0);
+  assert.equal((await f.request(null, endpoint, "POST", body)).statusCode, 401);
+  assert.equal(
+    (await f.request(viewer, endpoint, "POST", body)).statusCode,
+    403,
+  );
+  assert.equal(
+    (await f.request(outsider, endpoint, "POST", body)).statusCode,
+    403,
+  );
+  assert.equal(
+    (
+      await f.request(editor, endpoint, "POST", body, undefined, {
+        "X-JevSense-CSRF": "wrong",
+      })
+    ).statusCode,
+    403,
+  );
+  for (const bad of [
+    { ...body, currentUrl: "https://evil.example/guides/a" },
+    { ...body, currentUrl: "https://www.example.com/account" },
+    { ...body, probabilities: { unknown: 0.8 } },
+  ])
+    assert.equal(
+      (await f.request(editor, endpoint, "POST", bad)).statusCode,
+      400,
+    );
+  const cycle = structuredClone(body);
+  cycle.graph.edges.push({ id: "cycle", from: "and", to: "or" });
+  assert.equal(
+    (await f.request(editor, endpoint, "POST", cycle)).statusCode,
+    400,
+  );
+  const current = (await f.request(editor, "/admin/api/v2/sites/demo")).json(),
+    campaign = structuredClone(current.site.campaigns[0]);
+  campaign.conditionGraph = mixedGraph();
+  campaign.conditionGraph.nodes[1].condition = "";
+  campaign.conditionGraph.edges = campaign.conditionGraph.edges.filter(
+    (e) => e.id !== "b",
+  );
+  const base = "/admin/api/v2/sites/demo/campaigns/" + campaign.id;
+  r = await f.request(editor, base + "/draft", "PUT", campaign, revision);
+  assert.equal(r.statusCode, 200, r.body);
+  const draftRev = r.json().revision,
+    partial = (await f.request(editor, "/admin/api/v2/sites/demo")).json()
+      .drafts[0].campaign;
+  assert.equal(partial.conditionGraph.nodes[1].condition, "");
+  assert.equal(partial.conditionGraph.edges.length, 4);
+  r = await f.request(editor, base + "/publish", "POST", {}, draftRev);
+  assert.equal(r.statusCode, 400, r.body);
+  assert.equal(
+    (await f.request(editor, "/admin/api/v2/sites/demo")).json().site
+      .campaigns[0].conditionGraph,
+    undefined,
+  );
+  campaign.conditionGraph = mixedGraph();
+  r = await f.request(editor, base + "/draft", "PUT", campaign, draftRev);
+  assert.equal(r.statusCode, 200, r.body);
+  r = await f.request(editor, base + "/publish", "POST", {}, r.json().revision);
+  assert.equal(r.statusCode, 200, r.body);
+  const published = (await f.request(editor, "/admin/api/v2/sites/demo")).json()
+    .site.campaigns[0];
+  assert.deepEqual(published.conditionGraph, mixedGraph());
+  assert.equal(
+    published.questions[1].instructions,
+    "購入に向けて比較していますか？",
+  );
+  assert.equal(f.sent.length, 0);
+});
+
+test("Node HTTP decisions use graph short circuiting and sparse answers, report graph traces and keep deterministic URL branches keyless", async (t) => {
+  const { mixedGraph } = await import("./graph-fixtures.js");
+  const sent = [];
+  const f = await setup(t, {
+      jevFetch: async (url, init) => {
+        const body = JSON.parse(init.body);
+        sent.push(body);
+        return Response.json({
+          model: "graph-test",
+          answers: Object.fromEntries(
+            Object.keys(body.questions).map((k) => [k, { noul: 0.9 }]),
+          ),
+        });
+      },
+    }),
+    u = await f.user();
+  await f.repo.run("UPDATE admin_settings SET initialized=1 WHERE id=1");
+  const v = (await f.request(u, "/admin/api/v2/sites/demo")).json();
+  v.site.campaigns[0].conditionGraph = mixedGraph();
+  v.site.campaigns[0].minimumHistory = 0;
+  await f.repo.run(
+    "UPDATE admin_sites SET body=?,revision=? WHERE id='demo'",
+    JSON.stringify(v.site),
+    crypto.randomUUID(),
+  );
+  await f.request(
+    u,
+    path,
+    "PUT",
+    { mode: "site", apiKey: "synthetic-graph-key" },
+    "none",
+  );
+  const { urlPolicyRevision } = await import("../src/context-policy.js");
+  const value = {
+    ...input(),
+    protocolVersion: 2,
+    metadataRevision: "legacy",
+    urlPolicyRevision: await urlPolicyRevision(v.site),
+    currentPage: {
+      path: "/guides/a",
+      name: "Guide",
+      url: "https://www.example.com/guides/a",
+    },
+    entryPage: {
+      path: "/guides/a",
+      name: "Entry",
+      url: "https://www.example.com/guides/a?cid=runner",
+    },
+    visits: [],
+  };
+  let r = await f.decision("demo", value);
+  assert.equal(r.statusCode, 200, r.body);
+  assert.equal(r.json().decision, "show", r.body);
+  assert.equal(r.json().algorithmVersion, "condition-graph-v1");
+  assert.deepEqual(Object.keys(sent[0].questions), ["c0q1"]);
+  value.entryPage.url = "https://www.example.com/guides/a?cid=walker";
+  r = await f.decision("demo", value);
+  assert.equal(r.json().decision, "show");
+  assert.deepEqual(Object.keys(sent[1].questions), ["c0q0", "c0q1"]);
+  // OR URL match settles the entire graph: no key and no usage entry required.
+  const g = mixedGraph();
+  g.nodes = g.nodes.filter((n) => !["comparison", "and"].includes(n.id));
+  g.edges = g.edges.filter((e) => ["a", "b"].includes(e.id));
+  g.edges.push({ id: "final", from: "or", to: "result" });
+  v.site.campaigns[0].conditionGraph = g;
+  await f.repo.run(
+    "UPDATE admin_sites SET body=?,revision=? WHERE id='demo'",
+    JSON.stringify(v.site),
+    crypto.randomUUID(),
+  );
+  await f.repo.run("DELETE FROM site_jev_credentials WHERE site_id='demo'");
+  value.entryPage.url = "https://www.example.com/guides/a?cid=runner";
+  r = await f.decision("demo", value);
+  assert.equal(r.json().decision, "show", r.body);
+  assert.equal(sent.length, 2);
+  value.entryPage.url = "https://www.example.com/guides/a?cid=walker";
+  r = await f.decision("demo", value);
+  assert.equal(r.statusCode, 503);
+  assert.equal(r.json().reason, "model_not_configured");
+  assert.equal(sent.length, 2);
+  assert.equal(
+    (await f.repo.one("SELECT count(*) AS n FROM site_jev_calls")).n,
+    2,
+  );
+});

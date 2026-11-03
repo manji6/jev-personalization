@@ -1,3 +1,4 @@
+import { evaluateGraph, graphQuestions } from "./condition-graph.js";
 import { campaignChecks, pathAllowed } from "./engine.js";
 export function createDebugTrace(site, input) {
   const visits = input.visits.map((v, index) => ({
@@ -34,6 +35,15 @@ export function createDebugTrace(site, input) {
       threshold: c.threshold,
       combination: c.combination,
       decisionMode: c.decisionMode ?? "model",
+      ...(c.conditionGraph
+        ? {
+            graph: {
+              ...evaluateGraph(c.conditionGraph, input),
+              nodes: c.conditionGraph.nodes,
+              edges: c.conditionGraph.edges,
+            },
+          }
+        : {}),
       minimumHistory: c.minimumHistory ?? site.minQualifiedVisits,
       checks: [
         ...campaignChecks(c, input),
@@ -72,6 +82,37 @@ export function finishModelTrace(trace, prepared, result, elapsedMs) {
   );
   prepared.candidates.forEach((c, i) => {
     const entry = trace.campaigns.find((v) => v.id === c.id);
+    if (c.conditionGraph) {
+      const plan = prepared.graphPlans[c.id],
+        answers = {};
+      const list = graphQuestions(c.conditionGraph),
+        nodes = c.conditionGraph.nodes.filter((n) => n.kind === "jev");
+      entry.questions = Object.entries(plan.bindings).map(([id, key]) => {
+        const p = result.answers?.[key]?.noul;
+        answers[id] = p;
+        const index = nodes.findIndex((n) => n.id === id);
+        return {
+          key: nodes[index].key,
+          instructions: list[index].instructions,
+          probability:
+            typeof p === "number" && Number.isFinite(p) && p >= 0 && p <= 1
+              ? p
+              : null,
+          passed: typeof p === "number" && p > c.threshold,
+        };
+      });
+      entry.graph = {
+        ...entry.graph,
+        ...evaluateGraph(
+          c.conditionGraph,
+          { ...prepared.input, threshold: c.threshold },
+          answers,
+        ),
+        queried: Object.keys(plan.bindings),
+      };
+      entry.matched = entry.graph.value === true;
+      return;
+    }
     if (c.decisionMode === "rules") {
       entry.questions = [];
       entry.matched = true;

@@ -1,20 +1,10 @@
+import { evaluateGraph, graphQuestions } from "./condition-graph.js";
 import { urlTargetingMatches } from "./page-url.js";
 export const ALGORITHM_VERSION = "qualified-visits-v1";
 export const CONTEXT_ALGORITHM_VERSION = "page-context-v2";
-export function pathAllowed(path, site) {
-  let decoded;
-  try {
-    decoded = decodeURIComponent(path);
-  } catch {
-    return false;
-  }
-  if (decoded.includes("..") || /[\\?#%\u0000-\u001f]/.test(decoded))
-    return false;
-  return (
-    site.allowedPathPrefixes.some((p) => decoded.startsWith(p)) &&
-    !site.excludedPathPrefixes.some((p) => decoded.startsWith(p))
-  );
-}
+export const GRAPH_ALGORITHM_VERSION = "condition-graph-v1";
+export { pathAllowed } from "./path-policy.js";
+import { pathAllowed } from "./path-policy.js";
 export function prepare(site, input) {
   if (input.protocolVersion === 2) return prepareCurrent(site, input);
   return prepareLegacy(site, input);
@@ -43,15 +33,7 @@ function prepareLegacy(site, input) {
       Object.entries(input.facts).filter(([k]) => site.factNames.includes(k)),
     ),
   };
-  const questions = Object.fromEntries(
-    candidates.flatMap((c, i) =>
-      (c.decisionMode === "rules" ? [] : c.questions).map((q, j) => [
-        `c${i}q${j}`,
-        { type: "noul", instructions: q.instructions },
-      ]),
-    ),
-  );
-  return { candidates, state, questions };
+  return questionPlan(candidates, state, input);
 }
 function prepareCurrent(site, input) {
   if (input.entryPage && !pathAllowed(input.entryPage.path, site))
@@ -86,15 +68,47 @@ function prepareCurrent(site, input) {
       Object.entries(input.facts).filter(([k]) => site.factNames.includes(k)),
     ),
   };
-  const questions = Object.fromEntries(
-    candidates.flatMap((c, i) =>
-      (c.decisionMode === "rules" ? [] : c.questions).map((q, j) => [
-        `c${i}q${j}`,
-        { type: "noul", instructions: q.instructions },
-      ]),
-    ),
-  );
-  return { candidates, state, questions };
+  return questionPlan(candidates, state, input);
+}
+function questionPlan(initialCandidates, state, input) {
+  let candidates = initialCandidates;
+  if (candidates.some((c) => c.conditionGraph)) {
+    candidates = [...candidates].sort(
+      (a, b) => b.priority - a.priority || a.id.localeCompare(b.id),
+    );
+    const definite = candidates.findIndex((c) =>
+      c.conditionGraph
+        ? evaluateGraph(c.conditionGraph, input).value === true
+        : c.decisionMode === "rules",
+    );
+    if (definite >= 0) candidates = candidates.slice(0, definite + 1);
+  }
+  const questions = {},
+    graphPlans = {};
+  candidates.forEach((c, i) => {
+    if (c.conditionGraph) {
+      const before = evaluateGraph(c.conditionGraph, input),
+        list = graphQuestions(c.conditionGraph),
+        nodes = c.conditionGraph.nodes.filter((n) => n.kind === "jev");
+      const bindings = {};
+      nodes.forEach((node, j) => {
+        if (before.needed.includes(node.id)) {
+          const key = `c${i}q${j}`;
+          questions[key] = { type: "noul", instructions: list[j].instructions };
+          bindings[node.id] = key;
+        }
+      });
+      graphPlans[c.id] = { before, bindings };
+    } else if (c.decisionMode !== "rules")
+      c.questions.forEach(
+        (q, j) =>
+          (questions[`c${i}q${j}`] = {
+            type: "noul",
+            instructions: q.instructions,
+          }),
+      );
+  });
+  return { candidates, state, questions, graphPlans, input };
 }
 export function campaignChecks(c, input) {
   const checks = [
@@ -116,7 +130,12 @@ export function campaignChecks(c, input) {
       passed: !c.excludeFact || input.facts[c.excludeFact] === false,
     },
   ];
-  if (c.urlTargeting?.conditions.length)
+  if (c.conditionGraph)
+    checks.push({
+      key: "graph",
+      passed: evaluateGraph(c.conditionGraph, input).value !== false,
+    });
+  else if (c.urlTargeting?.conditions.length)
     checks.push({
       key: "url",
       passed: urlTargetingMatches(c.urlTargeting, input),
@@ -137,6 +156,29 @@ export function targetMatches(target = { mode: "all", paths: [] }, path) {
 }
 export function select(prepared, response) {
   const eligible = prepared.candidates.filter((c, i) => {
+    if (c.conditionGraph) {
+      const answers = {};
+      for (const [nodeId, key] of Object.entries(
+        prepared.graphPlans[c.id].bindings,
+      )) {
+        const value = response.answers?.[key]?.noul;
+        if (
+          typeof value !== "number" ||
+          !Number.isFinite(value) ||
+          value < 0 ||
+          value > 1
+        )
+          throw Error("Invalid model answer");
+        answers[nodeId] = value;
+      }
+      return (
+        evaluateGraph(
+          c.conditionGraph,
+          { ...prepared.input, threshold: c.threshold },
+          answers,
+        ).value === true
+      );
+    }
     if (c.decisionMode === "rules") return true;
     const judgments = c.questions.map(
       (q, j) => response.answers?.[`c${i}q${j}`]?.noul,
