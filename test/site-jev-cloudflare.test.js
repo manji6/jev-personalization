@@ -81,3 +81,24 @@ test("workerd uses the site's encrypted key, persists D1 usage across requests, 
   assert.equal((await f.decision()).status, 503);
   assert.equal(f.calls(), 1);
 });
+
+test("workerd rejects retired global credentials for absent and old instance-mode sites before budget or HTTP dispatch", async (t) => {
+  const f = await cloudflareFixture({ passkey: true });
+  t.after(() => f.mf.dispose());
+  let response = await f.decision();
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).reason, "model_not_configured");
+  await f.db
+    .prepare(
+      "INSERT INTO site_jev_credentials(site_id,mode,revision,updated_at) VALUES('demo','instance','retired',?)",
+    )
+    .bind(Date.now())
+    .run();
+  response = await f.decision();
+  assert.equal(response.status, 503);
+  assert.equal(f.calls(), 0);
+  assert.equal(
+    (await f.db.prepare("SELECT count(*) AS n FROM site_jev_calls").first()).n,
+    0,
+  );
+});

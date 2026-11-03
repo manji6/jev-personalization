@@ -269,14 +269,27 @@ test("missing/corrupt encryption fails closed without shared-key fallback; disab
     "SELECT * FROM site_jev_credentials WHERE site_id='demo'",
   );
   assert.equal(raw.ciphertext, null);
-  await f.request(a, path, "PUT", { mode: "instance" }, r.json().revision);
+  assert.equal(
+    (await f.request(a, path, "PUT", { mode: "instance" }, r.json().revision))
+      .statusCode,
+    400,
+  );
+  assert.equal((await f.decision()).statusCode, 503);
+  r = await f.request(
+    a,
+    path,
+    "PUT",
+    { mode: "site", apiKey: "replacement-site-test-key" },
+    r.json().revision,
+  );
+  assert.equal(r.statusCode, 200);
   const brief = input();
   brief.visits = brief.visits.map((v) => ({ ...v, visibleMs: 0 }));
   await f.decision("demo", brief);
   assert.equal(f.sent.length, 0);
   await f.decision();
   assert.equal(f.sent.length, 1);
-  assert.equal(f.sent[0].key, "Bearer instance-test-key");
+  assert.equal(f.sent[0].key, "Bearer replacement-site-test-key");
   assert.equal((await f.request(a, path + "/usage")).json().totals.started, 1);
   const noRoot = await setup(t, { jevKeyring: undefined });
   const owner = await noRoot.user();
@@ -355,6 +368,14 @@ test("AAD prevents ciphertext swapping across sites/revisions; keyring rotation 
 test("completion loss stays unconfirmed; failed start persistence prevents HTTP; retention and counts survive manager reload", async (t) => {
   const f = await setup(t),
     repo = f.repo;
+  const administrator = await f.user();
+  await f.request(
+    administrator,
+    path,
+    "PUT",
+    { mode: "site", apiKey: "test-key-value" },
+    "none",
+  );
   let calls = 0;
   const brokenRepo = {
     one: repo.one.bind(repo),
@@ -371,7 +392,7 @@ test("completion loss stays unconfirmed; failed start persistence prevents HTTP;
   };
   const manager = createSiteJev({
     repo: brokenRepo,
-    defaultApiKey: "test-key-value",
+    keyring: JSON.stringify(ring1),
     fetchImpl,
   });
   await (
@@ -379,7 +400,7 @@ test("completion loss stays unconfirmed; failed start persistence prevents HTTP;
   )({ state: {}, questions: {} });
   const fresh = createSiteJev({
     repo,
-    defaultApiKey: "test-key-value",
+    keyring: JSON.stringify(ring1),
     fetchImpl,
   });
   assert.deepEqual((await fresh.usage("demo")).totals, {
@@ -397,7 +418,7 @@ test("completion loss stays unconfirmed; failed start persistence prevents HTTP;
         return repo.run(sql, ...args);
       },
     },
-    defaultApiKey: "test-key-value",
+    keyring: JSON.stringify(ring1),
     fetchImpl,
   });
   await assert.rejects(async () => {
@@ -532,4 +553,56 @@ test("Node keyring file and encrypted credentials remain usable after the SQLite
     2,
   );
   t.after(() => rm(directory, { recursive: true, force: true }));
+});
+
+test("new and legacy shared-key sites hold without dispatch, while readiness is visible without exposing credential details", async (t) => {
+  const f = await setup(t),
+    owner = await f.user(),
+    viewer = await f.user("viewer"),
+    other = await f.user("admin", "other");
+  let status = (await f.request(owner)).json();
+  assert.equal(status.mode, "unconfigured");
+  assert.equal(status.configurationState, "missing_key");
+  assert.equal(status.instanceKeyConfigured, undefined);
+  assert.equal((await f.decision()).statusCode, 503);
+  assert.equal(f.sent.length, 0);
+  let value = (await f.request(viewer, "/admin/api/v2/sites/demo")).json();
+  assert.equal(value.readiness.jev, "missing_key");
+  assert.equal(
+    JSON.stringify(value.readiness).includes("instance-test-key"),
+    false,
+  );
+  assert.equal((await f.request(viewer)).statusCode, 403);
+  assert.equal(
+    (await f.request(other, "/admin/api/v2/sites/demo")).statusCode,
+    403,
+  );
+  await f.repo.run(
+    "INSERT INTO site_jev_credentials(site_id,mode,revision,updated_at) VALUES('demo','instance','old-instance',?)",
+    Date.now(),
+  );
+  status = (await f.request(owner)).json();
+  assert.equal(status.mode, "unconfigured");
+  assert.equal(status.revision, "old-instance");
+  assert.equal((await f.decision()).statusCode, 503);
+  assert.equal(f.sent.length, 0);
+  const saved = await f.request(
+    owner,
+    path,
+    "PUT",
+    { mode: "site", apiKey: "demo-site-private-key" },
+    "old-instance",
+  );
+  assert.equal(saved.statusCode, 200);
+  assert.equal(saved.json().configurationState, "ready");
+  assert.equal((await f.decision()).statusCode, 200);
+  assert.equal((await f.decision("other")).statusCode, 503);
+  assert.deepEqual(
+    f.sent.map((s) => s.key),
+    ["Bearer demo-site-private-key"],
+  );
+  assert.equal(
+    (await f.request(viewer, "/admin/api/v2/sites/demo")).json().readiness.jev,
+    "ready",
+  );
 });

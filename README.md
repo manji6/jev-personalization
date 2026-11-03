@@ -68,7 +68,7 @@ npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 
 ### Node.jsで運用する
 
-サイト専用キーの暗号化には`JEV_KEYRING`、または秘密JSONのパス`JEV_KEYRING_FILE`を使います。永続ディスクとHTTPSを用意し、`AUTH_MODE`、`AUTH_ORIGIN`、`AUTH_SECRET`、初回登録用`ADMIN_TOKEN`、共通キーを使う場合は`JEV_API_KEY`を実行環境へ設定して`npm start`します。既定は127.0.0.1:3000、管理DBは`data/administration.sqlite`です。
+サイト専用キーの暗号化には`JEV_KEYRING`、または秘密JSONのパス`JEV_KEYRING_FILE`を使います。永続ディスクとHTTPSを用意し、`AUTH_MODE`、`AUTH_ORIGIN`、`AUTH_SECRET`、初回登録用`ADMIN_TOKEN`、`JEV_KEYRING`または`JEV_KEYRING_FILE`を実行環境へ設定して`npm start`します。既定は127.0.0.1:3000、管理DBは`data/administration.sqlite`です。
 
 [Node.jsセットアップガイド](https://manji6.github.io/jev-personalization/getting-started/node)に、環境変数・初期設定・リバースプロキシ・バックアップの詳細を記載しています。
 
@@ -132,3 +132,5 @@ Node.js版は単一プロセス向けです。Workers版はD1とDurable Objects�
 ## ライセンス
 
 [MIT License](LICENSE)。JevやCloudflare等、外部サービスの契約・料金・データ取扱条件はそれぞれの提供元で確認してください。
+
+JevのAPIキーは管理画面の各サイトの「Jev連携」へ登録します。未設定の内容はサイトの設定状況に表示します。インスタンス共通キーは使用しません。

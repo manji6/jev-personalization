@@ -46,7 +46,7 @@ npx wrangler secret put JEV_KEYRING < data/production-jev-keyring.json
 
 上の生成・登録は初回用です。既存のJEV_KEYRINGがある場合は実行せず、鍵の世代更新手順を使います。Secretの変更そのものも実行環境の更新です。確認前にProductionへ実施しないでください。
 
-各サイトだけでAPIキーを管理するなら、共通JEV_API_KEYは不要です。共通モードのサイトは、共通キーがなければ保留になります。Production配備ではADMIN_TOKENと、JEV_API_KEYまたはJEV_KEYRINGの少なくとも一方が必要です。サイト専用キーを使うにはJEV_KEYRINGが必要です。
+Production配備にはADMIN_TOKENとJEV_KEYRINGが必要です。Jevから発行されたAPIキーは、各サイトの「Jev連携」に登録します。環境のJEV_API_KEYは使いません。共通キーを各サイトへ自動コピーする処理もありません。共通キーで運用していたサイトは、専用キーの登録が完了するまでJev方式の判定を保留します。
 
 ## Node.js
 

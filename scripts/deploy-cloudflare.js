@@ -32,9 +32,9 @@ const names = JSON.parse(listed.stdout).map((v) => v.name);
 for (const name of ["ADMIN_TOKEN"])
   if (!names.includes(name))
     throw Error("Configure production Secret " + name + " before release");
-if (!names.includes("JEV_API_KEY") && !names.includes("JEV_KEYRING"))
+if (!names.includes("JEV_KEYRING"))
   throw Error(
-    "Configure production Secret JEV_KEYRING (site keys) or JEV_API_KEY (shared key) before release",
+    "Configure production Secret JEV_KEYRING for site API key encryption before release",
   );
 if (!names.includes("AUTH_SECRET")) {
   const { randomBytes } = await import("node:crypto");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
-import { fixture, input } from "./helpers.js";
+import { fixture, input, seedSiteKey, testJevKeyring } from "./helpers.js";
 export const adminToken = "cloudflare-test-token-".repeat(3);
 const createRuntime = (options) =>
   new Miniflare(convertV4MiniflareOptions(options));
@@ -40,7 +40,9 @@ export async function cloudflareFixture(options = {}) {
           }
         : {}),
       ADMIN_TOKEN: adminToken,
+      // Keep a retired global key present to prove it is never selected.
       JEV_API_KEY: "fake-test-only",
+      JEV_KEYRING: JSON.stringify(testJevKeyring),
       DAILY_REQUEST_BUDGET: options.budget ?? "1000",
       MAX_CONCURRENT: "10",
       ...(options.bindings || {}),
@@ -75,7 +77,7 @@ export async function cloudflareFixture(options = {}) {
     .prepare("UPDATE app_config SET body = ?, revision = ? WHERE id = 1")
     .bind(JSON.stringify(config), "test-initial")
     .run();
-  if (options.passkey)
+  {
     for (const migration of [
       "0002_administration.sql",
       "0003_site_jev.sql",
@@ -86,6 +88,21 @@ export async function cloudflareFixture(options = {}) {
           .replace(/^--.*$/gm, "")
           .trim(),
       );
+  }
+  if (
+    (!options.passkey && options.siteKeys !== false) ||
+    options.siteKeys === true
+  ) {
+    for (const site of config.sites) {
+      await db
+        .prepare(
+          "INSERT INTO admin_sites(id,body,revision) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING",
+        )
+        .bind(site.id, JSON.stringify(site), "test-initial")
+        .run();
+      await seedSiteKey(db, site.id);
+    }
+  }
   const dispatch = (path, init = {}) =>
     mf.dispatchFetch("https://api.example.com" + path, init);
   const decision = (value = input(), extra = {}) =>

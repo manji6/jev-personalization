@@ -15,7 +15,7 @@ Cloudflare Workers版を実装しています。管理画面・SDK・判断API�
 | 管理画面・SDK              | Workers Static Assets        | 配布用HTML・CSS・JavaScript                     |
 | 判断・管理API              | Workers                      | 要求中の処理だけ。履歴の永続保存なし            |
 | 施策・サイト設定           | D1（DBバインディング）       | サイト設定、質問、配信条件、コンテンツ          |
-| 外部APIキーと管理認証      | Workers Secrets              | JEV_API_KEY、ADMIN_TOKEN                        |
+| 外部APIキーと管理認証      | Workers Secrets              | JEV_KEYRING、ADMIN_TOKEN                        |
 | 日次費用上限・同時実行制御 | SQLite-backed Durable Object | UTC日単位の要求件数、短時間のサーバー要求許可票 |
 | 要求頻度の制限             | Rate Limiting binding        | エッジの短期要求カウンター                      |
 
@@ -25,7 +25,7 @@ D1は管理用設定DBです。閲覧者ID・閲覧者セッション・行動�
 
 - CloudflareアカウントとWorkers/D1/Durable Objectsを使えるプラン。SQLite-backed Durable Objectsを使用します。プラン別の料金・上限は契約時に確認してください。
 - このコードが入っているGitHubリポジトリと、デプロイするブランチ。本リポジトリでは`main`です。自分のアカウントで運用する場合はForkまたは複製してください。
-- JevのAPIキー。Cloudflare側で名前を`JEV_API_KEY`にします。
+- サイトキーの暗号化用JEV_KEYRING。JevのAPIキーはサイトごとに管理画面へ登録します。
 - ランダムな32文字以上の管理トークン。Cloudflare側で名前を`ADMIN_TOKEN`にします。
 
 キーや管理トークンをGitHubのファイルへ書かないでください。この開発環境に設定されたキーはCloudflareへ自動転送されません。
@@ -107,15 +107,17 @@ Workerの環境設定で、以下を**Secret**として追加します。ビル�
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-| 名前        | 値                                 |
-| ----------- | ---------------------------------- |
-| JEV_API_KEY | 利用するJevのAPIキー               |
-| ADMIN_TOKEN | ランダムな32文字以上の管理トークン |
+| 名前        | 値                                            |
+| ----------- | --------------------------------------------- |
+| JEV_KEYRING | サイトごとのJev APIキーを暗号化するキーストア |
+| ADMIN_TOKEN | ランダムな32文字以上の管理トークン            |
 
 CLIでも、初回デプロイ後に対話入力で登録できます。
 
 ```sh
-npx wrangler secret put JEV_API_KEY
+# 未設定の場合だけ、暗号化キーを生成・登録します。
+npm run jev:keyring:create -- data/production-jev-keyring.json
+npx wrangler secret put JEV_KEYRING < data/production-jev-keyring.json
 npx wrangler secret put ADMIN_TOKEN
 ```
 
@@ -169,7 +171,7 @@ npm run cf:migrate:local
 npm run dev:cloudflare
 ```
 
-ローカルのD1とDurable Objectsは`.wrangler/`に保存され、本番には接続しません。`.dev.vars`を必要に応じて作り、ADMIN_TOKENとJEV_API_KEYを設定します。このファイルはGitの除外対象です。キーなしなら管理画面のHTML確認まで可能です。APIの利用には管理トークンが必要です。
+ローカルのD1とDurable Objectsは`.wrangler/`に保存され、本番には接続しません。`.dev.vars`を必要に応じて作り、ADMIN_TOKEN・AUTH_SECRET・JEV_KEYRINGを設定します。Jev APIキーはサイトごとに管理画面から登録します。このファイルはGitの除外対象です。キーなしなら管理画面のHTML確認まで可能です。APIの利用には管理トークンが必要です。
 
 `http://localhost:8787/admin`で管理画面を開けます。SDK自体はHTTPS用なので、対象サイトまで含むローカル検証には信頼できるHTTPS環境を用意してください。`wrangler dev --remote`はこの手順では使いません。実キーで適格な閲覧を送ると、ローカルでもJevへの実要求が発生します。
 
@@ -214,4 +216,4 @@ Cloudflare統合テストはworkerd、実D1エミュレーター、実Durable Ob
 
 ## 新管理画面のサイト別Jevキー
 
-パスキー方式では共通JEV_API_KEYに加え、サイト専用キーを[Jev連携画面](../help/guides/jev.md)から管理できます。実行時Secret JEV_KEYRINGと0003の移行が必要です。値を通常変数やビルドログへ出さない[初期設定手順](../help/operations/jev-keys.md)を使います。利用記録はD1へ保存しますが、閲覧者の履歴・要求本文は保存しません。共有キーを使わない運用ではJEV_API_KEYは不要です。
+Jev APIキーは各サイトの[Jev連携画面](../help/guides/jev.md)から登録します。実行時Secret JEV_KEYRINGと0003の移行が必要です。[暗号化キーの初期設定](../help/operations/jev-keys.md)を参照してください。環境の共通キーは使用しません。利用記録はD1へ保存しますが、閲覧者の履歴・要求本文は保存しません。

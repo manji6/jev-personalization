@@ -1299,3 +1299,267 @@ test("URL-only campaign editor saves an entry cid condition with zero required h
   expect(published.questions).toEqual([]);
   expect(calls).toBe(0);
 });
+
+async function seedEditorCampaign(page, campaign) {
+  const value = (await browserAPI(page, "/admin/api/v2/sites/demo")).site;
+  value.campaigns = [campaign];
+  db.raw
+    .prepare("UPDATE admin_sites SET body=?,revision=? WHERE id='demo'")
+    .run(JSON.stringify(value), crypto.randomUUID());
+  await page.reload();
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page.locator('[data-open="guide"]').first().click();
+  await expect(page.locator("#campaignForm")).toBeVisible();
+}
+for (const variant of ["current", "legacy", "original"])
+  test(`saved ${variant} questions default to input forms and preserve five OR conditions across JSON, drafts, publication and reopening`, async ({
+    page,
+  }) => {
+    await setup(page);
+    const { guidedQuestions } = await import("../../src/questions.js");
+    const c = structuredClone(
+      (await browserAPI(page, "/admin/api/v2/sites/demo")).site.campaigns[0],
+    );
+    c.combination = "any";
+    c.questions =
+      variant === "original"
+        ? Array.from({ length: 5 }, (_, i) => ({
+            key: `custom_${i}`,
+            instructions: `案内${i + 1}について：この閲覧者は「関心${i + 1}」に該当しますか？\n原文を保持してください。`,
+          }))
+        : guidedQuestions({
+            offer: "夏のウェアをご案内",
+            conditions: Array.from(
+              { length: 5 },
+              (_, i) => `関心${i + 1}に当てはまる`,
+            ),
+            keys: Array.from({ length: 5 }, (_, i) => `custom_${i}`),
+            templateVersion: variant,
+          });
+    delete c.judgment;
+    await seedEditorCampaign(page, c);
+    await expect(
+      page.getByLabel("判定質問（JSON）", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("combobox", {
+        name: "複数の判定の組み合わせ",
+        exact: true,
+      }),
+    ).toContainText("OR");
+    if (variant === "original") {
+      for (let i = 0; i < 5; i++)
+        await expect(
+          page.locator(`[name="questions.${i}.instructions"]`),
+        ).toHaveValue(c.questions[i].instructions);
+    } else {
+      await expect(
+        page.getByLabel("何を伝えたいですか？", { exact: true }),
+      ).toHaveValue("夏のウェアをご案内");
+      for (let i = 0; i < 5; i++)
+        await expect(
+          page.locator(`[name="judgment.conditions.${i}"]`),
+        ).toHaveValue(`関心${i + 1}に当てはまる`);
+    }
+    for (let i = 0; i < 2; i++) {
+      await page
+        .getByRole("button", { name: "JSONで編集", exact: true })
+        .click();
+      expect(
+        JSON.parse(
+          await page
+            .getByLabel("判定質問（JSON）", { exact: true })
+            .inputValue(),
+        ),
+      ).toEqual(c.questions);
+      await page
+        .getByRole("button", { name: "入力支援に切り替える", exact: true })
+        .click();
+    }
+    const draft = await saveThresholdDraft(page);
+    expect(draft.questions).toEqual(c.questions);
+    expect(draft.combination).toBe("any");
+    await page
+      .getByRole("button", { name: "配信内容を確認", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "この内容で配信開始", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "施策一覧", exact: true }),
+    ).toBeVisible();
+    const published = (await browserAPI(page, "/admin/api/v2/sites/demo")).site
+      .campaigns[0];
+    expect(published.questions).toEqual(c.questions);
+    expect(published.combination).toBe("any");
+    await page.reload();
+    await page.locator('a[data-nav="campaigns"]').click();
+    await page.locator('[data-open="guide"]').first().click();
+    await expect(
+      page.getByLabel("判定質問（JSON）", { exact: true }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "JSONで編集", exact: true }).click();
+    expect(
+      JSON.parse(
+        await page.getByLabel("判定質問（JSON）", { exact: true }).inputValue(),
+      ),
+    ).toEqual(c.questions);
+    expect(calls).toBe(0);
+  });
+
+test("edited JSON converts to original-question forms without retaining stale guidance or changing OR semantics", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.getByRole("button", { name: "新しい施策", exact: true }).click();
+  await page.getByLabel("何を伝えたいですか？", { exact: true }).fill("案内");
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
+    .fill("導入に関心がある");
+  await page.getByRole("button", { name: "JSONで編集", exact: true }).click();
+  const questions = [
+    { key: "one", instructions: "任意の原文1？" },
+    { key: "two", instructions: "別の案内の原文2？" },
+  ];
+  await page
+    .getByLabel("判定質問（JSON）", { exact: true })
+    .fill(JSON.stringify(questions));
+  await page
+    .getByRole("button", { name: "入力支援に切り替える", exact: true })
+    .click();
+  await expect(page.locator('[name="questions.0.instructions"]')).toHaveValue(
+    questions[0].instructions,
+  );
+  await expect(page.locator('[name="questions.1.instructions"]')).toHaveValue(
+    questions[1].instructions,
+  );
+  const c = await saveThresholdDraft(page);
+  expect(c.questions).toEqual(questions);
+  expect(c.judgment).toBeUndefined();
+});
+
+test("site readiness messages explain missing keys, disappear on save, and are scoped/read-only for viewers", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  const status = page.getByRole("region", {
+    name: "サイトの設定状況",
+    exact: true,
+  });
+  await expect(status).toContainText("Jev APIキーが未設定");
+  await status
+    .getByRole("link", { name: "Jev連携を設定", exact: true })
+    .click();
+  await page
+    .getByRole("combobox", { name: "使用するキー", exact: true })
+    .click();
+  await expect(
+    page.getByRole("option", { name: "インスタンス共通キー", exact: true }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page
+    .getByLabel("新しいサイト専用APIキー", { exact: true })
+    .fill("synthetic-readiness-key");
+  await page
+    .getByRole("button", { name: "Jev接続設定を保存", exact: true })
+    .click();
+  await page.getByRole("button", { name: "保存する", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Jev接続設定を保存しました",
+  );
+  await expect(status).toHaveCount(0);
+  const current = (await browserAPI(page, "/admin/api/v2/sites/demo")).site;
+  expect(
+    (
+      await browserAPI(page, "/admin/api/v2/sites", "POST", {
+        ...current,
+        id: "other",
+        name: "Other site",
+        campaigns: [],
+      })
+    ).status,
+  ).toBe(201);
+  await page.reload();
+  await page
+    .getByRole("combobox", { name: "サイトを切り替える", exact: true })
+    .click();
+  await page.locator('[role="option"][data-value="other"]').click();
+  await expect(status).toContainText("Jev APIキーが未設定");
+  await expect(status).toContainText("配信中の施策がありません");
+  await page
+    .getByRole("combobox", { name: "サイトを切り替える", exact: true })
+    .click();
+  await page.locator('[role="option"][data-value="demo"]').click();
+  await expect(status).toHaveCount(0);
+
+  const user = db.raw.prepare("SELECT id FROM admin_users").get();
+  db.raw
+    .prepare(
+      "INSERT INTO admin_memberships(user_id,site_id,role) VALUES(?,'demo','viewer')",
+    )
+    .run(user.id);
+  db.raw
+    .prepare(
+      "INSERT INTO admin_users(id,email,display_name,global_role,status,created_at) VALUES('backup-owner','backup@example.com','Backup','superuser','active',?)",
+    )
+    .run(Date.now());
+  db.raw
+    .prepare("UPDATE admin_users SET global_role='member' WHERE id=?")
+    .run(user.id);
+  db.raw.prepare("DELETE FROM site_jev_credentials WHERE site_id='demo'").run();
+  await page.reload();
+  await expect(status).toContainText("サイト管理者に依頼");
+  await expect(
+    status.getByRole("link", { name: "Jev連携を設定", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator('a[data-nav="jev"]')).toHaveCount(0);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`readiness-${width}.png`),
+      fullPage: true,
+    });
+  }
+  expect(calls).toBe(0);
+});
+
+test("removing and adding guided conditions preserves surviving IDs and allows AND without changing restored text", async ({
+  page,
+}) => {
+  await setup(page);
+  const { guidedQuestions } = await import("../../src/questions.js");
+  const c = structuredClone(
+    (await browserAPI(page, "/admin/api/v2/sites/demo")).site.campaigns[0],
+  );
+  c.combination = "any";
+  c.questions = guidedQuestions({
+    offer: "案内",
+    conditions: ["Aに関心", "Bに関心", "Cに関心"],
+    keys: ["a", "b", "c"],
+  });
+  delete c.judgment;
+  await seedEditorCampaign(page, c);
+  await page
+    .getByRole("button", { name: "この条件を削除", exact: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "判定する関心・状態を追加", exact: true })
+    .click();
+  await page.locator('[name="judgment.conditions.2"]').fill("Dに関心");
+  await page
+    .getByRole("combobox", { name: "複数の判定の組み合わせ", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "すべてに該当（AND）", exact: true })
+    .click();
+  const draft = await saveThresholdDraft(page);
+  expect(draft.questions.map((q) => q.key)).toEqual(["a", "c", "condition_1"]);
+  expect(draft.judgment.conditions).toEqual(["Aに関心", "Cに関心", "Dに関心"]);
+  expect(draft.combination).toBe("all");
+});

@@ -18,7 +18,8 @@ import {
   ALGORITHM_VERSION,
   CONTEXT_ALGORITHM_VERSION,
 } from "../engine.js";
-import { createJev } from "../jev.js";
+import { createSiteJev } from "../site-jev.js";
+import { AdminDatabase } from "../admin/database.js";
 import { D1Store, revisionOf } from "./store.js";
 export { ModelBudget } from "./budget.js";
 import { publicOffer, customModule } from "../offer-response.js";
@@ -195,7 +196,6 @@ export default {
           setupIdentity: identity,
           deployment: info,
           jevKeyring: env.JEV_KEYRING,
-          defaultJevKey: env.JEV_API_KEY,
           defaults: {
             model: env.JEV_MODEL ?? "jev-1.14.0",
             dailyRequestBudget: integer(
@@ -492,11 +492,6 @@ export default {
         });
       }
       const stub = isPreview && env.PREVIEW_MODEL_MODE === "stub";
-      if (!administration && !env.JEV_API_KEY && !stub)
-        return respond(
-          { ...base, decision: "hold", reason: "model_not_configured" },
-          503,
-        );
       if (
         stub &&
         administration &&
@@ -526,7 +521,10 @@ export default {
         try {
           callModel = administration
             ? await administration.prepareJev(site.id, runtime.model)
-            : createJev({ apiKey: env.JEV_API_KEY, model: runtime.model });
+            : await createSiteJev({
+                repo: new AdminDatabase(env.DB),
+                keyring: env.JEV_KEYRING,
+              }).prepare(site.id, runtime.model);
         } catch {
           return respond(
             { ...base, decision: "hold", reason: "model_not_configured" },

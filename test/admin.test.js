@@ -253,6 +253,7 @@ test("drafts preserve published delivery, deterministic questions compile only o
   assert.equal(after.content.title, "Updated");
   assert.equal(after.enabled, true);
   assert.deepEqual(after.questions, guidedQuestions(campaign.judgment));
+  assert.deepEqual(after.judgment, campaign.judgment);
   assert.equal(f.calls(), 0);
   assert.equal(
     (await f.administration.repo.all("SELECT * FROM admin_drafts")).length,

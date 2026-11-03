@@ -2,19 +2,19 @@
 
 ## 実行時設定
 
-| 名前                        | 意味                                                |
-| --------------------------- | --------------------------------------------------- |
-| AUTH_MODE                   | passkeyで新管理画面を使用                           |
-| AUTH_ORIGIN                 | 固定された管理画面Origin。HTTPS、末尾スラッシュなし |
-| AUTH_SECRET                 | 環境ごとの署名Secret。32文字以上                    |
-| ADMIN_TOKEN                 | 初回Superuser登録用。32文字以上                     |
-| JEV_API_KEY                 | インスタンス共通のJevキー                           |
-| JEV_MODEL                   | 初回設定に使うモデル名                              |
-| DAILY_REQUEST_BUDGET        | 初回設定に使うUTC日単位の実行上限                   |
-| MAX_CONCURRENT              | 初回設定に使う同時実行数                            |
-| DEPLOYMENT_TIER             | Previewだけpreviewを指定                            |
-| PREVIEW_MODEL_MODE          | Previewのstubでテスト値を使用                       |
-| PREVIEW_ACCESS_DOMAIN / AUD | Accessの信頼する発行元と対象アプリ                  |
+| 名前                           | 意味                                                    |
+| ------------------------------ | ------------------------------------------------------- |
+| AUTH_MODE                      | passkeyで新管理画面を使用                               |
+| AUTH_ORIGIN                    | 固定された管理画面Origin。HTTPS、末尾スラッシュなし     |
+| AUTH_SECRET                    | 環境ごとの署名Secret。32文字以上                        |
+| ADMIN_TOKEN                    | 初回Superuser登録用。32文字以上                         |
+| JEV_KEYRING / JEV_KEYRING_FILE | サイトAPIキー暗号化用キーストア、またはその秘密ファイル |
+| JEV_MODEL                      | 初回設定に使うモデル名                                  |
+| DAILY_REQUEST_BUDGET           | 初回設定に使うUTC日単位の実行上限                       |
+| MAX_CONCURRENT                 | 初回設定に使う同時実行数                                |
+| DEPLOYMENT_TIER                | Previewだけpreviewを指定                                |
+| PREVIEW_MODEL_MODE             | Previewのstubでテスト値を使用                           |
+| PREVIEW_ACCESS_DOMAIN / AUD    | Accessの信頼する発行元と対象アプリ                      |
 
 モデルと予算は初回登録時に管理DBへ引き継ぎます。以後の設定元はSuperuserの「JevSense管理」です。環境変数だけを書き換えてDBの値を上書きする運用ではありません。
 

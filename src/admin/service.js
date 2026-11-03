@@ -20,7 +20,11 @@ import {
   authConfiguration,
 } from "./crypto.js";
 import { siteSchema, campaignSchema, id } from "../schema.js";
-import { guidedJudgmentSchema, guidedQuestions } from "../questions.js";
+import {
+  guidedJudgmentSchema,
+  draftJudgmentSchema,
+  guidedQuestions,
+} from "../questions.js";
 import { pathAllowed, targetMatches } from "../engine.js";
 import { publicOffer, codeHash } from "../offer-response.js";
 import {
@@ -106,7 +110,6 @@ export function createAdministration({
   clock = Date.now,
   defaults = {},
   jevKeyring,
-  defaultJevKey,
   jevFetch,
 }) {
   const config = authConfiguration(origin, secret),
@@ -114,7 +117,6 @@ export function createAdministration({
   const siteJev = createSiteJev({
     repo,
     keyring: jevKeyring,
-    defaultApiKey: defaultJevKey,
     fetchImpl: jevFetch,
     clock,
   });
@@ -892,13 +894,7 @@ export function createAdministration({
     if (c.judgment) {
       if (publish) c.questions = guidedQuestions(c.judgment);
       else {
-        draftJudgment = z
-          .object({
-            offer: z.string().trim().max(400),
-            conditions: z.array(z.string().trim().max(400)).min(1).max(5),
-          })
-          .strict()
-          .parse(c.judgment);
+        draftJudgment = draftJudgmentSchema.parse(c.judgment);
         const valid = guidedJudgmentSchema.safeParse(draftJudgment);
         c.questions = valid.success
           ? guidedQuestions(valid.data)
@@ -1434,6 +1430,11 @@ export function createAdministration({
         );
         return out({
           site,
+          readiness: {
+            jev: (await siteJev.status(siteId)).configurationState,
+            metadataEnabled: site.metadataEnabled,
+            hasActiveCampaigns: site.campaigns.some((c) => c.enabled),
+          },
           revision: value.revision,
           role: value.role,
           drafts: drafts.map((d) => ({

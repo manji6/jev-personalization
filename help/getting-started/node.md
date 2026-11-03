@@ -17,16 +17,16 @@ cp config/example.json data/config.json
 
 ## 実行時設定
 
-| 名前          | 内容                                      |
-| ------------- | ----------------------------------------- |
-| AUTH_MODE     | passkey                                   |
-| AUTH_ORIGIN   | 管理画面の正確なHTTPS Origin              |
-| AUTH_SECRET   | 独立したランダムな32文字以上の秘密情報    |
-| ADMIN_TOKEN   | 初回Superuser登録用のランダムな32文字以上 |
-| JEV_API_KEY   | 共通キーを使う場合のJevキー               |
-| CONFIG_PATH   | 初期データ。既定data/config.json          |
-| ADMIN_DB_PATH | 管理DB。既定data/administration.sqlite    |
-| HOST / PORT   | 既定127.0.0.1 / 3000                      |
+| 名前                           | 内容                                                           |
+| ------------------------------ | -------------------------------------------------------------- |
+| AUTH_MODE                      | passkey                                                        |
+| AUTH_ORIGIN                    | 管理画面の正確なHTTPS Origin                                   |
+| AUTH_SECRET                    | 独立したランダムな32文字以上の秘密情報                         |
+| ADMIN_TOKEN                    | 初回Superuser登録用のランダムな32文字以上                      |
+| JEV_KEYRING / JEV_KEYRING_FILE | サイトキーを暗号化するキーストア、またはその秘密ファイルのパス |
+| CONFIG_PATH                    | 初期データ。既定data/config.json                               |
+| ADMIN_DB_PATH                  | 管理DB。既定data/administration.sqlite                         |
+| HOST / PORT                    | 既定127.0.0.1 / 3000                                           |
 
 Secretは運用環境の秘密管理サービスで渡すことを推奨します。ローカルの`.env`を使う場合、通常の`npm start`が自動で読み込むとは仮定せず、Node.jsの`--env-file`等で明示的に読み込ませてください。`.env`はGitへ追加しません。
 
@@ -38,7 +38,7 @@ npm start
 node --env-file=.env src/app.js
 ```
 
-サイト専用キーを使う場合は、[暗号化キーの手順](../operations/jev-keys)に従い`JEV_KEYRING`、または`JEV_KEYRING_FILE`に専用JSONの絶対パスを設定します。JEV_KEYRINGを優先し、AUTH_SECRETとは独立して管理します。DBと暗号化キーの両方を永続化してください。
+サイト専用キーを使うために、[暗号化キーの手順](../operations/jev-keys)に従い`JEV_KEYRING`、または`JEV_KEYRING_FILE`に専用JSONの絶対パスを設定します。JEV_KEYRINGを優先し、AUTH_SECRETとは独立して管理します。DBと暗号化キーの両方を永続化してください。
 
 ## HTTPSとプロキシ
 

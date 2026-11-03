@@ -80,7 +80,7 @@ npm run cf:release -- --reviewed-commit FULL_40_CHARACTER_COMMIT_SHA
 - 配置記録が同じコミットを示し、未コミット版のPreviewではない。
 - Preview配置時からProductionの構成を変更していない。
 - ProductionとPreviewでDBを共有していない。
-- 本番のJEV_API_KEY・初回登録用ADMIN_TOKENがSecretとして存在する。
+- 本番のJEV_KEYRING・初回登録用ADMIN_TOKENがSecretとして存在する。
 
 本番のAUTH_SECRETがまだない場合は、本番リリースの操作内で新しい独立した値を生成し、Secretとして登録します。Previewの値はコピーしません。その後に本番DBの追加移行とコード配備を行います。確認用D1のユーザーや施策は本番に入りません。
 

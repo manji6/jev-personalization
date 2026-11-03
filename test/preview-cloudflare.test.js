@@ -116,6 +116,7 @@ test("stub mode cannot be enabled by Preview flags alone on a Production Worker"
   const f = await cloudflareFixture({
     passkey: true,
     bindings: { PREVIEW_MODEL_MODE: "stub" },
+    siteKeys: true,
   });
   t.after(() => f.mf.dispose());
   const response = await f.decision();

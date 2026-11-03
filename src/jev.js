@@ -6,7 +6,7 @@ export function createJev({
   onDispatch,
   onComplete,
 }) {
-  if (!apiKey) throw new Error("JEV_API_KEY is required");
+  if (!apiKey) throw new Error("A site API key is required");
   return async ({ state, questions }) => {
     // Serialize before reserving a log row. A failed log write prevents dispatch.
     const requestBody = JSON.stringify({ model, state, questions });

@@ -18,7 +18,6 @@ export async function buildManagedApp({
   jev,
   defaults = {},
   jevKeyring = process.env.JEV_KEYRING,
-  defaultJevKey = process.env.JEV_API_KEY,
   jevFetch,
   jevKeyringPath = process.env.JEV_KEYRING_FILE,
 }) {
@@ -50,7 +49,6 @@ export async function buildManagedApp({
       assets,
       defaults,
       jevKeyring,
-      defaultJevKey,
       jevFetch,
     }),
     origin,

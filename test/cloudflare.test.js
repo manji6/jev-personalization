@@ -118,7 +118,11 @@ test("Workers decision uses real D1, filters state, composes response and enforc
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
     .all();
   assert.ok(
-    !tables.results.some((row) => /visits|sessions|viewers/.test(row.name)),
+    !tables.results.some(
+      (row) =>
+        !row.name.startsWith("admin_") &&
+        /visits|sessions|viewers/.test(row.name),
+    ),
   );
 });
 test("Workers bounds JSON bodies before parsing and protects management endpoints", async (t) => {
@@ -329,7 +333,7 @@ test("Workers initial context supports entry URL rules without paid calls or quo
       },
     ],
   };
-  const f = await setup(t, { config, budget: "0" });
+  const f = await setup(t, { config, budget: "0", siteKeys: false });
   const page = (url) => ({ path: new URL(url).pathname, name: "Polo", url });
   const payload = {
     siteId: "demo",

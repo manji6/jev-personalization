@@ -28,7 +28,7 @@
 
 ## Cloudflareの認証エラー
 
-CLOUDFLARE_API_TOKENとJEV_API_KEYは別です。Tokenの対象アカウントと操作権限を確認します。Secretの「ready」は実APIの許可を保証しません。
+CLOUDFLARE_API_TOKENとサイトごとのJev APIキー、暗号化用JEV_KEYRINGは別です。Tokenの対象アカウントと操作権限を確認します。Secretの「ready」は実APIの許可を保証しません。
 
 アカウント用API Tokenはユーザー用の`/user/tokens/verify`だけでは検証できません。`wrangler whoami`またはアカウント用検証APIを使い、401だけで再入力を繰り返さないでください。
 

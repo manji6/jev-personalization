@@ -14,7 +14,7 @@ Dockerfileは非rootの配備例です。/app/dataへ書込可能な永続ボリ
 
 管理者はパスキー、Cookie、CSRF、サイト別権限を使います。ADMIN_TOKENは初回登録だけです。AUTH_SECRETは診断認可用、JEV_KEYRINGはサイト専用キー暗号化用で、別の値として保管・更新します。
 
-サイト専用APIキーはサイト管理者/Superuserだけが登録・変更でき、値を読み戻せません。暗号化鍵は実行時SecretかNode.jsのJEV_KEYRING_FILEへ置きます。DBには暗号文だけを保存し、共通JEV_API_KEYとサイト専用キーの選択は各サイトで管理します。復号不能・専用キー失効時に共通キーへ自動では戻りません。
+サイト専用APIキーはサイト管理者/Superuserだけが登録・変更でき、値を読み戻せません。暗号化鍵は実行時SecretかNode.jsのJEV_KEYRING_FILEへ置きます。DBには暗号文だけを保存し、各サイトには専用のAPIキーを登録します。未設定・復号不能・失効時は判定を保留し、他のキーは使いません。
 
 生成・バックアップ・世代更新・失効は[キーの運用](../help/operations/jev-keys.md)を使ってください。SecretやDBの全体出力、Cookie、Authorization、要求本文、診断認可、閲覧データをプロキシ/APMへ記録しません。外部APMの自動リクエスト本文収集も無効にします。
 

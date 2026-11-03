@@ -2,14 +2,14 @@
 
 ## キーを区別する
 
-| 名前                 | 用途                      | 保存先                                         |
-| -------------------- | ------------------------- | ---------------------------------------------- |
-| CLOUDFLARE_API_TOKEN | 配備・D1・Access等の操作  | 作業環境/CIの秘密管理                          |
-| JEV_API_KEY          | 共通キーによるJev判定     | Worker/Node.jsの実行時Secret                   |
-| ADMIN_TOKEN          | 本番の最初のSuperuser登録 | 実行時Secret。初回後の通常ログインには使わない |
-| AUTH_SECRET          | 診断認可の署名            | 環境ごとの独立した実行時Secret                 |
+| 名前                 | 用途                            | 保存先                                         |
+| -------------------- | ------------------------------- | ---------------------------------------------- |
+| CLOUDFLARE_API_TOKEN | 配備・D1・Access等の操作        | 作業環境/CIの秘密管理                          |
+| JEV_KEYRING          | サイト専用APIキーの暗号化・復号 | Worker/Node.jsの実行時Secret                   |
+| ADMIN_TOKEN          | 本番の最初のSuperuser登録       | 実行時Secret。初回後の通常ログインには使わない |
+| AUTH_SECRET          | 診断認可の署名                  | 環境ごとの独立した実行時Secret                 |
 
-**ビルド用のCloudflareトークンと、アプリ実行時のJevキーは別です。** 値をGit、HTML、JavaScript、通常変数、Issuesへ入れないでください。管理画面にも値を出しません。
+**Cloudflare操作用トークン、暗号化キー、サイトごとのJev APIキーはそれぞれ別です。** 値をGit、HTML、JavaScript、通常変数、Issuesへ入れないでください。管理画面にも値を出しません。
 
 Cloudflareの設定では、APIキーを通常のテキスト変数ではなく**Secret**として登録します。APIから設定全体を表示すると、平文変数が出力に混ざることがあります。確認は名前・種類等に限定します。
 

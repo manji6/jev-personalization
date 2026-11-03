@@ -118,13 +118,14 @@ npm run cf:preview
 
 ## 7. 本番のSecretを設定する
 
-本番には初回登録用の実行時Secret `ADMIN_TOKEN`と、共通キー用`JEV_API_KEY`またはサイト専用キー暗号化用`JEV_KEYRING`の少なくとも一方が必要です。サイト専用キーを使う場合は[暗号化キーの初期設定](../operations/jev-keys)も行ってください。API Tokenとは別のものです。最初の管理者を登録するADMIN_TOKENは、ランダムな32文字以上にします。
+本番には初回登録用の実行時Secret `ADMIN_TOKEN`と、サイトのAPIキーを暗号化する`JEV_KEYRING`が必要です。[暗号化キーの初期設定](../operations/jev-keys)に従って、既存の値がない場合だけ生成・登録します。Cloudflare操作用のAPI Tokenとは別です。
 
 ```sh
 npx wrangler secret put ADMIN_TOKEN
-# 共通キーを使う場合
-npx wrangler secret put JEV_API_KEY
+# JEV_KEYRINGは上記の初期設定手順で登録します。
 ```
+
+Jev APIキーは本番配備後、管理画面の各サイトの「Jev連携」から登録します。共通のJEV_API_KEYは不要です。
 
 本番AUTH_SECRETは、まだない場合、明示的な本番リリース操作の中で独立した値を生成して設定します。Previewの値をコピーしません。既存環境の値は上書きしません。
 

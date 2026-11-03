@@ -16,7 +16,6 @@ import {
   draftIntent,
 } from "./engine.js";
 import { Store } from "./store.js";
-import { createJev } from "./jev.js";
 import { publicOffer, customModule } from "./offer-response.js";
 import {
   DEBUG_HEADER,
@@ -370,6 +369,11 @@ export async function buildApp({
     const runtime = runtimeSettings
       ? await runtimeSettings()
       : { model: modelName, dailyRequestBudget, maxConcurrent };
+    if (!prepareModel && !jev)
+      return respond(
+        { ...base, decision: "hold", reason: "model_not_configured" },
+        503,
+      );
     let callModel = (p) => jev(p, runtime.model);
     if (prepareModel) {
       try {
@@ -427,10 +431,6 @@ if (
     store,
     adminToken: process.env.ADMIN_TOKEN,
     modelName: process.env.JEV_MODEL ?? "jev-1.14.0",
-    jev: createJev({
-      apiKey: process.env.JEV_API_KEY,
-      model: process.env.JEV_MODEL ?? "jev-1.14.0",
-    }),
   });
   await app.listen({
     port: Number(process.env.PORT ?? 3000),

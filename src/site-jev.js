@@ -16,7 +16,7 @@ const keyringSchema = z
   .strict();
 export const siteJevUpdate = z
   .object({
-    mode: z.enum(["instance", "site", "disabled"]),
+    mode: z.enum(["site", "disabled"]),
     apiKey: z
       .string()
       .regex(/^[\x21-\x7e]{8,4096}$/)
@@ -54,13 +54,7 @@ async function encryptionKey(value, purpose) {
 }
 const aad = (siteId, revision) =>
   encoder.encode(`jevsense:site-jev:v1:${siteId}:${revision}`);
-export function createSiteJev({
-  repo,
-  keyring,
-  defaultApiKey,
-  fetchImpl,
-  clock = Date.now,
-}) {
+export function createSiteJev({ repo, keyring, fetchImpl, clock = Date.now }) {
   const row = (siteId) =>
     repo.one("SELECT * FROM site_jev_credentials WHERE site_id=?", siteId);
   function availableRing() {
@@ -73,18 +67,40 @@ export function createSiteJev({
   async function status(siteId) {
     const current = await row(siteId),
       keys = availableRing();
+    const mode =
+      current?.mode === "site" || current?.mode === "disabled"
+        ? current.mode
+        : "unconfigured";
+    let readable = mode !== "site";
+    if (mode === "site") {
+      try {
+        await decrypt(siteId, current, keys);
+        readable = true;
+      } catch {
+        readable = false;
+      }
+    }
+    const configurationState =
+      mode === "disabled"
+        ? "disabled"
+        : mode === "site"
+          ? readable
+            ? "ready"
+            : "key_unavailable"
+          : !keys
+            ? "encryption_unavailable"
+            : "missing_key";
     return {
-      mode: current?.mode || "instance",
+      mode,
+      configurationState,
       revision: current?.revision || "none",
-      siteKeyConfigured: current?.mode === "site",
-      instanceKeyConfigured: !!defaultApiKey,
+      siteKeyConfigured: mode === "site",
       encryptionAvailable: !!keys,
-      decryptionKeyAvailable:
-        current?.mode !== "site" ||
-        (!!keys && Object.hasOwn(keys.keys, current.key_id)),
+      decryptionKeyAvailable: readable,
       updatedAt: current?.updated_at || null,
     };
   }
+
   async function save(siteId, input, expected, actor) {
     const value = siteJevUpdate.parse(input),
       current = await row(siteId);
@@ -184,11 +200,9 @@ export function createSiteJev({
   }
   async function prepare(siteId, model) {
     const current = await row(siteId),
-      source = current?.mode || "instance";
-    if (source === "disabled") throw unavailable();
-    const apiKey =
-      source === "site" ? await decrypt(siteId, current) : defaultApiKey;
-    if (!apiKey) throw unavailable();
+      source = current?.mode;
+    if (source !== "site") throw unavailable();
+    const apiKey = await decrypt(siteId, current);
     return async (prepared) => {
       let callId;
       return createJev({
@@ -205,7 +219,7 @@ export function createSiteJev({
             clock(),
             model,
             source,
-            current?.revision || "instance",
+            current.revision,
           );
         },
         onComplete: async (value) => {

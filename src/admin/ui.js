@@ -4,7 +4,12 @@ import {
   startRegistration,
   startAuthentication,
 } from "@simplewebauthn/browser";
-import { guidedQuestions } from "../questions.js";
+import {
+  guidedQuestions,
+  restoreCampaignEditor,
+  nextQuestionKey,
+  questionListSchema,
+} from "../questions.js";
 import { renderOffer } from "../offer-renderer.js";
 import { DEFAULT_DESIGN } from "../offer-model.js";
 import { secureOrLoopback } from "../url-policy.js";
@@ -121,7 +126,13 @@ function setSelectActive(index) {
   );
   const row = rows[selectPopup.active];
   selectPopup.button.setAttribute("aria-activedescendant", row.id);
-  row.scrollIntoView({ block: "nearest" });
+  const menu = selectPopup.menu;
+  if (row.offsetTop < menu.scrollTop) menu.scrollTop = row.offsetTop;
+  else if (
+    row.offsetTop + row.offsetHeight >
+    menu.scrollTop + menu.clientHeight
+  )
+    menu.scrollTop = row.offsetTop + row.offsetHeight - menu.clientHeight;
 }
 function chooseSelectValue(value) {
   if (!selectPopup) return;
@@ -315,8 +326,11 @@ document.addEventListener("pointerdown", (event) => {
 document.addEventListener(
   "scroll",
   (event) => {
-    if (selectPopup && !selectPopup.menu.contains(event.target))
-      closeSelectPopup();
+    if (selectPopup && !selectPopup.menu.contains(event.target)) {
+      const rect = selectPopup.button.getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= innerHeight) closeSelectPopup();
+      else positionSelectPopup();
+    }
   },
   true,
 );
@@ -717,6 +731,38 @@ async function navigate(route) {
   if (location.hash === "#/" + route) await render();
   else location.hash = "/" + route;
 }
+function setupStatus(route) {
+  if (!state.value || ["account", "installation"].includes(route)) return "";
+  const r = state.value.readiness;
+  if (!r) return "";
+  const messages = [];
+  const jevMessages = {
+    missing_key:
+      "このサイトのJev APIキーが未設定です。Jevを使う施策の判定を開始できません。",
+    encryption_unavailable:
+      "APIキーを保管する暗号化設定がありません。環境管理者にJEV_KEYRINGの設定を依頼してください。",
+    key_unavailable:
+      "保存済みのJev APIキーを読み出せません。環境管理者に暗号化設定の確認を依頼してください。",
+    disabled:
+      "このサイトではJevの利用を停止しています。Jevを使う施策の判定は行いません。",
+  };
+  if (r.jev !== "ready") {
+    const text = jevMessages[r.jev] || "Jevの接続設定を確認してください。";
+    messages.push(
+      `${esc(text)} ${canManage() ? '<a class="setup-link" href="#/jev" data-setup-nav="jev">Jev連携を設定</a>' : "設定の変更はサイト管理者に依頼してください。"}`,
+    );
+  }
+  if (!r.metadataEnabled)
+    messages.push(
+      `メタデータ送信が無効です。計測するページ情報を確認してから有効にしてください。 ${canManage() ? '<a class="setup-link" href="#/settings" data-setup-nav="settings">サイト設定を開く</a>' : "サイト管理者に確認してください。"}`,
+    );
+  if (!r.hasActiveCampaigns)
+    messages.push(
+      `配信中の施策がありません。 ${canEdit() ? '<a class="setup-link" href="#/campaigns" data-setup-nav="campaigns">施策一覧を開く</a>' : "編集者またはサイト管理者に確認してください。"}`,
+    );
+  if (!messages.length) return "";
+  return `<section class="setup-status" aria-label="サイトの設定状況"><h2>このサイトの設定状況</h2><ul>${messages.map((m) => `<li>${m}</li>`).join("")}</ul>${r.jev !== "ready" ? '<p class="hint">URL条件だけで判定する施策はJevキーなしで利用できます。キーの保存状態は、Jev側の有効性や残高を保証しません。</p>' : ""}${state.session.deployment?.modelMode === "stub" ? '<p class="hint">このPreviewでは固定のテスト値を使い、Jevへ接続しません。</p>' : ""}</section>`;
+}
 function shell(route, body) {
   const current = state.session.sites.find((s) => s.id === state.siteId);
   const user = state.session.user;
@@ -728,7 +774,7 @@ function shell(route, body) {
     "members",
     ...(canManage() ? ["jev"] : []),
   ];
-  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${globalAdmin() ? `<nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${body}</main></div>`;
+  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${globalAdmin() ? `<nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${setupStatus(route)}${body}</main></div>`;
 }
 function allCampaigns() {
   const result = new Map(
@@ -856,6 +902,15 @@ function editor() {
       fields += info(
         "URL条件を1つ以上設定してください。条件に一致した場合、表示回数などの配信制約を確認して表示します。",
       );
+    else if (state.questionMode === "json")
+      fields +=
+        field(
+          "判定質問（JSON）",
+          "questionsJSON",
+          JSON.stringify(c.questions, null, 2),
+          "質問IDと原文をそのままコピー・編集できます。AND/ORは下の組み合わせで設定します。",
+          { area: true, code: true },
+        ) + button("入力支援に切り替える", "guided", "small", disabled);
     else if (c.judgment)
       fields +=
         field(
@@ -892,23 +947,33 @@ function editor() {
           disabled || c.judgment.conditions.length >= 5,
         ) +
         `<details class="question-examples"><summary>書き方の例</summary><p>EC：吸汗速乾機能のあるポロシャツに関心がある。<br>BtoB：複数部門で顧客情報を共有する課題に関心がある。<br>メディア：家庭向けの省エネ対策に関心がある。<br>採用：エンジニアの開発環境に関心がある。</p><p>「買ってくれそう」「施策が効きそう」という予測は避けてください。確定条件と複数条件のAND/ORはコードで扱います。生成AIによる文章変換は行いません。</p></details><div id="questionPreview"></div>`;
-    else
+    else {
       fields +=
         info(
-          "既存の施策は登録済みの判定質問を保持しています。入力支援へ切り替えると、入力した案内内容と条件から質問を組み立てます。",
+          "登録済みの質問を原文のまま表示しています。独自の質問や異なる案内内容も保持し、質問ごとに編集できます。",
         ) +
-        field("既存の意図メモ", "intent", c.intent, "", {
-          area: true,
-          max: 1000,
-        }) +
         field(
-          "判定質問（JSON）",
-          "questionsJSON",
-          JSON.stringify(c.questions, null, 2),
-          "質問ごとに独立した1つの判断を聞きます。",
-          { area: true, code: true },
-        ) +
-        button("入力支援に切り替える", "guided", "small", disabled);
+          "案内する内容・意図メモ",
+          "intent",
+          c.intent,
+          "保存済みのメモです。質問の文意や案内内容は下の原文で確認してください。",
+          { area: true, max: 1000 },
+        );
+      fields += c.questions
+        .map(
+          (q, i) =>
+            `<section class="metadata-section">${field(`判定する関心・状態（質問${i + 1}・原文）`, `questions.${i}.instructions`, q.instructions, "Jevへ送る独立したYes/No質問を、そのまま編集します。", { area: true, max: 1000 })}<details><summary>質問ID（詳細）</summary>${field("質問ID", `questions.${i}.key`, q.key, "JSONと共通の識別子です。質問ごとに一意にします。", { max: 64 })}</details>${i ? button("この質問を削除", `question-remove:${i}`, "small", disabled) : ""}</section>`,
+        )
+        .join("");
+      fields += button(
+        "判定質問を追加",
+        "question-add",
+        "small",
+        disabled || c.questions.length >= 5,
+      );
+    }
+    if (c.decisionMode !== "rules" && state.questionMode !== "json")
+      fields += button("JSONで編集", "questions-json", "small", disabled);
     fields += urlTargetingFields(c, { select, field, button, disabled });
     if (c.decisionMode !== "rules")
       fields +=
@@ -1270,7 +1335,7 @@ function diagnosticsPage() {
   );
 }
 const jevModes = {
-  instance: "インスタンス共通キー",
+  unconfigured: "APIキー未設定",
   site: "サイト専用キー",
   disabled: "Jevの利用を停止",
 };
@@ -1293,7 +1358,9 @@ async function jevPage() {
   if (!usage) {
     const value = await api(sitePath() + "/jev");
     state.jevStatus = value;
-    body = `<div class="card-body">${info("このサイトで使うJevキーを管理します。保存済みのキーは再表示しません。保存操作ではJevへ接続せず、APIキーの有効性確認や課金は発生しません。")}<p>現在：<strong>${jevModes[value.mode]}</strong>${value.updatedAt ? ` · 最終更新 ${esc(new Date(value.updatedAt).toLocaleString())}` : ""}</p>${!value.encryptionAvailable ? info("サイト専用キーの保存には、環境管理者による暗号化キーの設定（JEV_KEYRING）が必要です。共通キーの利用・停止設定は保存できます。") : ""}${!value.decryptionKeyAvailable ? info("保存済みキーを復号する暗号化キーがありません。共通キーへ自動で切り替えず、Jevへの送信を停止します。環境管理者に確認してください。") : ""}<form data-form="jev"><fieldset>${select("使用するキー", "mode", value.mode, jevModes, "共通キーは環境のJEV_API_KEYです。サイト専用キーが使えない場合に共通キーへ自動で戻ることはありません。")}<label class="field">新しいサイト専用APIキー<input type="password" name="apiKey" aria-label="新しいサイト専用APIキー" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="4096"><span class="hint">「サイト専用キー」を選ぶ場合だけ入力します。既に保存済みなら、空欄のままで現在のキーを保持できます。</span></label><p class="hint">共通キー：${value.instanceKeyConfigured ? "設定あり" : "未設定"} ／ サイト専用キー：${value.siteKeyConfigured ? "保存済み（値は表示しません）" : "未保存"}</p><button class="button primary" type="submit">Jev接続設定を保存</button></fieldset></form><p class="hint">変更時は必要に応じてパスキーで本人確認します。「インスタンス共通キー」または「Jevの利用を停止」へ変更すると保存済みサイトキーを削除します。再利用には入力し直してください。キーが使えない場合やJevへの問い合わせに失敗した場合は、オファーを表示せず判断を保留します。</p></div>`;
+    if (state.value.readiness)
+      state.value.readiness.jev = value.configurationState;
+    body = `<div class="card-body">${info("このサイト専用のJev APIキーを管理します。キーは暗号化して保存し、保存済みの値は再表示しません。保存操作ではJevへ接続せず、有効性確認や課金は発生しません。")}<p>現在：<strong>${jevModes[value.mode]}</strong>${value.updatedAt ? ` · 最終更新 ${esc(new Date(value.updatedAt).toLocaleString())}` : ""}</p>${!value.encryptionAvailable ? info("APIキーの保存には、環境管理者による暗号化キーの設定（JEV_KEYRING）が必要です。") : ""}${!value.decryptionKeyAvailable ? info("保存済みAPIキーを読み出せません。環境管理者に暗号化キーの確認を依頼するか、新しいAPIキーを登録してください。") : ""}<form data-form="jev"><fieldset>${select("使用するキー", "mode", value.mode === "unconfigured" ? "site" : value.mode, { site: "サイト専用キー", disabled: "Jevの利用を停止" }, "APIキーは選択中のサイトIDにだけ結び付きます。")}<label class="field">新しいサイト専用APIキー<input type="password" name="apiKey" aria-label="新しいサイト専用APIキー" autocomplete="new-password" autocapitalize="off" spellcheck="false" maxlength="4096"><span class="hint">初回はこのサイトで使うキーを入力してください。保存済みなら空欄のままで現在のキーを保持できます。</span></label><p class="hint">サイト専用キー：${value.siteKeyConfigured ? "保存済み（値は表示しません）" : "未保存"}</p><button class="button primary" type="submit">Jev接続設定を保存</button></fieldset></form><p class="hint">変更時は必要に応じてパスキーで本人確認します。「Jevの利用を停止」へ変更すると保存済みキーを削除します。再開するにはキーを入力し直してください。キーが未設定・利用不可の場合はJevの判定を保留します。</p></div>`;
   } else {
     const value = await api(
       sitePath() + "/jev/usage?days=" + (state.jevDays || 30),
@@ -1305,7 +1372,7 @@ async function jevPage() {
       ["エラー", value.totals.failed],
       ["結果未確定", value.totals.pending],
     ];
-    body = `<div class="card-body"><div class="filters">${select("集計期間", "jevDays", state.jevDays || 30, { 7: "過去7日", 30: "過去30日", 90: "過去90日" })}${button("更新", "jev-refresh")}</div>${info("Jev APIの呼び出し開始処理を記録します。Previewの固定判定、対象条件に届かない判断要求、配信前の強制プレビューは含みません。UTC日単位の集計です。課金額やJev側での受信・処理完了を保証する数値ではありません。")}<div class="stats jev-stats">${stats.map(([label, v]) => `<div class="card stat"><label>${label}</label><div class="number">${n(v)}<small>件</small></div></div>`).join("")}</div><p class="hint">送信開始前に記録し、応答後に結果を更新します。処理中断等で結果を保存できない場合は「未確定」のままになります。閲覧者のID・URL・履歴・質問・回答・キーは記録しません。最大90日の範囲を表示し、古い記録は利用・閲覧時に削除します。</p><h2>日別の利用数（UTC）</h2>${value.daily.length ? `<div class="table-wrap"><table><thead><tr><th>日付</th><th>開始</th><th>正常</th><th>エラー</th><th>未確定</th></tr></thead><tbody>${value.daily.map((v) => `<tr><td>${esc(v.day)}</td><td>${n(v.started)}</td><td>${n(v.succeeded)}</td><td>${n(v.failed)}</td><td>${n(v.pending)}</td></tr>`).join("")}</tbody></table></div>` : "<p>この期間にJevを呼び出した記録はありません。</p>"}<h2>最近の呼び出し（最大100件）</h2><div class="table-wrap"><table><thead><tr><th>開始日時（端末の時刻）</th><th>結果</th><th>モデル</th><th>HTTP</th><th>遅延</th><th>キーの種類</th></tr></thead><tbody>${value.recent.map((v) => `<tr><td>${esc(new Date(v.startedAt).toLocaleString())}</td><td>${jevOutcomes[v.outcome]}</td><td>${esc(v.actualModel || v.configuredModel)}${v.actualModel ? "" : "（要求モデル）"}</td><td>${v.httpStatus ?? "—"}</td><td>${v.elapsedMs === null ? "—" : n(v.elapsedMs) + " ms"}</td><td>${jevModes[v.keySource]}</td></tr>`).join("")}</tbody></table></div><p class="hint">キーの変更前後を含むこのサイト全体の記録です。記録開始はこの機能を導入した後です。過去の呼び出しやJevの請求データは取り込みません。費用上限・同時実行数は引き続きインスタンス全体で共有します。</p></div>`;
+    body = `<div class="card-body"><div class="filters">${select("集計期間", "jevDays", state.jevDays || 30, { 7: "過去7日", 30: "過去30日", 90: "過去90日" })}${button("更新", "jev-refresh")}</div>${info("Jev APIの呼び出し開始処理を記録します。Previewの固定判定、対象条件に届かない判断要求、配信前の強制プレビューは含みません。UTC日単位の集計です。課金額やJev側での受信・処理完了を保証する数値ではありません。")}<div class="stats jev-stats">${stats.map(([label, v]) => `<div class="card stat"><label>${label}</label><div class="number">${n(v)}<small>件</small></div></div>`).join("")}</div><p class="hint">送信開始前に記録し、応答後に結果を更新します。処理中断等で結果を保存できない場合は「未確定」のままになります。閲覧者のID・URL・履歴・質問・回答・キーは記録しません。最大90日の範囲を表示し、古い記録は利用・閲覧時に削除します。</p><h2>日別の利用数（UTC）</h2>${value.daily.length ? `<div class="table-wrap"><table><thead><tr><th>日付</th><th>開始</th><th>正常</th><th>エラー</th><th>未確定</th></tr></thead><tbody>${value.daily.map((v) => `<tr><td>${esc(v.day)}</td><td>${n(v.started)}</td><td>${n(v.succeeded)}</td><td>${n(v.failed)}</td><td>${n(v.pending)}</td></tr>`).join("")}</tbody></table></div>` : "<p>この期間にJevを呼び出した記録はありません。</p>"}<h2>最近の呼び出し（最大100件）</h2><div class="table-wrap"><table><thead><tr><th>開始日時（端末の時刻）</th><th>結果</th><th>モデル</th><th>HTTP</th><th>遅延</th><th>キーの種類</th></tr></thead><tbody>${value.recent.map((v) => `<tr><td>${esc(new Date(v.startedAt).toLocaleString())}</td><td>${jevOutcomes[v.outcome]}</td><td>${esc(v.actualModel || v.configuredModel)}${v.actualModel ? "" : "（要求モデル）"}</td><td>${v.httpStatus ?? "—"}</td><td>${v.elapsedMs === null ? "—" : n(v.elapsedMs) + " ms"}</td><td>${v.keySource === "instance" ? "共通キー（廃止済み）" : "サイト専用キー"}</td></tr>`).join("")}</tbody></table></div><p class="hint">キーの変更前後を含むこのサイト全体の記録です。記録開始はこの機能を導入した後です。過去の呼び出しやJevの請求データは取り込みません。費用上限・同時実行数は引き続きインスタンス全体で共有します。</p></div>`;
   }
   return (
     heading(
@@ -1362,7 +1429,7 @@ async function installationPage() {
       "Superuserはすべてのサイト・ユーザー・環境設定を管理できます。",
       button("サイトを追加", "new-site", "primary"),
     ) +
-    `<div class="section-stack"><section class="card card-body site-directory"><h2>サイト一覧</h2>${state.session.sites.map((site) => `<div class="meta-row"><span class="identity-copy"><strong>${esc(site.name)}</strong><small>${esc(site.origins.join(", "))}</small></span><button class="button small" data-site="${site.id}">設定を開く</button></div>`).join("")}</section><section class="admin-section"><h2>全ユーザー</h2><section class="card"><div class="table-wrap"><table class="identity-table"><thead><tr><th>ユーザー</th><th>全体権限</th><th>状態</th><th>操作</th></tr></thead><tbody>${users.users.map((u) => `<tr><td><span class="identity-copy"><strong>${esc(u.displayName)}</strong><small>${esc(u.email)}</small></span></td><td>${u.globalRole === "superuser" ? "Superuser" : "一般ユーザー"}</td><td>${u.status === "active" ? "有効" : "無効"}</td><td><div class="actions"><button class="button small" data-user="${u.id}">変更</button><button class="button small" data-user-recover="${u.id}" ${u.status === "active" ? "" : "disabled"}>復旧リンク</button></div></td></tr>`).join("")}</tbody></table></div></section></section><section class="admin-section"><h2>環境設定</h2><section class="card card-body"><form data-form="system">${field("環境名", "name", settings.name, "", { required: true, max: 80 })}${field("Jevモデル名", "model", settings.model, "利用可能な実モデル名を指定してください。変更は次の判定から適用されます。", { required: true })}${field("1日あたりのAPI呼び出し上限", "dailyRequestBudget", settings.dailyRequestBudget, "0で新しい判定を停止します。", { type: "number", min: 0 })}${field("同時実行数の上限", "maxConcurrent", settings.maxConcurrent, "1〜100。", { type: "number", min: 1 })}<button class="button primary" type="submit">環境設定を保存</button></form><p class="hint">共通JEV_API_KEY・JEV_KEYRING・AUTH_SECRETは実行環境のシークレットです。サイト専用APIキーは各サイトの「Jev連携」で管理します。保存値は表示しません。</p></section></section><section class="admin-section"><h2>最近の管理操作</h2><section class="card card-body"><p class="hint">直近100件の管理操作です。閲覧者の行動履歴は記録しません。</p>${audit.events.map((e) => `<div class="meta-row"><span>${esc(e.action)}${e.siteId ? " · " + esc(e.siteId) : ""}</span><small>${new Date(e.createdAt).toLocaleString()}</small></div>`).join("")}</section></section></div>`
+    `<div class="section-stack"><section class="card card-body site-directory"><h2>サイト一覧</h2>${state.session.sites.map((site) => `<div class="meta-row"><span class="identity-copy"><strong>${esc(site.name)}</strong><small>${esc(site.origins.join(", "))}</small></span><button class="button small" data-site="${site.id}">設定を開く</button></div>`).join("")}</section><section class="admin-section"><h2>全ユーザー</h2><section class="card"><div class="table-wrap"><table class="identity-table"><thead><tr><th>ユーザー</th><th>全体権限</th><th>状態</th><th>操作</th></tr></thead><tbody>${users.users.map((u) => `<tr><td><span class="identity-copy"><strong>${esc(u.displayName)}</strong><small>${esc(u.email)}</small></span></td><td>${u.globalRole === "superuser" ? "Superuser" : "一般ユーザー"}</td><td>${u.status === "active" ? "有効" : "無効"}</td><td><div class="actions"><button class="button small" data-user="${u.id}">変更</button><button class="button small" data-user-recover="${u.id}" ${u.status === "active" ? "" : "disabled"}>復旧リンク</button></div></td></tr>`).join("")}</tbody></table></div></section></section><section class="admin-section"><h2>環境設定</h2><section class="card card-body"><form data-form="system">${field("環境名", "name", settings.name, "", { required: true, max: 80 })}${field("Jevモデル名", "model", settings.model, "利用可能な実モデル名を指定してください。変更は次の判定から適用されます。", { required: true })}${field("1日あたりのAPI呼び出し上限", "dailyRequestBudget", settings.dailyRequestBudget, "0で新しい判定を停止します。", { type: "number", min: 0 })}${field("同時実行数の上限", "maxConcurrent", settings.maxConcurrent, "1〜100。", { type: "number", min: 1 })}<button class="button primary" type="submit">環境設定を保存</button></form><p class="hint">JEV_KEYRING・AUTH_SECRETは実行環境のシークレットです。サイト専用APIキーは各サイトの「Jev連携」で管理します。保存値は表示しません。</p></section></section><section class="admin-section"><h2>最近の管理操作</h2><section class="card card-body"><p class="hint">直近100件の管理操作です。閲覧者の行動履歴は記録しません。</p>${audit.events.map((e) => `<div class="meta-row"><span>${esc(e.action)}${e.siteId ? " · " + esc(e.siteId) : ""}</span><small>${new Date(e.createdAt).toLocaleString()}</small></div>`).join("")}</section></section></div>`
   );
 }
 let renderVersion = 0;
@@ -1384,10 +1451,11 @@ async function render() {
   else if (route.startsWith("campaign/")) {
     const id = route.slice(9);
     if (!state.edit || (id !== "new" && state.edit.id !== id)) {
+      state.questionMode = "form";
       state.edit =
         id === "new"
           ? newCampaign()
-          : structuredClone(
+          : restoreCampaignEditor(
               allCampaigns().find((v) => v.campaign.id === id)?.campaign,
             );
       state.dirty = id === "new";
@@ -1443,7 +1511,10 @@ function readEditor() {
       throw Error("しきい値は0.5〜0.99の範囲で入力してください。");
     if (key === "questionsJSON") {
       try {
-        state.edit.questions = JSON.parse(value);
+        const questions = questionListSchema.parse(JSON.parse(value));
+        if (JSON.stringify(questions) !== state.jsonQuestionBaseline)
+          delete state.edit.judgment;
+        state.edit.questions = questions;
       } catch {
         throw Error("判定質問のJSONを確認してください。");
       }
@@ -1715,19 +1786,53 @@ async function handleAction(action) {
   }
   if (action === "condition-add") {
     readEditor();
+    state.edit.judgment.keys ??= state.edit.judgment.conditions.map(
+      (_, i) => `condition_${i + 1}`,
+    );
+    if (state.edit.judgment.keys)
+      state.edit.judgment.keys.push(nextQuestionKey(state.edit.judgment.keys));
     state.edit.judgment.conditions.push("");
     markDirty();
     return render();
   }
   if (action.startsWith("condition-remove:")) {
     readEditor();
+    state.edit.judgment.keys ??= state.edit.judgment.conditions.map(
+      (_, i) => `condition_${i + 1}`,
+    );
     state.edit.judgment.conditions.splice(Number(action.slice(17)), 1);
+    state.edit.judgment.keys?.splice(Number(action.slice(17)), 1);
     markDirty();
+    return render();
+  }
+  if (action === "questions-json") {
+    readEditor();
+    if (state.edit.judgment) {
+      try {
+        state.edit.questions = guidedQuestions(state.edit.judgment);
+      } catch {
+        /* Keep incomplete draft fields. */
+      }
+    }
+    state.jsonQuestionBaseline = JSON.stringify(state.edit.questions);
+    state.questionMode = "json";
     return render();
   }
   if (action === "guided") {
     readEditor();
-    state.edit.judgment = { offer: "", conditions: [""] };
+    state.edit = restoreCampaignEditor(state.edit);
+    state.questionMode = "form";
+    return render();
+  }
+  if (action === "question-add" || action.startsWith("question-remove:")) {
+    readEditor();
+    if (action === "question-add" && state.edit.questions.length < 5)
+      state.edit.questions.push({
+        key: nextQuestionKey(state.edit.questions.map((q) => q.key)),
+        instructions: "",
+      });
+    else if (action.startsWith("question-remove:"))
+      state.edit.questions.splice(Number(action.split(":")[1]), 1);
     markDirty();
     return render();
   }
@@ -1954,7 +2059,7 @@ async function handleAction(action) {
   }
 }
 document.addEventListener("click", (event) => {
-  const target = event.target.closest("button,a[data-nav]");
+  const target = event.target.closest("button,a[data-nav],a[data-setup-nav]");
   if (!target) return;
   const action = target.dataset.action;
   if (action === "dialog-close" || action === "dialog-yes") {
@@ -1962,7 +2067,7 @@ document.addEventListener("click", (event) => {
     handleAction(action);
     return;
   }
-  const nav = target.dataset.nav;
+  const nav = target.dataset.nav ?? target.dataset.setupNav;
   if (nav) {
     event.preventDefault();
     run(() => navigate(nav));
@@ -2175,6 +2280,7 @@ document.addEventListener("submit", (event) => {
           state.jevStatus.revision,
         );
         state.dirty = false;
+        await loadSite();
         toast("Jev接続設定を保存しました。APIキーの値は再表示しません。");
         return render();
       } finally {
@@ -2348,7 +2454,7 @@ document.addEventListener("change", (event) => {
       )
         state.edit.minimumHistory = 0;
       if (state.edit.decisionMode === "model")
-        state.edit.judgment ??= { offer: "", conditions: [""] };
+        state.edit = restoreCampaignEditor(state.edit);
       markDirty();
       render();
     } catch (e) {
