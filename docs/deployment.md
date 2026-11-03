@@ -106,3 +106,12 @@ Web上のレビューURLは追加しない。単独HTMLをダウンロードし�
 - 本番のDB・認証・Secret・サイト設定を保持。Time Travelの更新前復旧位置を記録し、追加マイグレーションなしで更新した。
 - health・管理画面・SDK・公開サイト設定はHTTP 200。公開SDKと検証したビルドは一致。Jevの実問い合わせは行っていない。
 - GitHub Pagesのヘルプも同じソースで更新。[詳細設計](page-context-design.md)・[テストとリリースの検証記録](page-context-validation.md)を参照。
+
+## 2026-11-03：ヘッダーと本文の位置合わせ
+
+利用者の承認後、Previewで確認したコミット`cae1fefb49c31a0bc30957a22adc786857794db1`をProductionへ反映した。
+
+- Worker Version ID：`9569f6b7-c3cf-414b-bb20-eafebb645a4c`（100%）。
+- 幅の広い画面で、ヘッダーの余白をサイドバーを除いた本文と同じ幅から計算するよう修正。390〜2560pxの8種類の幅で左右の一致・横はみ出しなしを確認し、関連ブラウザテスト3件とGitHub CIも成功した。
+- 更新前のCloudflare内のTime Travel復旧位置を記録。本番のDB・サイト設定・認証Origin・Secret名、アカウント等の件数を更新前後で照合し、維持を確認。
+- 本番のhealth・管理画面・CSSはHTTP 200。公開`/control.css`は確認済みのファイルとバイト単位で一致した。
