@@ -44,6 +44,8 @@ const paths = {
   shield: "M10 2l7 3v5c0 4-4 7-7 8-3-1-7-4-7-8V5zM7 10l2 2 4-4",
   finger:
     "M4 12V9a6 6 0 0 1 12 0v3M7 13V9a3 3 0 0 1 6 0v5M10 8v5c0 3-1 5-3 6M4 15l-1 2M13 17l1 2M16 15v2",
+  book: "M3 4h5c1 0 2 1 2 2 0-1 1-2 2-2h5v12h-5c-1 0-2 1-2 2 0-1-1-2-2-2H3zM10 6v12",
+  external: "M11 3h6v6M17 3l-8 8M8 4H3v13h13v-5",
   info: "M10 8v6M10 5v.1M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0",
   chart: "M4 16V9M10 16V4M16 16v-5",
   logout: "M8 3H3v14h5M8 10h10M14 6l4 4-4 4",
@@ -52,6 +54,12 @@ const paths = {
 };
 const icon = (name) =>
   `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${paths[name] || paths.info}"/></svg>`;
+
+const HELP_URL = "https://manji6.github.io/jev-personalization/";
+const helpLink = (label, path = "", className = "") =>
+  `<a class="help-link ${className}" href="${HELP_URL}${path}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label)}（別タブで開きます）">${esc(label)}${icon("external")}</a>`;
+const helpGuide = () =>
+  `<section class="card help-guide" aria-labelledby="helpGuideTitle"><h2 id="helpGuideTitle">使い方に迷ったら</h2><p>セットアップから施策の作成・動作確認まで、ヘルプで手順を確認できます。別タブで開きます。</p><div class="actions">${helpLink("ヘルプ・マニュアルを見る")}${helpLink("最初のセットアップ", "getting-started/quickstart")}${helpLink("施策の作成手順", "guides/campaigns")}</div></section>`;
 
 const state = {
   session: null,
@@ -665,7 +673,7 @@ function renderAuth(kind = "login") {
       { required: true, type: "email" },
     );
   $("app").innerHTML =
-    `<div class="login"><section class="login-art">${brand()}<div class="login-copy"><p class="eyebrow">SENSE THE MOMENT.</p><h1>その人の、いまを。<br>ちょうどいい<br>コミュニケーションに。</h1><p>行動の先にある関心や文脈を捉えて、<br>ひとりひとりに、意味のある出会いを。</p></div><p class="login-bottom">JevSense · Personalization, with a sense of purpose.</p></section><section class="login-form"><div class="login-inner"><div class="fingerprint">${icon("finger")}</div><p class="eyebrow">${kind === "login" ? "WELCOME BACK" : "YOUR ACCOUNT"}</p><h1>${title}</h1><p class="desc">${desc}</p><form data-form="auth">${fields}<button class="button primary wide" type="submit">${kind === "login" ? "パスキーでログイン" : kind === "invite" && invite?.existingAccount ? "ログインして招待を受ける" : "パスキーを登録する"} ${icon("arrow")}</button><p id="authError" class="error-note" role="alert"></p></form><div class="login-foot">${button(kind === "recover" ? "ログインに戻る" : "パスキーが使えない場合", kind === "recover" ? "auth-login" : "auth-recover", "text-button")}</div></div></section></div>`;
+    `<div class="login"><section class="login-art">${brand()}<div class="login-copy"><p class="eyebrow">SENSE THE MOMENT.</p><h1>その人の、いまを。<br>ちょうどいい<br>コミュニケーションに。</h1><p>行動の先にある関心や文脈を捉えて、<br>ひとりひとりに、意味のある出会いを。</p></div><p class="login-bottom">JevSense · Personalization, with a sense of purpose.</p></section><section class="login-form"><div class="login-inner"><div class="fingerprint">${icon("finger")}</div><p class="eyebrow">${kind === "login" ? "WELCOME BACK" : "YOUR ACCOUNT"}</p><h1>${title}</h1><p class="desc">${desc}</p><form data-form="auth">${fields}<button class="button primary wide" type="submit">${kind === "login" ? "パスキーでログイン" : kind === "invite" && invite?.existingAccount ? "ログインして招待を受ける" : "パスキーを登録する"} ${icon("arrow")}</button><p id="authError" class="error-note" role="alert"></p></form><div class="login-foot">${button(kind === "recover" ? "ログインに戻る" : "パスキーが使えない場合", kind === "recover" ? "auth-login" : "auth-recover", "text-button")}<div class="login-help">${helpLink("ヘルプ・マニュアルを見る")}<p>セットアップやログインの方法を確認できます。別タブで開きます。</p></div></div></div></section></div>`;
 }
 async function refreshSession() {
   state.session = await api("/auth/session");
@@ -793,7 +801,7 @@ function shell(route, body) {
     "members",
     ...(canManage() ? ["jev"] : []),
   ];
-  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p>${globalAdmin() ? `<nav class="nav"><a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a></nav>` : ""}<a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${setupStatus(route)}${body}</main></div>`;
+  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p><nav class="nav" aria-label="その他のメニュー">${globalAdmin() ? `<a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a>` : ""}<a class="help-nav" href="${HELP_URL}" target="_blank" rel="noopener noreferrer" aria-label="ヘルプ・マニュアル（別タブで開きます）" title="ヘルプ・マニュアル（別タブで開きます）">${icon("book")}<span class="nav-text">ヘルプ・マニュアル</span></a></nav><a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${setupStatus(route)}${body}</main></div>`;
 }
 function allCampaigns() {
   const result = new Map(
@@ -1415,7 +1423,8 @@ async function render() {
       (route === "campaigns"
         ? `<div class="filters">${field("施策を検索", "campaignSearch", "", "名前や対象者で検索")}${select("配信状態", "campaignFilter", "all", { all: "すべて", active: "配信中", draft: "下書きあり", paused: "停止中" })}</div>`
         : `<div class="stats"><div class="card stat"><label>配信中の施策</label><div class="number">${rows.filter((v) => v.published?.enabled).length}<small>件</small></div><span class="stat-icon">${icon("campaigns")}</span></div><div class="card stat"><label>変更の下書き</label><div class="number">${state.value.drafts.length}<small>件</small></div><span class="stat-icon">${icon("settings")}</span></div><div class="card stat"><label>登録されている施策</label><div class="number">${rows.length}<small>件</small></div><span class="stat-icon">${icon("chart")}</span></div></div>`) +
-      `<section class="card" id="campaignTable">${campaignTable(rows)}</section>`;
+      `<section class="card" id="campaignTable">${campaignTable(rows)}</section>` +
+      (route === "home" ? helpGuide() : "");
   }
   if (generation !== renderVersion) return;
   $("app").innerHTML = shell(
