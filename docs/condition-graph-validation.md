@@ -21,3 +21,15 @@ URLとJevを混ぜた条件をNodeとworkerdで実行し、必要な質問だけ
 サイトSDKにはサーバー側のグラフ検証コードを含めず、圧縮前のminify済みSDKは51,372bytes。サイト側タグの再設置は不要。
 
 実Jevへの有料問い合わせは行っていない。模擬上流と合成アカウント・キーだけを使用した。
+
+## Preview・Productionへの反映
+
+コードのコミットは`fa31a095e9a9fcca0913806cbc2a15d75d297e2b`。GitHub CIの[checks実行](https://github.com/manji6/jev-personalization/actions/runs/41579848766)も全項目成功した。
+
+- Preview Deployment：`dd6a2b82-cd83-44a2-85f4-3c6610aedfe8`。コードの版、専用D1、固定判定モード、Access保護をCloudflare APIで確認。未認証アクセスはAccessへ302で転送される。
+- Production Version：`6d4b9fd5-7fe3-4c21-bc2c-47b4d1530a4f`（100%）。Previewと同じコミットを配備した。
+- 配備前にCloudflare内のTime Travel復旧位置を記録した。DB全体を外へ書き出す操作はしていない。追加のD1スキーマ変更はない。
+- 配備前後の認証Origin・モード・Secret名・DB binding・サイト設定と資格情報のリビジョンを照合し、一致した。サイト2件・アカウント2件・パスキー3件・セッション2件・所属1件も維持された。
+- 本番のhealth・管理画面・control.js・control.css・sdk.jsはHTTP 200。JS・CSS・SDKは、検証したローカルビルドとバイト単位で一致した。
+
+配備済みPreviewでの本人のパスキー操作は代行していない。認証後の画面操作はChromiumと仮想パスキー、Cloudflare実行コードはworkerd/D1で検証し、配備先ではコード・設定・保護・公開アセットを照合した。リリース確認のための有料Jev問い合わせは行っていない。
