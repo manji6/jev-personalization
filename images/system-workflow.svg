@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="1200" viewBox="0 0 1120 1200" role="img" aria-labelledby="title description" lang="ja">
   <title id="title">JevSenseのシステムワークフロー</title>
-  <desc id="description">管理者が条件と表示コンテンツを事前登録します。同意後、共通SDKがブラウザ内で計測します。時間経過・操作・状態変更は計測を続け、自前APIへ定期的には問い合わせません。各ページの初期表示時に1回だけ判断を依頼します。最低閲覧時間への到達や操作はブラウザ内だけに保存し、次ページで利用します。自前APIは有効な閲覧・対象施策などを先に確認し、不足する場合はJevへ送らず表示を保留します。条件を満たす場合だけJevへstateと独立したYes/No質問を送ります。Jevの判定値に基づき、APIが表示可否をコードで決定し、許可された場合だけブラウザがコンテンツを表示します。判定値不足・不明・エラー時も表示を保留します。閲覧履歴と表示済み状態はブラウザ内に保持します。</desc>
+  <desc id="description">管理者が条件と表示コンテンツを事前登録します。同意後、共通SDKがブラウザ内で計測します。時間経過・操作・状態変更は計測を続け、自前APIへ定期的には問い合わせません。各ページの初期表示時に1回だけ判断を依頼します。最低閲覧時間への到達や操作はブラウザ内だけに保存し、次ページで利用します。自前APIは有効な閲覧・対象施策などを先に確認し、不足する場合はJevへ送らず表示を保留します。URL条件だけで結論が出ればJevを経由せずコードで表示可否を決めます。推論が必要な場合だけJevへstateと独立したYes/No質問を送ります。Jevの判定値に基づき、APIが表示可否をコードで決定し、許可された場合だけブラウザがコンテンツを表示します。判定値不足・不明・エラー時も表示を保留します。閲覧履歴と表示済み状態はブラウザ内に保持します。</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
       <path d="M1 1 8 5 1 9" fill="none" stroke="#426553" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -54,14 +54,17 @@
   <text x="445" y="327" class="number">2</text>
   <text x="474" y="327" class="step">Jevへ送る前に確認</text>
   <text x="434" y="367" class="body">閲覧・配信条件を確認</text>
-  <text x="434" y="398" class="note">条件を満たす場合だけ、</text>
-  <text x="434" y="425" class="note">stateとYes/No質問を送る</text>
+  <text x="434" y="398" class="note">URLで決まらない場合に、</text>
+  <text x="434" y="425" class="note">必要なYes/No質問を送る</text>
   <path class="flow" d="M706 359H786"/>
-  <text x="746" y="345" class="note" text-anchor="middle">条件OK</text>
+  <text x="746" y="345" class="note" text-anchor="middle">必要時</text>
   <path class="flow" d="M560 440V466"/>
   <rect x="414" y="466" width="292" height="86" rx="12" fill="#edf0f3" stroke="#cbd8e4"/>
   <text x="434" y="499" class="note">事前条件を満たさない</text>
   <text x="434" y="531" class="note">Jevへ送らず、表示を保留</text>
+
+  <path class="flow" d="M430 440H402V615H445V630"/>
+  <text x="414" y="579" class="note">URLで確定：Jevを省略</text>
 
   <rect x="786" y="282" width="290" height="158" rx="12" fill="#fff" stroke="#e3d7bf"/>
   <circle cx="817" cy="319" r="17" fill="#876337"/>
