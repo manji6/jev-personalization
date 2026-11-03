@@ -7,6 +7,7 @@
   --mint: #e9f1e8;
   --white: #fff;
   --accent: #d6e5ac;
+  --workspace-max-width: 1360px;
 }
 * {
   box-sizing: border-box;
@@ -283,7 +284,7 @@ svg {
   font-size: 10px;
 }
 .main {
-  max-width: 1360px;
+  max-width: var(--workspace-max-width);
   margin: auto;
   padding: 33px 40px 70px;
 }
@@ -1489,7 +1490,11 @@ fieldset {
     padding-top: 45px;
   }
   .topbar {
-    padding-left: max(40px, calc((100vw - 1320px) / 2));
+    /* Match the centered main area within the shell, excluding the sidebar. */
+    padding-inline: max(
+      40px,
+      calc((100% - var(--workspace-max-width)) / 2 + 40px)
+    );
   }
 }
 @media (max-width: 1100px) {
