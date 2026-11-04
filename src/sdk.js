@@ -193,6 +193,7 @@ export function install(win, script) {
     suspended = false,
     overlay = null,
     deferredOffer = null;
+  const diagnosticVisits = new WeakMap();
   let qualificationTimer, navigationTimer;
   const allowed = (path) => config && pathAllowed(path, config);
   const qualificationMs = () => config?.minVisibleMs ?? 5000;
@@ -233,6 +234,14 @@ export function install(win, script) {
         minVisibleMs: qualificationMs(),
         current: current ? { path: current.page.path, visibleMs } : null,
         sources,
+        currentVisitInfo: current ? diagnosticVisits.get(current) : null,
+        pastVisitInfo: state.visits
+          .filter((v) => v !== current)
+          .map((v) => ({
+            ...diagnosticVisits.get(v),
+            page: v.page,
+            visibleMs: v.visibleMs,
+          })),
         state: {
           ...state,
           currentPage: current?.page ?? null,
@@ -299,14 +308,17 @@ export function install(win, script) {
   function capture(reason = "initial") {
     if (!enabled || !config?.metadataEnabled) return;
     accrue();
+    if (current) debug.record("page_left");
     if (!allowed(win.location.pathname)) {
       current = null;
       persist();
+      debug.record("excluded_page");
       return;
     }
     current = { page: pageNow(), visibleMs: 0 };
     recorded = false;
     view++;
+    diagnosticVisits.set(current, { id: view, time: Date.now() });
     attempted = false;
     setEntry();
     resume();
@@ -338,11 +350,18 @@ export function install(win, script) {
     };
     config = fresh;
     state = restoreState(saved, config) || emptyState();
+    if (state.visits.length === saved.visits.length)
+      state.visits.forEach((v, i) => {
+        if (diagnosticVisits.has(saved.visits[i]))
+          diagnosticVisits.set(v, diagnosticVisits.get(saved.visits[i]));
+      });
     if (fresh.metadataRevision) state.metadataRevision = fresh.metadataRevision;
     if (fresh.urlPolicyRevision)
       state.urlPolicyRevision = fresh.urlPolicyRevision;
     if (oldCurrent) {
       current = { page: pageNow(), visibleMs: oldCurrent.visibleMs };
+      if (diagnosticVisits.has(oldCurrent))
+        diagnosticVisits.set(current, diagnosticVisits.get(oldCurrent));
       recorded = false;
       commitCurrent();
       setEntry();
@@ -351,6 +370,7 @@ export function install(win, script) {
   function navigate() {
     if (!enabled) return;
     accrue();
+    debug.record("page_left");
     persist();
     epoch++;
     view++;

@@ -58,8 +58,10 @@ export function createDebugger(
     generation = 0,
     authorizeReady,
     activeTab = "status",
+    historyOrder = "asc",
     events = [],
-    bytes = 0;
+    bytes = 0,
+    sequence = 0;
   const el = (tag, text, parent, className) => {
     const node = win.document.createElement(tag);
     if (text !== undefined) node.textContent = text;
@@ -70,8 +72,9 @@ export function createDebugger(
   function valid() {
     return !!token && Date.now() < expiresAt;
   }
-  function json(parent, title, data) {
+  function json(parent, title, data, key = title) {
     const details = el("details", undefined, parent);
+    details.dataset.detailKey = key;
     el("summary", title, details);
     el("pre", JSON.stringify(data, null, 2), details);
   }
@@ -161,9 +164,210 @@ export function createDebugger(
     }
     el("p", "判定値は購入確率・施策効果ではありません。", parent, "muted");
   }
+  function historyRows(s) {
+    const current = s.state.currentVisit;
+    const info = s.currentVisitInfo;
+    const visits = new Map();
+    for (const event of events)
+      if (event.type === "visit")
+        visits.set(event.data.id, {
+          ...event.data,
+          time: event.time,
+          type: "page",
+        });
+    for (const visit of s.pastVisitInfo ?? [])
+      if (visit.id !== undefined && visits.has(visit.id))
+        visits.set(visit.id, { ...visits.get(visit.id), ...visit });
+    if (current && info)
+      visits.set(info.id, { ...current, ...info, type: "page", current: true });
+    const past = s.pastVisitInfo ?? s.state.visits;
+    const restored = past
+      .filter((v) => v.id === undefined || !visits.has(v.id))
+      .map((v, i) => ({
+        ...v,
+        type: "page",
+        key: `saved-${i}`,
+        qualified: true,
+      }));
+    const live = [
+      ...visits.values(),
+      ...events
+        .filter((e) => ["action_local", "fact_local"].includes(e.type))
+        .map((e) => ({ ...e, key: `event-${e.sequence}` })),
+    ].sort((a, b) => a.time - b.time);
+    const rows = [...restored, ...live];
+    // The entry reference can survive when a short visit did not qualify.
+    // Its timestamp and duration cannot be reconstructed after a reload.
+    const entry = s.state.entryPage;
+    if (entry && rows[0]?.page?.path !== entry.path)
+      rows.unshift({ page: entry, type: "page", entry: true, key: "entry" });
+    else if (entry && rows[0]?.type === "page") rows[0].entry = true;
+    if (current && !info)
+      rows.push({ ...current, type: "page", current: true, key: "current" });
+    return rows;
+  }
+  function renderHistory(s) {
+    const journey = el("div", undefined, content, "journey");
+    const heading = el("div", undefined, journey, "journey-heading");
+    el("h3", "行動履歴", heading);
+    const order = el("select", undefined, heading);
+    order.setAttribute("aria-label", "履歴の並び順");
+    order.dataset.control = "history-order";
+    for (const [value, title] of [
+      ["asc", "古い順 → 現在"],
+      ["desc", "新しい順 → 流入"],
+    ]) {
+      const option = el("option", title, order);
+      option.value = value;
+    }
+    order.value = historyOrder;
+    order.onchange = () => {
+      historyOrder = order.value;
+      render();
+    };
+    el(
+      "p",
+      "同意後の流入から現在まで、計測した情報を順番に確認できます。",
+      journey,
+      "muted",
+    );
+    const rows = historyRows(s);
+    const summary = el("div", undefined, journey, "journey-summary");
+    for (const [value, title] of [
+      [
+        `${rows.filter((r) => r.type === "page").length}ページ`,
+        "確認できる閲覧",
+      ],
+      [`${(s.pastVisitInfo ?? s.state.visits).length}ページ`, "過去の有効閲覧"],
+      [s.current ? "計測中" : "計測なし", "現在のページ"],
+    ]) {
+      const item = el("div", undefined, summary);
+      el("strong", value, item);
+      el("span", title, item);
+    }
+    const list = el("ol", undefined, journey, "timeline");
+    list.setAttribute("aria-label", "計測した行動の時系列");
+    if (!rows.length)
+      el(
+        "p",
+        "計測した行動はまだありません。同意・取得設定・収集対象の経路を確認してください。",
+        journey,
+        "muted",
+      );
+    for (const row of historyOrder === "desc" ? [...rows].reverse() : rows) {
+      const li = el(
+        "li",
+        undefined,
+        list,
+        `timeline-event${row.current ? " is-current" : ""}`,
+      );
+      const top = el("div", undefined, li, "event-top");
+      const time = el(
+        "time",
+        row.time
+          ? new Date(row.time).toLocaleTimeString("ja-JP")
+          : "時刻の記録なし",
+        top,
+      );
+      if (row.time) time.dateTime = new Date(row.time).toISOString();
+      const page = row.type === "page";
+      el(
+        "span",
+        page
+          ? row.current
+            ? "現在のページ"
+            : row.entry
+              ? "流入"
+              : "ページ閲覧"
+          : row.type === "action_local"
+            ? "操作"
+            : "状態変更",
+        top,
+        `event-badge${row.current ? " current" : row.entry ? " entry" : !page ? " action" : ""}`,
+      );
+      if (row.current && row.entry)
+        el("span", "流入", top, "event-badge entry");
+      if (page) {
+        const card = el("article", undefined, li, "visit-card");
+        el("h4", row.page.name, card);
+        el("p", row.page.path, card, "visit-path");
+        const metrics = el("p", undefined, card, "visit-metrics");
+        const duration = el(
+          "span",
+          Number.isFinite(row.visibleMs)
+            ? `${row.current ? "表示中" : "表示"} ${(row.visibleMs / 1000).toFixed(1)}秒`
+            : "閲覧時間の記録なし",
+          metrics,
+        );
+        if (row.current) duration.dataset.currentDuration = "true";
+        el(
+          "span",
+          row.current
+            ? "過去の有効閲覧には含めない"
+            : row.qualified || row.visibleMs >= s.minVisibleMs
+              ? "✓ 有効閲覧"
+              : Number.isFinite(row.visibleMs)
+                ? "最低閲覧時間未満"
+                : "流入ページの記録",
+          metrics,
+        );
+        json(card, "取得したページ情報", row.page, `page-${row.id ?? row.key}`);
+      } else {
+        const line = el(
+          "p",
+          row.type === "action_local" ? "操作を連携 " : "状態を変更 ",
+          li,
+          "action-line",
+        );
+        el("code", row.data.name, line);
+        if (row.data.value !== undefined)
+          el("span", ` → ${String(row.data.value)}`, line);
+        el("p", "ブラウザ内に保存・この更新による再判定なし", li, "muted");
+      }
+    }
+    el(
+      "p",
+      "有効閲覧は最低閲覧時間を満たした過去のページです。現在ページの計測とは分けて扱います。",
+      journey,
+      "muted history-note",
+    );
+    el(
+      "p",
+      "過去の有効閲覧と流入ページは保存済み情報から表示します。診断開始前・再読み込み前の時刻や途中の操作は復元しません。診断中の記録は最大60件・合計1MBで古いものから消去します。",
+      journey,
+      "muted history-note",
+    );
+    const extra = el("div", undefined, content, "history-extra");
+    el("h3", "その他の計測情報", extra);
+    el(
+      "p",
+      "履歴とは別に、いま保持している情報を確認できます。",
+      extra,
+      "muted",
+    );
+    json(extra, "現在ページの取得元", s.sources);
+    json(extra, "許可された操作・状態", {
+      actions: s.state.actions,
+      facts: s.state.facts,
+    });
+    json(extra, "表示回数・閉じた状態", s.state.delivery);
+    el(
+      "p",
+      "フォーム入力・ページ全文・JSON-LD全体は取得・送信しません。",
+      extra,
+      "muted",
+    );
+  }
   function render() {
     if (!root || !valid()) return;
     status.textContent = `診断中 · ${new Date(expiresAt).toLocaleTimeString("ja-JP")}まで`;
+    const openDetails = new Set(
+      [...content.querySelectorAll("details[open][data-detail-key]")].map(
+        (d) => d.dataset.detailKey,
+      ),
+    );
+    const scrollTop = content.scrollTop;
+    const focused = root.activeElement?.dataset.control;
     content.replaceChildren();
     root
       .querySelectorAll("[data-tab]")
@@ -207,32 +411,7 @@ export function createDebugger(
         "muted",
       );
     } else if (activeTab === "history") {
-      el("h3", "このブラウザで計測した情報", content);
-      if (s.state.currentVisit)
-        json(
-          content,
-          "現在ページの計測（有効閲覧履歴とは別）",
-          s.state.currentVisit,
-        );
-      if (s.state.entryPage) json(content, "流入ページ", s.state.entryPage);
-      for (const v of s.state.visits) {
-        const card = el("article", undefined, content);
-        el("h4", v.page.name, card);
-        el("p", `${v.page.path} · ${(v.visibleMs / 1000).toFixed(1)}秒`, card);
-        json(card, "取得したページ情報", v.page);
-      }
-      json(content, "現在のページの取得元", s.sources);
-      json(content, "許可された操作・状態", {
-        actions: s.state.actions,
-        facts: s.state.facts,
-      });
-      json(content, "表示回数・閉じた状態", s.state.delivery);
-      el(
-        "p",
-        "フォーム入力・ページ全文・JSON-LD全体は取得・送信しません。",
-        content,
-        "muted",
-      );
+      renderHistory(s);
     } else {
       el("h3", "このタブの判定・表示の記録", content);
       if (!events.some((event) => ["request", "response"].includes(event.type)))
@@ -241,7 +420,9 @@ export function createDebugger(
           "診断開始前の通信は記録されません。次のページへ移動すると、そのページの初期判定を記録できます。",
           content,
         );
-      for (const event of [...events].reverse()) {
+      for (const event of [...events]
+        .reverse()
+        .filter((e) => !["visit", "page_left"].includes(e.type))) {
         const details = el("details", undefined, content);
         const name =
           {
@@ -277,6 +458,7 @@ export function createDebugger(
           details,
           event.type === "request" ? "APIへ送ったJSON" : "記録のJSON",
           event.data,
+          `trace-${event.sequence}`,
         );
       }
       el(
@@ -286,6 +468,13 @@ export function createDebugger(
         "muted",
       );
     }
+    for (const d of content.querySelectorAll("details[data-detail-key]"))
+      d.open = openDetails.has(d.dataset.detailKey);
+    content.scrollTop = scrollTop;
+    if (focused)
+      content
+        .querySelector(`[data-control="${focused}"]`)
+        ?.focus({ preventScroll: true });
   }
   function stop(message, notify = false) {
     if (notify) {
@@ -317,7 +506,8 @@ export function createDebugger(
     host = el("aside", undefined, win.document.body);
     host.dataset.jevsenseDebug = "true";
     root = host.attachShadow({ mode: "open" });
-    const css = `:host{all:initial;position:fixed;right:16px;top:16px;z-index:2147483646;font:14px/1.6 system-ui,sans-serif;color:#23362c}*{box-sizing:border-box}[hidden]{display:none!important}section{width:440px;max-width:calc(100vw - 32px);background:#fff;border:1px solid #cbd7cf;border-radius:16px;box-shadow:0 12px 48px #0003;overflow:hidden}header{display:flex;align-items:center;gap:8px;padding:12px 16px;background:#153c2b;color:white}header strong{flex:1}button{font:inherit;cursor:pointer;border:1px solid #cbd7cf;border-radius:8px;background:#fff;color:#1d4c35;padding:6px 10px}nav{display:flex;gap:6px;padding:12px;border-bottom:1px solid #e0e6e2}button[aria-pressed=true]{background:#e4f2e9}main{padding:0 16px 16px;max-height:calc(100dvh - 170px);overflow:auto}h3{font-size:16px}h4{margin:0}p{margin:8px 0;overflow-wrap:anywhere}.muted{color:#64736a;font-size:12px}details,article{border:1px solid #dbe3de;padding:10px;border-radius:8px;margin:10px 0}summary{cursor:pointer;overflow-wrap:anywhere}pre{font:12px/1.6 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}`;
+    const css = `:host{all:initial;position:fixed;right:16px;top:16px;z-index:2147483646;font:14px/1.6 system-ui,sans-serif;color:#23362c}*{box-sizing:border-box}[hidden]{display:none!important}section{width:520px;max-width:calc(100vw - 32px);background:#fff;border:1px solid #cbd7cf;border-radius:16px;box-shadow:0 12px 48px #0003;overflow:hidden}header{display:flex;align-items:center;gap:8px;padding:12px 16px;background:#153c2b;color:white}header strong{flex:1}button{font:inherit;cursor:pointer;border:1px solid #cbd7cf;border-radius:8px;background:#fff;color:#1d4c35;padding:6px 10px}nav{display:flex;gap:24px;padding:0 16px;border-bottom:1px solid #e0e6e2}nav button{border:0;border-bottom:3px solid transparent;border-radius:0;padding:12px 0;background:none;color:#64736a;font-size:13px}nav button[aria-pressed=true]{border-bottom-color:#357653;color:#1d4c35;font-weight:600}main{padding:0 16px 16px;max-height:calc(100dvh - 170px);overflow:auto}h3{font-size:16px}h4{margin:0}p{margin:8px 0;overflow-wrap:anywhere}.muted{color:#64736a;font-size:12px}details,article{border:1px solid #dbe3de;padding:10px;border-radius:8px;margin:10px 0}summary{cursor:pointer;overflow-wrap:anywhere}pre{font:12px/1.6 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto}
+.journey{padding:20px 0}.journey-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.journey h3,.history-extra h3{margin:0}.journey-heading select{font:12px system-ui,sans-serif;color:#42664c;border:1px solid #cbd7cf;background:white;border-radius:6px;padding:8px;max-width:52%}.journey-summary{display:flex;background:#f3f7f2;border:1px solid #e1e8de;border-radius:8px;padding:12px 0;margin:18px 0 22px}.journey-summary div{flex:1;padding:0 12px;border-right:1px solid #dce5da;min-width:0}.journey-summary div:last-child{border:0}.journey-summary strong{display:block;font-size:15px}.journey-summary span{display:block;font-size:11px;color:#64736a;margin-top:4px}.timeline{list-style:none;margin:0;padding:0}.timeline-event{position:relative;border-left:1px solid #d3e0d4;margin-left:6px;padding:0 0 20px 22px}.timeline-event:last-child{border-left-color:transparent;padding-bottom:0}.timeline-event:before{content:"";position:absolute;left:-5px;top:6px;width:9px;height:9px;border-radius:50%;background:#fff;border:2px solid #91ae98}.timeline-event.is-current:before{background:#398157;border-color:#398157;box-shadow:0 0 0 4px #e5f2e8}.event-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.event-top time{font-size:11px;color:#687b6c;font-variant-numeric:tabular-nums}.event-badge{font-size:11px;padding:2px 6px;border-radius:4px;background:#edf3ea;color:#456c4b}.event-badge.entry{background:#efedf7;color:#6c5a8a}.event-badge.current{background:#dcefe2;color:#286342}.event-badge.action{background:#fbf0dc;color:#8d682f}.visit-card{margin:0;padding:12px;border-color:#dce5dc}.is-current .visit-card{background:#f6fbf6;border-color:#9ab89e}.visit-card h4{font-size:14px;overflow-wrap:anywhere}.visit-path{font-size:12px;color:#677c6b}.visit-metrics{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:12px;color:#4d6e52}.visit-card details{margin:10px 0 0;padding:8px 0 0;border:0;border-radius:0;border-top:1px solid #dfe8dd}.visit-card summary{font-size:12px}.history-note{margin-top:18px}.history-extra{background:#f4f7f2;border-top:1px solid #d6e1d4;margin:0 -16px -16px;padding:20px 16px}.history-extra details{background:#fff}.action-line code{font:12px ui-monospace,monospace;background:#fbf0dc;padding:2px 4px;border-radius:4px;overflow-wrap:anywhere}button:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #71a988;outline-offset:2px}@media(max-width:440px){.journey-summary div{padding:0 8px}.journey-summary strong{font-size:14px}.timeline-event{padding-left:16px}header{padding:12px}nav{gap:20px;padding:0 16px}nav button{font-size:12px;padding:10px 0}}`;
     if (win.CSSStyleSheet && "adoptedStyleSheets" in root) {
       const sheet = new win.CSSStyleSheet();
       sheet.replaceSync(css);
@@ -354,21 +544,37 @@ export function createDebugger(
     }
     content = el("main", undefined, body);
   }
-  function record(type, data = {}) {
-    if (!valid()) return;
-    let serialized = JSON.stringify({ time: Date.now(), type, data });
+  function appendEvent(type, data, time = Date.now()) {
+    let serialized = JSON.stringify({ time, type, data });
     if (serialized.length > 262144)
       serialized = JSON.stringify({
-        time: Date.now(),
+        time,
         type,
         data: { reason: "大きすぎるため詳細を省略しました" },
       });
     const event = JSON.parse(serialized);
+    event.sequence = ++sequence;
     event.size = serialized.length * 2;
     events.push(event);
     bytes += event.size;
     while (events.length > 60 || bytes > 1048576) bytes -= events.shift().size;
-    if (activeTab === "decisions") render();
+  }
+  function record(type, data = {}) {
+    if (!valid()) return;
+    const s = snapshot();
+    if (s.currentVisitInfo && s.state.currentVisit) {
+      const { id, time } = s.currentVisitInfo;
+      const previous = events.findIndex(
+        (e) => e.type === "visit" && e.data.id === id,
+      );
+      if (previous >= 0) {
+        bytes -= events[previous].size;
+        events.splice(previous, 1);
+      }
+      appendEvent("visit", { ...s.state.currentVisit, id }, time);
+    }
+    appendEvent(type, data);
+    if (activeTab === "decisions" || activeTab === "history") render();
   }
   async function receive(event) {
     const data = event.data;
@@ -412,6 +618,12 @@ export function createDebugger(
       render();
       timer = win.setInterval(() => {
         if (activeTab === "status") render();
+        else if (activeTab === "history") {
+          const visit = snapshot().state.currentVisit;
+          const duration = content.querySelector("[data-current-duration]");
+          if (visit && duration)
+            duration.textContent = `表示中 ${(visit.visibleMs / 1000).toFixed(1)}秒`;
+        }
       }, 1000);
       expiryTimer = win.setTimeout(
         () =>

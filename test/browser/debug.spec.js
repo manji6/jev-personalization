@@ -270,3 +270,125 @@ test("a diagnostic response arriving after consent withdrawal cannot restore era
   await expect(ui).not.toContainText("Polo guide");
   expect(await popup.evaluate(() => sessionStorage.length)).toBe(0);
 });
+
+test("journey orders repeated visits and actions, separates supplemental data and keeps details open", async ({
+  page,
+}, testInfo) => {
+  const popup = await launch(page),
+    ui = panel(popup);
+  await ui.getByRole("button", { name: "閲覧・行動", exact: true }).click();
+  await expect(ui.locator(".timeline-event.is-current")).toHaveCount(1);
+  await expect(ui.locator(".timeline .visit-path")).toHaveText(["/guides/a"]);
+  await expect(ui.locator(".timeline-event").first()).toContainText("流入");
+  await expect(ui.locator(".journey-summary")).toContainText(
+    "0ページ過去の有効閲覧",
+  );
+  await popup.waitForTimeout(1100);
+  await popup.evaluate(() => history.pushState({}, "", "/guides/b"));
+  await expect(ui.locator(".timeline .visit-path")).toHaveText([
+    "/guides/a",
+    "/guides/b",
+  ]);
+  await expect(ui.locator(".timeline-event").first()).toContainText("有効閲覧");
+  const count = requests.filter((r) => r.path === "/v1/decision").length;
+  await popup.evaluate(() => window.JevPersonalization.track("guide_download"));
+  await expect(ui.locator(".timeline .action-line")).toContainText(
+    "guide_download",
+  );
+  const details = ui.locator(".is-current details");
+  await details.locator("summary").click();
+  await popup.evaluate(() =>
+    window.JevPersonalization.setFact("registered", false),
+  );
+  await expect(details).toHaveAttribute("open", "");
+  expect(requests.filter((r) => r.path === "/v1/decision")).toHaveLength(count);
+  await popup.evaluate(() => history.pushState({}, "", "/guides/a"));
+  await expect(ui.locator(".timeline .visit-path")).toHaveText([
+    "/guides/a",
+    "/guides/b",
+    "/guides/a",
+  ]);
+  await expect(ui.locator(".timeline-event.is-current")).toHaveCount(1);
+  const chronological = await ui
+    .locator(".timeline-event time")
+    .evaluateAll((nodes) => nodes.map((n) => n.dateTime));
+  expect(chronological.every(Boolean)).toBe(true);
+  expect(chronological).toEqual([...chronological].sort());
+  const rowLabels = () =>
+    ui
+      .locator(".timeline-event")
+      .evaluateAll((nodes) =>
+        nodes.map((n) => [
+          n.querySelector("time").dateTime,
+          n.querySelector(".visit-path")?.textContent ??
+            n.querySelector(".action-line")?.textContent,
+        ]),
+      );
+  const original = await rowLabels();
+  await ui.getByLabel("履歴の並び順").selectOption("desc");
+  expect(await rowLabels()).toEqual([...original].reverse());
+  await expect(ui.locator(".history-extra")).toContainText("その他の計測情報");
+  await expect(ui.locator(".history-extra")).toContainText(
+    "現在ページの取得元",
+  );
+  const storage = await popup.evaluate(() =>
+    sessionStorage.getItem("jev:v1:demo"),
+  );
+  expect(storage).not.toMatch(
+    /currentVisitInfo|pastVisitInfo|"time"|"qualified"/,
+  );
+  await popup.setViewportSize({ width: 1440, height: 1100 });
+  await ui.getByLabel("履歴の並び順").selectOption("asc");
+  await ui
+    .locator("section")
+    .screenshot({ path: testInfo.outputPath("journey-desktop.png") });
+  await popup.setViewportSize({ width: 390, height: 844 });
+  const bounds = await ui.locator("section").boundingBox();
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
+  expect(
+    await ui.locator("main").evaluate((n) => n.scrollWidth <= n.clientWidth),
+  ).toBe(true);
+  await ui
+    .locator("section")
+    .screenshot({ path: testInfo.outputPath("journey-mobile.png") });
+  await popup.evaluate(() => window.JevPersonalization.consent(false));
+  await expect(ui.locator(".timeline-event")).toHaveCount(0);
+  await expect(ui).not.toContainText("guide_download");
+  await expect(ui).not.toContainText("Polo guide");
+});
+
+test("reload shows retained visits without invented timestamps and bounds diagnostic actions", async ({
+  page,
+}) => {
+  const popup = await launch(page);
+  await popup.waitForTimeout(1100);
+  await popup.goto("https://www.example.com/guides/b");
+  const ui = panel(popup);
+  await expect(ui).toHaveCount(1);
+  await ui.getByRole("button", { name: "閲覧・行動", exact: true }).click();
+  await expect(ui.locator(".timeline .visit-path")).toHaveText([
+    "/guides/a",
+    "/guides/b",
+  ]);
+  await expect(
+    ui.locator(".timeline-event").first().locator("time"),
+  ).toHaveText("時刻の記録なし");
+  await expect(ui.locator(".timeline-event").first()).toContainText("有効閲覧");
+  await expect(ui.locator(".timeline-event.is-current")).toHaveCount(1);
+  const count = requests.filter((r) => r.path === "/v1/decision").length;
+  await popup.evaluate(() => {
+    for (let i = 0; i < 80; i++)
+      window.JevPersonalization.track("guide_download", i);
+  });
+  const actionCount = await ui.locator(".timeline .action-line").count();
+  expect(actionCount).toBeLessThanOrEqual(59);
+  expect(actionCount).toBeGreaterThan(0);
+  expect(requests.filter((r) => r.path === "/v1/decision")).toHaveLength(count);
+  await expect(ui.locator(".timeline .action-line").last()).toContainText("79");
+  const oldest = await ui
+    .locator(".timeline .action-line")
+    .first()
+    .textContent();
+  expect(Number(oldest.split("→")[1].trim())).toBeGreaterThanOrEqual(21);
+});
