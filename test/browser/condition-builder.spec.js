@@ -123,7 +123,7 @@ test("node editor creates, edits, tests and reopens a campaign without losing gr
   const modal = host.locator("#nodeEditDialog");
   await expect(modal).toBeVisible();
   await modal
-    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
+    .getByLabel("どんな人に届けたいですか？", { exact: true })
     .fill("ポロシャツに関心がある");
   await modal.getByRole("button", { name: "変更を保存", exact: true }).click();
   await expect(host.locator(".node.jev")).toContainText(

@@ -1204,6 +1204,63 @@ td.empty {
   margin-top: 28px;
   line-height: 2.1;
 }
+.hero-ask {
+  margin-top: 36px;
+  max-width: 420px;
+}
+.hero-field {
+  border: 1.5px solid #245b44;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 16px 18px;
+  min-height: 5.4em;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.7;
+  color: #17251e;
+}
+.hero-field .ph {
+  color: #6f7d73;
+  font-weight: 400;
+}
+.hero-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: #245b44;
+  vertical-align: -0.2em;
+  margin-left: 2px;
+  animation: hero-blink 1s steps(1) infinite;
+}
+@keyframes hero-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.hero-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: #245b44;
+  font-size: 13px;
+  font-weight: 700;
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
+}
+.hero-done.off {
+  opacity: 0;
+  transform: translateY(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-caret {
+    animation: none;
+  }
+  .hero-done {
+    transition: none;
+  }
+}
 .login-bottom {
   font-size: 10px;
   color: #98a18d;

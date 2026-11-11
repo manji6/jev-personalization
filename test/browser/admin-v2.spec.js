@@ -168,7 +168,7 @@ test("threshold presets save numeric values, publish normally and fit desktop an
     .getByLabel("何を伝えたいですか？", { exact: true })
     .fill("導入ガイドを案内する");
   await page
-    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
+    .getByLabel("どんな人に届けたいですか？", { exact: true })
     .fill("導入方法に関心がある");
   await page
     .getByRole("button", { name: "表示コンテンツ", exact: true })
@@ -478,7 +478,7 @@ test("guided editing saves isolated draft, renders question preview, publishes a
     .getByLabel("何を伝えたいですか？", { exact: true })
     .fill("吸汗速乾ポロシャツの特集を案内する");
   await page
-    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
+    .getByLabel("どんな人に届けたいですか？", { exact: true })
     .fill("吸汗速乾機能のあるポロシャツに関心がある");
   await expect(page.locator("#conditionBuilder #question")).toContainText(
     "今回案内する内容：吸汗速乾ポロシャツの特集を案内する",

@@ -87,3 +87,24 @@
     font-size: 13px;
   }
 }
+
+/* ホームのヒーロー右側に入力欄のコンポーネントを置くための調整。
+   既定は画像用(固定の正方形、ナビ下へ食い込む負のマージン)なので上書きする。 */
+.VPHero.VPHomeHero .image {
+  order: 3;
+  margin: 2rem 0 0;
+}
+.VPHero.VPHomeHero .image-container {
+  width: 100%;
+  height: auto;
+}
+@media (min-width: 60rem) {
+  .VPHero.VPHomeHero .image {
+    order: 2;
+    margin: 0;
+  }
+  .VPHero.VPHomeHero .image-container {
+    height: 100%;
+    transform: none;
+  }
+}
