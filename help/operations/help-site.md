@@ -6,6 +6,8 @@
 
 各ページ下部の編集リンクから提案するか、ローカルでMarkdownを編集します。画面例は`help/public/images/`、メニューは`help/.vitepress/config.mts`です。
 
+日本語のページは`help/`直下、英語のページは`help/en/`に同じファイル名で置いています。ページを変更するときは両方を更新してください。画面例は両言語で共通で、日本語の画面です。管理画面は現在日本語のみのため、英語ページでは画面上の名称を「英訳（「日本語の表示」）」の形で示します。
+
 ```sh
 npm ci
 npm run help:dev
@@ -20,7 +22,7 @@ npm run help:build
 npm run help:preview
 ```
 
-内部リンク切れはビルドでエラーにします。検索、メニュー、コードのコピー、スマートフォン幅も確認してください。
+内部リンク切れはビルドでエラーにします。検索、メニュー、コードのコピー、スマートフォン幅も、日本語・英語の両方で確認してください。
 
 ## GitHub Pagesへ公開する
 
@@ -32,7 +34,7 @@ npm run help:publish
 
 ビルド済みファイルだけを`gh-pages`へ、通常の履歴を保ったPushで更新します。初回だけPagesの配信元を`gh-pages`のルートに設定します。既存のPages設定が異なる場合は、無断で置き換えず停止します。
 
-公開先は **https://manji6.github.io/jev-personalization/** です。GitHub側のビルド・配信完了まで少し時間がかかります。
+公開先は **https://manji6.github.io/jev-personalization/** で、英語版は **https://manji6.github.io/jev-personalization/en/** です。GitHub側のビルド・配信完了まで少し時間がかかります。
 
 ### 初回有効化だけ403になる場合
 
