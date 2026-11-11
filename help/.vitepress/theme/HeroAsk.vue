@@ -1,12 +1,38 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
+import { useData } from "vitepress";
 
-const examples = [
-  "吸汗速乾機能のあるポロシャツに関心がある人",
-  "はじめての住宅ローンを比較している人",
-  "法人向けプランの料金を調べている人",
-];
-const question = "どんな人に届けたいですか？";
+const copy = {
+  ja: {
+    examples: [
+      "吸汗速乾機能のあるポロシャツに関心がある人",
+      "はじめての住宅ローンを比較している人",
+      "法人向けプランの料金を調べている人",
+    ],
+    question: "どんな人に届けたいですか？",
+    done: "これで、届ける相手が決まりました。",
+    label:
+      "入力欄に「吸汗速乾機能のあるポロシャツに関心がある人」と書くと、届ける相手が決まる様子",
+  },
+  en: {
+    examples: [
+      "People interested in moisture-wicking polo shirts",
+      "People comparing their first mortgage",
+      "People looking up pricing for business plans",
+    ],
+    question: "Who do you want to reach?",
+    done: "That's it. Your audience is set.",
+    label:
+      "Typing \u201cPeople interested in moisture-wicking polo shirts\u201d into the field sets who the message reaches",
+  },
+};
+const { lang } = useData();
+const {
+  examples,
+  question,
+  done: doneText,
+  label,
+} = lang.value.startsWith("en") ? copy.en : copy.ja;
 
 const text = ref(examples[0]);
 const asking = ref(false);
@@ -43,10 +69,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="hero-ask" role="img" aria-label="入力欄に「吸汗速乾機能のあるポロシャツに関心がある人」と書くと、届ける相手が決まる様子">
+  <div class="hero-ask" role="img" :aria-label="label">
     <div class="field" aria-hidden="true">
-      <span :class="{ ph: asking }">{{ text }}</span
-      ><span class="caret" />
+      <span :class="{ ph: asking }">{{ text }}</span><span class="caret" />
     </div>
     <div class="done" :class="{ off: !done }" aria-hidden="true">
       <svg width="20" height="20" viewBox="0 0 20 20">
@@ -60,7 +85,7 @@ onBeforeUnmount(() => {
           stroke-linejoin="round"
         />
       </svg>
-      <span>これで、届ける相手が決まりました。</span>
+      <span>{{ doneText }}</span>
     </div>
   </div>
 </template>
