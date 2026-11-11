@@ -78,7 +78,7 @@ try {
     .getByLabel("何を伝えたいですか？", { exact: true })
     .fill("吸汗速乾ポロシャツの特集を案内する");
   await page
-    .getByLabel("どんな関心・状態に当てはまる人ですか？", { exact: true })
+    .getByLabel("どんな人に届けたいですか？", { exact: true })
     .fill("吸汗速乾機能のあるポロシャツに関心がある");
   await capture("editor");
   await page

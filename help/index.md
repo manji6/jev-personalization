@@ -3,11 +3,8 @@ layout: home
 title: はじめに
 hero:
   name: JevSense
-  text: その人の、いまを。<br>ちょうどいいご案内に。
-  tagline: 閲覧の文脈を察知・判定して、用意したコンテンツを届ける。導入する人も、施策をつくる人も、ここから始められます。
-  image:
-    src: /favicon.svg
-    alt: JevSense
+  text: 届けたい相手を、<br>言葉で書くだけ。
+  tagline: 書いた言葉が、そのまま届ける条件になります。導入する人も、施策をつくる人も、ここから始められます。
   actions:
     - theme: brand
       text: はじめて使う

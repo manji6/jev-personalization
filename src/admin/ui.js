@@ -580,6 +580,45 @@ let authKind = "login",
   inviteToken = null,
   recoveryToken = null,
   invite = null;
+const heroExamples = [
+  "吸汗速乾機能のあるポロシャツに関心がある人",
+  "はじめての住宅ローンを比較している人",
+  "法人向けプランの料金を調べている人",
+];
+const heroQuestion = "どんな人に届けたいですか？";
+function heroAsk() {
+  return `<div class="hero-ask" aria-hidden="true"><div class="hero-field"><span id="heroTyped">${heroExamples[0]}</span><span class="hero-caret"></span></div><div class="hero-done" id="heroDone"><svg width="18" height="18" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="currentColor"/><path d="M5.5 10.4l3 3 6-6.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>これで、届ける相手が決まりました。</span></div></div>`;
+}
+let heroTimer = 0;
+function startHeroAsk() {
+  const typed = $("heroTyped"),
+    done = $("heroDone");
+  const run = ++heroTimer;
+  if (!typed || !done || matchMedia("(prefers-reduced-motion: reduce)").matches)
+    return;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  (async () => {
+    let k = 0;
+    await wait(2600);
+    while (run === heroTimer && document.body.contains(typed)) {
+      k = (k + 1) % heroExamples.length;
+      done.classList.add("off");
+      typed.className = "ph";
+      typed.textContent = heroQuestion;
+      await wait(1700);
+      typed.className = "";
+      typed.textContent = "";
+      for (const ch of heroExamples[k]) {
+        if (run !== heroTimer || !document.body.contains(typed)) return;
+        typed.textContent += ch;
+        await wait(70 + Math.random() * 60);
+      }
+      await wait(450);
+      done.classList.remove("off");
+      await wait(3200);
+    }
+  })();
+}
 function renderAuth(kind = "login") {
   authKind = kind;
   closeSelectPopup();
@@ -673,7 +712,8 @@ function renderAuth(kind = "login") {
       { required: true, type: "email" },
     );
   $("app").innerHTML =
-    `<div class="login"><section class="login-art">${brand()}<div class="login-copy"><p class="eyebrow">SENSE THE MOMENT.</p><h1>その人の、いまを。<br>ちょうどいい<br>コミュニケーションに。</h1><p>行動の先にある関心や文脈を捉えて、<br>ひとりひとりに、意味のある出会いを。</p></div><p class="login-bottom">JevSense · Personalization, with a sense of purpose.</p></section><section class="login-form"><div class="login-inner"><div class="fingerprint">${icon("finger")}</div><p class="eyebrow">${kind === "login" ? "WELCOME BACK" : "YOUR ACCOUNT"}</p><h1>${title}</h1><p class="desc">${desc}</p><form data-form="auth">${fields}<button class="button primary wide" type="submit">${kind === "login" ? "パスキーでログイン" : kind === "invite" && invite?.existingAccount ? "ログインして招待を受ける" : "パスキーを登録する"} ${icon("arrow")}</button><p id="authError" class="error-note" role="alert"></p></form><div class="login-foot">${button(kind === "recover" ? "ログインに戻る" : "パスキーが使えない場合", kind === "recover" ? "auth-login" : "auth-recover", "text-button")}<div class="login-help">${helpLink("ヘルプ・マニュアルを見る")}<p>セットアップやログインの方法を確認できます。別タブで開きます。</p></div></div></div></section></div>`;
+    `<div class="login"><section class="login-art">${brand()}<div class="login-copy"><p class="eyebrow">JUST DESCRIBE WHO IT'S FOR.</p><h1>届けたい相手を、<br>言葉で書くだけ。</h1><p>書いた言葉が、そのまま届ける条件になります。</p>${heroAsk()}</div><p class="login-bottom">JevSense · Just describe who it's for.</p></section><section class="login-form"><div class="login-inner"><div class="fingerprint">${icon("finger")}</div><p class="eyebrow">${kind === "login" ? "WELCOME BACK" : "YOUR ACCOUNT"}</p><h1>${title}</h1><p class="desc">${desc}</p><form data-form="auth">${fields}<button class="button primary wide" type="submit">${kind === "login" ? "パスキーでログイン" : kind === "invite" && invite?.existingAccount ? "ログインして招待を受ける" : "パスキーを登録する"} ${icon("arrow")}</button><p id="authError" class="error-note" role="alert"></p></form><div class="login-foot">${button(kind === "recover" ? "ログインに戻る" : "パスキーが使えない場合", kind === "recover" ? "auth-login" : "auth-recover", "text-button")}<div class="login-help">${helpLink("ヘルプ・マニュアルを見る")}<p>セットアップやログインの方法を確認できます。別タブで開きます。</p></div></div></div></section></div>`;
+  startHeroAsk();
 }
 async function refreshSession() {
   state.session = await api("/auth/session");
@@ -801,7 +841,7 @@ function shell(route, body) {
     "members",
     ...(canManage() ? ["jev"] : []),
   ];
-  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">A little sense.<br>A better connection.</p><nav class="nav" aria-label="その他のメニュー">${globalAdmin() ? `<a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a>` : ""}<a class="help-nav" href="${HELP_URL}" target="_blank" rel="noopener noreferrer" aria-label="ヘルプ・マニュアル（別タブで開きます）" title="ヘルプ・マニュアル（別タブで開きます）">${icon("book")}<span class="nav-text">ヘルプ・マニュアル</span></a></nav><a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${setupStatus(route)}${body}</main></div>`;
+  return `<aside class="sidebar">${brand()}<p class="nav-label">SITE WORKSPACE</p><nav class="nav" aria-label="サイトのメニュー">${nav.map((r) => `<a href="#/${r}" data-nav="${r}" class="${route === r ? "active" : ""}">${icon({ members: "users", diagnostics: "debug", jev: "key" }[r] || r)}<span class="nav-text">${names[r]}</span></a>`).join("")}</nav><div class="sidebar-bottom"><p class="sidebar-note">Just describe<br>who it's for.</p><nav class="nav" aria-label="その他のメニュー">${globalAdmin() ? `<a href="#/installation" data-nav="installation" class="${route === "installation" ? "active" : ""}">${icon("shield")}<span class="nav-text">JevSense管理</span></a>` : ""}<a class="help-nav" href="${HELP_URL}" target="_blank" rel="noopener noreferrer" aria-label="ヘルプ・マニュアル（別タブで開きます）" title="ヘルプ・マニュアル（別タブで開きます）">${icon("book")}<span class="nav-text">ヘルプ・マニュアル</span></a></nav><a class="account-link" href="#/account" data-nav="account" aria-label="アカウント・パスキー"><span class="avatar">${esc(user.displayName.slice(0, 2))}</span><span class="account-text">${esc(user.displayName)}<small>${esc(user.email)}</small></span></a></div></aside><div class="shell"><header class="topbar"><div class="site-picker"><span class="site-avatar">${esc((current?.name || "J").slice(0, 1))}</span><div><small>選択中のサイト</small><select id="siteSwitcher" aria-label="サイトを切り替える">${state.session.sites.map((s) => `<option value="${s.id}" ${s.id === state.siteId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></div></div><div class="top-actions"><span class="environment-label">${esc(state.session.environmentName || "JevSense")}</span><span class="role-chip">${roleNames[state.value?.role || user.globalRole] || "メンバー"}</span>${button("ログアウト", "logout", "small")}</div></header><main class="main"><div class="crumb"><span>${esc(current?.name || "JevSense")}</span><span>/</span><span>${names[route] || "施策の編集"}</span></div>${setupStatus(route)}${body}</main></div>`;
 }
 function allCampaigns() {
   const result = new Map(
