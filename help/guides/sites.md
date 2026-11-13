@@ -19,9 +19,9 @@
 
 ### オリジンとパスの違い
 
-`https://adobe.customer-experience.dev/ja/`を対象にする例です。
+`https://example.amanohashi.date/ja/`を対象にする例です。
 
-- オリジン：`https://adobe.customer-experience.dev`
+- オリジン：`https://example.amanohashi.date`
 - 収集する経路：`/ja/`
 - 表示ページ：施策側で、たとえば完全一致`/ja/`
 
