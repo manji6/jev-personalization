@@ -336,8 +336,8 @@ export function mountConditionBuilder(host, ctx) {
     else if (n.kind === "jev")
       html +=
         n.format === "raw"
-          ? `<label for="instructions">判定質問（原文）</label><textarea id="instructions" data-property="instructions" maxlength="1000">${esc(n.instructions)}</textarea><p class="hint">既存の原文と質問ID ${esc(n.key)}を保持します。共通の案内内容を変更しても、この原文は自動変更しません。</p>`
-          : `<label for="condition">どんな人に届けたいですか？</label><textarea id="condition" data-property="condition" maxlength="400">${esc(n.condition)}</textarea><p class="hint">1つの判断を書き、AND/ORは接続で指定します。</p><details open><summary>Jevへ送る判定質問</summary><pre id="question">${esc(question(n))}</pre></details>`;
+          ? `<label for="instructions">判定質問（原文）</label><textarea id="instructions" data-property="instructions" maxlength="1000">${esc(n.instructions)}</textarea><p class="hint">この条件は、Jevへ送る質問の原文をそのまま保存した従来の形式です。新しく追加するJev条件は「どんな人に届けたいですか？」に「◯◯に興味がある人」のように書く形式で、質問は自動で組み立てられます。既存の原文と質問ID ${esc(n.key)}を保持します。共通の案内内容を変更しても、この原文は自動変更しません。</p>`
+          : `<label for="condition">どんな人に届けたいですか？</label><textarea id="condition" data-property="condition" maxlength="400" placeholder="例：吸汗速乾ポロシャツに興味がある人">${esc(n.condition)}</textarea><p class="hint">このコンテンツを見せたい人は、どんな状態の人ですか？「◯◯に興味がある人」「◯◯について知りたそうな人」のように書きます。1つの判断だけを書き、AND/ORは接続で指定します。</p><details open><summary>Jevへ送る判定質問</summary><pre id="question">${esc(question(n))}</pre></details>`;
     else if (n.kind === "and" || n.kind === "or")
       html += `<label>組み合わせ</label>${choice("kind", n.kind, { and: "すべて満たす（AND）", or: "どれか満たす（OR）" })}<p>${parents(n.id).length}本の入力が接続されています。</p><p class="note">入力は2本以上。情報不足は不成立と区別します。</p>`;
     else

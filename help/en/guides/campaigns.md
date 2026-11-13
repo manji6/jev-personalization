@@ -18,7 +18,7 @@ In "What do you want to tell them? (「何を伝えたいですか？」)", writ
 
 > Introduce the feature on moisture-wicking polo shirts
 
-In "Who do you want to reach? (「どんな人に届けたいですか？」)", write the one interest or state you want to judge.
+In "Who do you want to reach? (「どんな人に届けたいですか？」)", describe what kind of person should see this content, in one phrase such as "someone interested in ..." or "someone who seems to want to know about ...". The same guidance appears under the input field in the editor.
 
 > Interested in polo shirts with moisture-wicking function
 
