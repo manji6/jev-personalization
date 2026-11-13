@@ -1592,3 +1592,93 @@ test("stopping returns a campaign to draft; saving a live campaign asks first an
   await expect(row).toContainText("下書き");
   expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(0);
 });
+
+test("campaign history page lists versions, compares them with the current content and restores one", async ({
+  page,
+}) => {
+  await setup(page);
+  const original = (await admin.repo.publicConfig()).sites[0].campaigns[0];
+  const campaignPath = `/admin/api/v2/sites/demo/campaigns/${original.id}`;
+  await page.locator('a[data-nav="campaigns"]').click();
+  // 履歴がまだ無い間は、件数を出さない。
+  await expect(
+    page.getByRole("button", { name: "履歴", exact: true }),
+  ).toBeVisible();
+  // 公開中の施策を保存 → 公開停止＋下書き（版1）。
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await clickSaveDraft(page);
+  await expect(page.getByRole("status")).toContainText("下書きを保存");
+  // タイトルを変えて下書き保存（版2）。
+  const site = await browserAPI(page, "/admin/api/v2/sites/demo");
+  const changed = structuredClone(site.drafts[0].campaign);
+  changed.content.title = "履歴テストのタイトル";
+  const put = await browserAPI(
+    page,
+    campaignPath + "/draft",
+    "PUT",
+    changed,
+    site.drafts[0].revision,
+  );
+  expect(put.status).toBe(200);
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page.reload();
+  await releaseFromList(page); // 本番へリリース（版3）
+  await page.locator('a[data-nav="campaigns"]').click();
+  await expect(page.getByRole("button", { name: /履歴 3/ })).toBeVisible();
+  await page.getByRole("button", { name: /履歴 3/ }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "履歴", exact: true }),
+  ).toBeVisible();
+  const items = page.locator("button[data-history-select]");
+  await expect(items).toHaveCount(3);
+  await expect(items.nth(0)).toContainText("本番へリリース");
+  await expect(items.nth(0)).toContainText("公開中");
+  await expect(items.nth(1)).toContainText("下書き保存");
+  await expect(items.nth(2)).toContainText("公開を停止して保存");
+  // 最新の版は、いまの内容と同じなので復元できない。
+  await expect(page.locator(".history-message")).toContainText(
+    "いまの内容と同じ",
+  );
+  await expect(
+    page.getByRole("button", { name: "公開を停止して復元" }),
+  ).toBeDisabled();
+  // 最初の版を選ぶと、戻したときに変わる項目が見える。
+  await items.nth(2).click();
+  await expect(page.locator(".history-message")).toContainText(
+    "この版に戻すと、公開中の内容から1か所が変わります",
+  );
+  const row = page.locator(".history-row", { hasText: "表示タイトル" });
+  await expect(row).toContainText("履歴テストのタイトル");
+  await expect(row).toContainText(original.content.title);
+  // 「この版の変更点」は、ひとつ前の版との違い。最初の版には比べる相手がない。
+  await page.getByRole("button", { name: "この版の変更点" }).click();
+  await expect(page.locator(".history-message")).toContainText("最初の版");
+  await items.nth(1).click();
+  await expect(page.locator(".history-message")).toContainText(
+    "ひとつ前の版から1か所が変わりました",
+  );
+  // 公開中の施策への復元は、公開を止めることを確認してから行う。
+  await page.getByRole("button", { name: "いまとの違い" }).click();
+  await items.nth(2).click();
+  await page.getByRole("button", { name: "公開を停止して復元" }).click();
+  await expect(page.getByRole("dialog")).toContainText("公開が止まり");
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(1);
+  await page.getByRole("button", { name: "公開を停止して復元" }).click();
+  await page
+    .getByRole("button", { name: "公開を停止して復元する", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("下書きに復元しました");
+  expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(0);
+  await expect(items).toHaveCount(4);
+  await expect(items.nth(0)).toContainText("下書きに復元");
+  await expect(items.nth(0)).toContainText("現在の下書き");
+  const draft = (await browserAPI(page, "/admin/api/v2/sites/demo")).drafts[0];
+  expect(draft.campaign.content.title).toBe(original.content.title);
+  // 一覧の「履歴」と同じ件数が戻る。
+  await page
+    .locator('nav[aria-label="サイトのメニュー"] a[data-nav="campaigns"]')
+    .click();
+  await expect(page.getByRole("button", { name: /履歴 4/ })).toBeVisible();
+});

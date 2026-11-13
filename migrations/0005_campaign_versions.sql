@@ -1,0 +1,3 @@
+-- Campaign version history: snapshots taken when a campaign is saved, released, stopped or restored.
+-- Administration content only; no visitor identities or behavior history. At most 10 versions are kept per campaign.
+CREATE TABLE IF NOT EXISTS admin_campaign_versions (site_id TEXT NOT NULL REFERENCES admin_sites(id) ON DELETE CASCADE, campaign_id TEXT NOT NULL, seq INTEGER NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('draft','publish','unpublish','unpublish_save','restore')), actor_id TEXT, restored_from INTEGER, body TEXT NOT NULL CHECK(json_valid(body)), created_at INTEGER NOT NULL, PRIMARY KEY(site_id,campaign_id,seq));

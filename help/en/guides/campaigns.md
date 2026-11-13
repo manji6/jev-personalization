@@ -119,6 +119,27 @@ A campaign is either a draft or live. You can check both on a real page from [Pr
 
 "Stop publishing (「公開を停止」)" in the row of a live campaign stops it and returns it to a draft.
 
+## 7. Go back to an earlier version from History
+
+Every time you save, release, stop or restore a campaign, its content at that moment is kept as a "version". Press "History (「履歴」)" in the campaign list to open the History page of that campaign. Up to the latest 10 versions are kept per campaign; when the limit is exceeded, the oldest versions are deleted automatically.
+
+| Version type                                      | When it is kept                                    |
+| ------------------------------------------------- | -------------------------------------------------- |
+| Save draft (「下書き保存」)                       | When you press "Save draft"                        |
+| Release to production (「本番へリリース」)        | When you press "Release to production" in the list |
+| Stop publishing (「公開を停止」)                  | When you press "Stop publishing" in the list       |
+| Stop publishing and save (「公開を停止して保存」) | When saving a live campaign stops it               |
+| Restore to draft (「下書きに復元」)               | When you restore a version from History            |
+
+The History page shows the list of versions on the left and a comparison of the selected version on the right. The switch at the top right chooses how to compare.
+
+- **Difference from now (「いまとの違い」)**: what would change from the current content if you went back to this version.
+- **Changes in this version (「この版の変更点」)**: what was changed from the previous version.
+
+The comparison is split into conditions, judgment settings, display content, custom JavaScript and delivery settings, and lists only the items that changed. Conditions are shown as a sentence and as a diagram with added, changed and deleted nodes in different colors. Differences in node positions are not compared.
+
+"Restore this version to draft (「この版を下書きに復元」)" replaces the current content with the content of that version as a draft, after a confirmation. The current content stays in History, so you can go back to it. Restoring works per version; there is no partial restore per item. Restoring into a live campaign stops it, as saving does, and it becomes a draft. Press "Release to production" to publish it again. Only admins can restore a version that contains custom JavaScript. Viewers can see History but cannot restore. Discarding a new draft also deletes the History of that campaign.
+
 ## If a concurrent edit conflicts
 
 To avoid overwriting someone else's change, saving or delivering outdated edits is not accepted. Reload the list and check the latest content. Note down the input you need, discard your draft, and edit again from the latest content.

@@ -52,6 +52,7 @@ const registrationResponseSchema = z
     response: z.record(z.string(), z.unknown()),
   })
   .strict();
+const VERSION_LIMIT = 10;
 const FIVE = 300000,
   DAY = 86400000,
   SESSION_AGE = 12 * 3600000,
@@ -611,6 +612,38 @@ export function createAdministration({
       fail(409, "config_changed_reload");
     }
     return next;
+  }
+  // 施策の版を履歴に残す。1施策につき最新10件だけを保持し、超えた分は古い順に消す。
+  async function recordVersion(
+    session,
+    siteId,
+    campaignId,
+    kind,
+    body,
+    restoredFrom = null,
+  ) {
+    await repo.batch([
+      [
+        "INSERT INTO admin_campaign_versions(site_id,campaign_id,seq,kind,actor_id,restored_from,body,created_at) SELECT ?,?,COALESCE(MAX(seq),0)+1,?,?,?,?,? FROM admin_campaign_versions WHERE site_id=? AND campaign_id=?",
+        siteId,
+        campaignId,
+        kind,
+        session.user_id,
+        restoredFrom,
+        typeof body === "string" ? body : JSON.stringify(body),
+        clock(),
+        siteId,
+        campaignId,
+      ],
+      [
+        "DELETE FROM admin_campaign_versions WHERE site_id=? AND campaign_id=? AND seq <= (SELECT MAX(seq) FROM admin_campaign_versions WHERE site_id=? AND campaign_id=?) - ?",
+        siteId,
+        campaignId,
+        siteId,
+        campaignId,
+        VERSION_LIMIT,
+      ],
+    ]);
   }
   // 公開中の施策を公開設定から外し、下書きとして保存する。
   // 公開設定の更新と下書きの保存は、1つのトランザクションで行う。
@@ -1552,7 +1585,14 @@ export function createAdministration({
           "SELECT campaign_id,body,revision,base_hash FROM admin_drafts WHERE site_id=?",
           siteId,
         );
+        const counts = await repo.all(
+          "SELECT campaign_id,count(*) AS n FROM admin_campaign_versions WHERE site_id=? GROUP BY campaign_id",
+          siteId,
+        );
         return out({
+          historyCounts: Object.fromEntries(
+            counts.map((v) => [v.campaign_id, v.n]),
+          ),
           site,
           readiness: {
             jev: (await siteJev.status(siteId)).configurationState,
@@ -1775,11 +1815,16 @@ export function createAdministration({
         return out(await issueDebug(session, site, b.url));
       }
       const campaignRoute = tail.match(
-        /^campaigns\/([\w-]+)(?:\/(draft|publish|stop|preview))?$/,
+        /^campaigns\/([\w-]+)(?:\/(draft|publish|stop|preview|history))?(?:\/(\d+)\/(restore))?$/,
       );
       if (!campaignRoute) fail(404);
       const campaignId = campaignRoute[1],
         action = campaignRoute[2],
+        historySeq = campaignRoute[3] ? Number(campaignRoute[3]) : null,
+        restoring =
+          action === "history" &&
+          request.method === "POST" &&
+          historySeq !== null,
         published = site.campaigns.find((c) => c.id === campaignId),
         draft = await repo.one(
           "SELECT * FROM admin_drafts WHERE site_id=? AND campaign_id=?",
@@ -1787,6 +1832,29 @@ export function createAdministration({
           campaignId,
         );
       const existing = draft ? JSON.parse(draft.body) : published;
+      if (campaignRoute[3] && action !== "history") fail(404);
+      if (
+        action === "history" &&
+        request.method === "GET" &&
+        !campaignRoute[3]
+      ) {
+        const rows = await repo.all(
+          "SELECT v.seq,v.kind,v.created_at,v.restored_from,v.body,u.display_name FROM admin_campaign_versions v LEFT JOIN admin_users u ON u.id=v.actor_id WHERE v.site_id=? AND v.campaign_id=? ORDER BY v.seq DESC",
+          siteId,
+          campaignId,
+        );
+        return out({
+          limit: VERSION_LIMIT,
+          versions: rows.map((v) => ({
+            seq: v.seq,
+            kind: v.kind,
+            createdAt: v.created_at,
+            restoredFrom: v.restored_from,
+            actor: v.display_name || "",
+            campaign: JSON.parse(v.body),
+          })),
+        });
+      }
       if (
         (existing?.presentation.type === "custom" ||
           published?.presentation.type === "custom") &&
@@ -1835,6 +1903,13 @@ export function createAdministration({
           ))
         )
           fail(409, "config_changed_reload");
+        // 新規の下書きを破棄すると施策そのものが消えるので、履歴も消す。
+        if (!published)
+          await repo.run(
+            "DELETE FROM admin_campaign_versions WHERE site_id=? AND campaign_id=?",
+            siteId,
+            campaignId,
+          );
         await repo.audit(
           session.user_id,
           "campaign.discard",
@@ -1843,8 +1918,19 @@ export function createAdministration({
         );
         return out({ ok: true });
       }
-      if (action === "draft" && request.method === "PUT") {
-        const c = normalizeCampaign(await readAdminJSON(request), false);
+      if ((action === "draft" && request.method === "PUT") || restoring) {
+        let input;
+        if (restoring) {
+          const version = await repo.one(
+            "SELECT body FROM admin_campaign_versions WHERE site_id=? AND campaign_id=? AND seq=?",
+            siteId,
+            campaignId,
+            historySeq,
+          );
+          if (!version) fail(404);
+          input = JSON.parse(version.body);
+        } else input = await readAdminJSON(request);
+        const c = normalizeCampaign(input, false);
         if (c.id !== campaignId) fail(400, "campaign_mismatch");
         if (
           c.presentation.type === "custom" &&
@@ -1878,9 +1964,25 @@ export function createAdministration({
             draft,
             admin: c.presentation.type === "custom",
           });
+          await recordVersion(
+            session,
+            siteId,
+            campaignId,
+            restoring
+              ? "restore"
+              : published.enabled
+                ? "unpublish_save"
+                : "draft",
+            JSON.stringify(c),
+            restoring ? historySeq : null,
+          );
           await repo.audit(
             session.user_id,
-            published.enabled ? "campaign.unpublish" : "campaign.draft",
+            restoring
+              ? "campaign.restore"
+              : published.enabled
+                ? "campaign.unpublish"
+                : "campaign.draft",
             siteId,
             campaignId,
           );
@@ -1918,7 +2020,20 @@ export function createAdministration({
           );
           if (!changed) fail(409, "config_changed_reload");
         }
-        await repo.audit(session.user_id, "campaign.draft", siteId, campaignId);
+        await recordVersion(
+          session,
+          siteId,
+          campaignId,
+          restoring ? "restore" : "draft",
+          JSON.stringify(c),
+          restoring ? historySeq : null,
+        );
+        await repo.audit(
+          session.user_id,
+          restoring ? "campaign.restore" : "campaign.draft",
+          siteId,
+          campaignId,
+        );
         return out({ ok: true, revision });
       }
       if (
@@ -1941,6 +2056,13 @@ export function createAdministration({
           },
           value.revision,
           published.presentation.type === "custom",
+        );
+        await recordVersion(
+          session,
+          siteId,
+          campaignId,
+          "publish",
+          JSON.stringify({ ...published, enabled: true }),
         );
         await repo.audit(
           session.user_id,
@@ -1978,6 +2100,13 @@ export function createAdministration({
           campaignId,
           draft.revision,
         );
+        await recordVersion(
+          session,
+          siteId,
+          campaignId,
+          "publish",
+          JSON.stringify(c),
+        );
         await repo.audit(
           session.user_id,
           "campaign.publish",
@@ -2001,16 +2130,24 @@ export function createAdministration({
           ).n >= 20
         )
           fail(409, "draft_limit");
+        const stoppedBody = draft
+          ? draft.body
+          : JSON.stringify(normalizeCampaign(published, false));
         const revision = await moveToDraft(session, {
           site,
           revision: value.revision,
           campaignId,
-          body: draft
-            ? draft.body
-            : JSON.stringify(normalizeCampaign(published, false)),
+          body: stoppedBody,
           draft,
           admin: published.presentation.type === "custom",
         });
+        await recordVersion(
+          session,
+          siteId,
+          campaignId,
+          "unpublish",
+          stoppedBody,
+        );
         await repo.audit(
           session.user_id,
           "campaign.unpublish",
@@ -2032,6 +2169,11 @@ export function createAdministration({
         );
         await repo.run(
           "DELETE FROM admin_drafts WHERE site_id=? AND campaign_id=?",
+          siteId,
+          campaignId,
+        );
+        await repo.run(
+          "DELETE FROM admin_campaign_versions WHERE site_id=? AND campaign_id=?",
           siteId,
           campaignId,
         );

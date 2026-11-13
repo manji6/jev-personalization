@@ -35,6 +35,7 @@ A site-only key needs the runtime secret `JEV_KEYRING`. Only Node.js can instead
 | Valid viewing time                   | 1000 to 300000 milliseconds                      |
 | Valid past views required            | 0 to 10                                          |
 | Saved drafts                         | Up to 20 per site                                |
+| Versions in History                  | Latest 10 per campaign                           |
 | Passkeys                             | Up to 10 per user                                |
 
 ## Input and communication limits

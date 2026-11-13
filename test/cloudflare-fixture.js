@@ -82,6 +82,7 @@ export async function cloudflareFixture(options = {}) {
       "0002_administration.sql",
       "0003_site_jev.sql",
       "0004_metadata_inspections.sql",
+      "0005_campaign_versions.sql",
     ])
       await db.exec(
         (await readFile("migrations/" + migration, "utf8"))
