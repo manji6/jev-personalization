@@ -3,6 +3,11 @@ import { buildManagedApp } from "../../src/app.js";
 import { fixture } from "../helpers.js";
 
 async function releaseFromList(page) {
+  const save = page.getByRole("button", { name: "下書き保存", exact: true });
+  if (await save.isVisible()) {
+    await save.click();
+    await expect(page.getByRole("status")).toContainText("下書きを保存");
+  }
   await page.locator('a[data-nav="campaigns"]').click();
   await page
     .getByRole("button", { name: "本番へリリース", exact: true })
