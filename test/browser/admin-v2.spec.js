@@ -1546,3 +1546,29 @@ async function editGraphJSON(page, g) {
   await openGraphJSON(page);
   await applyGraphJSON(page, g);
 }
+
+test("a stopped campaign with a draft offers release but not resume", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page.getByRole("button", { name: "停止", exact: true }).click();
+  await page.getByRole("button", { name: "停止する", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "再開", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("下書きを保存");
+  await page.locator('a[data-nav="campaigns"]').click();
+  await expect(
+    page.getByRole("button", { name: "本番へリリース", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "再開", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "本番へリリース", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("配信を再開します");
+});

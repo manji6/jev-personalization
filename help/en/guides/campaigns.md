@@ -115,7 +115,7 @@ If you specify an excluded state, a visitor is not treated as a target while the
 
 **Save draft** saves what you are editing. Even if you edit a campaign that is live, the previous delivery content stays in place. You can save partial input too.
 
-Saving in the editor does not start delivery. You release from the campaign list. A campaign with a saved draft shows "Release to production (「本番へリリース」)" in its row. Press it, check the summary, then press "Release to production (「本番へリリースする」)" to apply it to the live settings. You can't release if a judgment condition or display title is empty.
+Saving in the editor does not start delivery. You release from the campaign list. A campaign with a saved draft shows "Release to production (「本番へリリース」)" in its row. Press it, check the summary, then press "Release to production (「本番へリリースする」)" to apply it to the live settings. You can't release if a judgment condition or display title is empty. Releasing a stopped campaign also resumes delivery, so a stopped campaign with a draft shows no "Resume" button.
 
 Before delivering, check on a real page from [Preview](./testing) in the list. You also stop and resume live campaigns from the list.
 
