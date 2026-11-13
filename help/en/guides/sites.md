@@ -19,9 +19,9 @@ A newly created site has sending and campaigns disabled. Check the settings and 
 
 ### Origin versus path
 
-An example for targeting `https://adobe.customer-experience.dev/ja/`.
+An example for targeting `https://example.amanohashi.date/ja/`.
 
-- Origin: `https://adobe.customer-experience.dev`
+- Origin: `https://example.amanohashi.date`
 - Path to collect: `/ja/`
 - Page to display on: on the campaign side, for example an exact match of `/ja/`
 

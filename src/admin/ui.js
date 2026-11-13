@@ -1184,7 +1184,7 @@ function settingsPage() {
         "許可するオリジン",
         "origins",
         site.origins.join("\n"),
-        "1行に1つ。パスは含めません。例：https://adobe.customer-experience.dev",
+        "1行に1つ。パスは含めません。例：https://example.amanohashi.date",
         { area: true },
       ) +
       field(
