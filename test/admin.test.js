@@ -211,7 +211,7 @@ test("site membership and global role are checked on backend and revocation is i
     401,
   );
 });
-test("drafts preserve published delivery, deterministic questions compile only on publish, stale writes conflict", async (t) => {
+test("saving a live campaign unpublishes it into a draft, deterministic questions compile only on publish, stale writes conflict", async (t) => {
   const f = await managedFixture();
   t.after(() => f.app.close());
   const user = await f.addUser();
@@ -227,14 +227,28 @@ test("drafts preserve published delivery, deterministic questions compile only o
     conditions: ["吸汗速乾機能に関心がある", "ポロシャツを比較している"],
   };
   const path = `/admin/api/v2/sites/demo/campaigns/${campaign.id}`;
-  const saved = await f.dispatch(path + "/draft", "PUT", campaign, user, {
+  // 公開中の施策は、公開が止まることを確認しない限り保存できない。
+  const unconfirmed = await f.dispatch(path + "/draft", "PUT", campaign, user, {
     "If-Match": before.revision,
   });
+  assert.equal(unconfirmed.statusCode, 409);
+  assert.equal(unconfirmed.json().error, "unpublish_confirmation_required");
+  assert.equal(
+    (await f.administration.repo.publicConfig()).sites[0].campaigns.length,
+    1,
+  );
+  const saved = await f.dispatch(
+    path + "/draft?unpublish=1",
+    "PUT",
+    campaign,
+    user,
+    { "If-Match": before.revision },
+  );
   assert.equal(saved.statusCode, 200, saved.body);
-  assert.notEqual(
-    (await f.administration.repo.publicConfig()).sites[0].campaigns[0].content
-      .title,
-    "Updated",
+  // 保存すると公開設定から外れ、下書きだけが残る。
+  assert.equal(
+    (await f.administration.repo.publicConfig()).sites[0].campaigns.length,
+    0,
   );
   assert.equal(
     (

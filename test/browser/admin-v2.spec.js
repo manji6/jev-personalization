@@ -1,6 +1,30 @@
 import { test, expect } from "@playwright/test";
 import { buildManagedApp } from "../../src/app.js";
 import { fixture } from "../helpers.js";
+
+async function clickSaveDraft(page) {
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  // 公開中の施策を保存するときだけ、確認モーダルが出る。
+  await page
+    .getByRole("button", { name: "保存して公開を停止", exact: true })
+    .click({ timeout: 1000 })
+    .catch(() => {});
+}
+async function releaseFromList(page) {
+  const save = page.getByRole("button", { name: "下書き保存", exact: true });
+  if (await save.isVisible()) {
+    await save.click();
+    await expect(page.getByRole("status")).toContainText("下書きを保存");
+  }
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page
+    .getByRole("button", { name: "本番へリリース", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "本番へリリースする", exact: true })
+    .click();
+}
+
 const origin = "https://admin.example.com",
   token = "test-bootstrap-".repeat(4);
 let app, db, calls, admin, authenticator;
@@ -100,9 +124,9 @@ test.beforeEach(async ({ page, context }) => {
 test.afterEach(async () => app.close());
 async function saveThresholdDraft(page) {
   const saved = page.waitForResponse(
-    (r) => r.url().endsWith("/draft") && r.request().method() === "PUT",
+    (r) => r.url().includes("/draft") && r.request().method() === "PUT",
   );
-  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await clickSaveDraft(page);
   expect((await saved).status()).toBe(200);
   await expect(page.getByRole("status")).toContainText("下書きを保存");
   return (await browserAPI(page, "/admin/api/v2/sites/demo")).drafts[0]
@@ -177,12 +201,7 @@ test("threshold presets save numeric values, publish normally and fit desktop an
     .getByRole("textbox", { name: "表示タイトル", exact: true })
     .fill("導入ガイド");
   await saveThresholdDraft(page);
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(page.getByRole("heading", { name: "施策一覧" })).toBeVisible();
   const published = (await admin.repo.publicConfig()).sites[0].campaigns.find(
     (c) => c.id === broad.id,
@@ -224,15 +243,14 @@ test("existing custom thresholds retain exact precision; invalid values cannot s
       writes.push(req);
   });
   await number.fill("0.49");
-  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await clickSaveDraft(page);
   await expect(page.getByRole("status")).toContainText("しきい値は0.5〜0.99");
   expect(writes).toHaveLength(0);
   await number.fill("0.99");
   expect((await saveThresholdDraft(page)).threshold).toBe(0.99);
   expect(writes).toHaveLength(1);
-  expect(
-    (await admin.repo.publicConfig()).sites[0].campaigns[0].threshold,
-  ).toBe(0.735123);
+  // 公開中の施策を保存したので、公開設定から外れて下書きになっている。
+  expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(0);
   expect(calls).toBe(0);
 });
 test("threshold slider synchronizes values and presets with keyboard bounds; viewers cannot edit", async ({
@@ -492,15 +510,10 @@ test("guided editing saves isolated draft, renders question preview, publishes a
   await page
     .getByLabel("メッセージ", { exact: true })
     .fill("夏におすすめのご案内");
-  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await clickSaveDraft(page);
   await expect(page.getByRole("status")).toContainText("下書きを保存");
   expect((await admin.repo.publicConfig()).sites[0].campaigns.length).toBe(1); // existing fixture only
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(page.getByRole("heading", { name: "施策一覧" })).toBeVisible();
   expect((await admin.repo.publicConfig()).sites[0].campaigns.length).toBe(2);
   expect(calls).toBe(0);
@@ -1278,12 +1291,7 @@ test("URL-only campaign editor saves an entry cid condition with zero required h
   await page
     .getByRole("textbox", { name: "表示タイトル", exact: true })
     .fill("ランナー向け特集");
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(
     page.getByRole("heading", { name: "施策一覧", exact: true }),
   ).toBeVisible();
@@ -1355,12 +1363,7 @@ for (const variant of ["current", "legacy", "original"])
     const draft = await saveThresholdDraft(page);
     expect(draft.questions).toEqual(c.questions);
     expect(draft.combination).toBe("any");
-    await page
-      .getByRole("button", { name: "配信内容を確認", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "この内容で配信開始", exact: true })
-      .click();
+    await releaseFromList(page);
     await expect(
       page.getByRole("heading", { name: "施策一覧", exact: true }),
     ).toBeVisible();
@@ -1550,3 +1553,42 @@ async function editGraphJSON(page, g) {
   await openGraphJSON(page);
   await applyGraphJSON(page, g);
 }
+
+test("stopping returns a campaign to draft; saving a live campaign asks first and unpublishes", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.locator('a[data-nav="campaigns"]').click();
+  const row = page.locator("tbody tr").first();
+  await expect(row).toContainText("公開中");
+  expect((await admin.repo.publicConfig()).sites[0].campaigns[0].enabled).toBe(
+    true,
+  );
+  // 公開中の施策を保存すると、確認のうえで公開が止まり、下書きになる。
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("公開が止まり");
+  await page
+    .getByRole("button", { name: "保存して公開を停止", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("下書きを保存");
+  expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(0);
+  await page.locator('a[data-nav="campaigns"]').click();
+  await expect(row).toContainText("下書き");
+  await expect(page.getByRole("button", { name: "再開" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "公開を停止" })).toHaveCount(0);
+  // 本番へリリースすると、再び公開される。
+  await page
+    .getByRole("button", { name: "本番へリリース", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "本番へリリースする", exact: true })
+    .click();
+  await expect(row).toContainText("公開中");
+  expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(1);
+  // 一覧の「公開を停止」は、公開を止めて下書きに戻す。
+  await page.getByRole("button", { name: "公開を停止", exact: true }).click();
+  await page.getByRole("button", { name: "停止する", exact: true }).click();
+  await expect(row).toContainText("下書き");
+  expect((await admin.repo.publicConfig()).sites[0].campaigns).toHaveLength(0);
+});

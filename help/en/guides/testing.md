@@ -17,7 +17,7 @@ The Cloudflare Preview used to update the system is [a feature for checking a se
 3. Enter the page URL you want to check.
 4. Press "Open page and check (「ページを開いて確認」)", and keep the admin console open too.
 
-A saved draft takes priority, and without one the saved delivery content is used. Unsaved edits are not included. You can also check campaigns that are stopped or not yet in normal delivery.
+The saved content is used. Unsaved edits are not included. You can check both drafts and live campaigns.
 
 ## URL conditions
 

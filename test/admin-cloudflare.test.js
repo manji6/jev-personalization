@@ -54,7 +54,14 @@ test("workerd administration runs D1 migration, protects management APIs, applie
     await f.dispatch("/admin/api/v2/sites/demo", { headers })
   ).json();
   const url = "/admin/api/v2/sites/demo/campaigns/" + draft.id;
-  const savedDraft = await f.dispatch(url + "/draft", {
+  // 公開中の施策は、公開が止まることを確認しない限り保存できない。
+  const unconfirmed = await f.dispatch(url + "/draft", {
+    method: "PUT",
+    headers: { ...headers, "If-Match": fresh.revision },
+    body: JSON.stringify(draft),
+  });
+  assert.equal(unconfirmed.status, 409);
+  const savedDraft = await f.dispatch(url + "/draft?unpublish=1", {
     method: "PUT",
     headers: { ...headers, "If-Match": fresh.revision },
     body: JSON.stringify(draft),

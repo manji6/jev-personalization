@@ -676,7 +676,13 @@ test("condition graph test API is scoped, CSRF protected and pure; drafts preser
     (e) => e.id !== "b",
   );
   const base = "/admin/api/v2/sites/demo/campaigns/" + campaign.id;
-  r = await f.request(editor, base + "/draft", "PUT", campaign, revision);
+  r = await f.request(
+    editor,
+    base + "/draft?unpublish=1",
+    "PUT",
+    campaign,
+    revision,
+  );
   assert.equal(r.statusCode, 200, r.body);
   const draftRev = r.json().revision,
     partial = (await f.request(editor, "/admin/api/v2/sites/demo")).json()
@@ -685,10 +691,11 @@ test("condition graph test API is scoped, CSRF protected and pure; drafts preser
   assert.equal(partial.conditionGraph.edges.length, 4);
   r = await f.request(editor, base + "/publish", "POST", {}, draftRev);
   assert.equal(r.statusCode, 400, r.body);
+  // 公開できなかったので、施策は公開設定に戻らず下書きのまま。
   assert.equal(
-    (await f.request(editor, "/admin/api/v2/sites/demo")).json().site
-      .campaigns[0].conditionGraph,
-    undefined,
+    (await f.request(editor, "/admin/api/v2/sites/demo")).json().site.campaigns
+      .length,
+    0,
   );
   campaign.conditionGraph = mixedGraph();
   r = await f.request(editor, base + "/draft", "PUT", campaign, draftRev);

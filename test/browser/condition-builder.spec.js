@@ -1,6 +1,30 @@
 import { test, expect } from "@playwright/test";
 import { buildManagedApp } from "../../src/app.js";
 import { fixture } from "../helpers.js";
+
+async function clickSaveDraft(page) {
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  // 公開中の施策を保存するときだけ、確認モーダルが出る。
+  await page
+    .getByRole("button", { name: "保存して公開を停止", exact: true })
+    .click({ timeout: 1000 })
+    .catch(() => {});
+}
+async function releaseFromList(page) {
+  const save = page.getByRole("button", { name: "下書き保存", exact: true });
+  if (await save.isVisible()) {
+    await save.click();
+    await expect(page.getByRole("status")).toContainText("下書きを保存");
+  }
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page
+    .getByRole("button", { name: "本番へリリース", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "本番へリリースする", exact: true })
+    .click();
+}
+
 const origin = "https://admin.example.com",
   token = "test-bootstrap-".repeat(4);
 let app, db, calls, admin, authenticator;
@@ -100,9 +124,9 @@ test.beforeEach(async ({ page, context }) => {
 test.afterEach(async () => app.close());
 async function saveThresholdDraft(page) {
   const saved = page.waitForResponse(
-    (r) => r.url().endsWith("/draft") && r.request().method() === "PUT",
+    (r) => r.url().includes("/draft") && r.request().method() === "PUT",
   );
-  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await clickSaveDraft(page);
   expect((await saved).status()).toBe(200);
   await expect(page.getByRole("status")).toContainText("下書きを保存");
   return (await browserAPI(page, "/admin/api/v2/sites/demo")).drafts[0]
@@ -145,12 +169,7 @@ test("node editor creates, edits, tests and reopens a campaign without losing gr
   await page
     .getByRole("textbox", { name: "表示タイトル", exact: true })
     .fill("夏の案内");
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(
     page.getByRole("heading", { name: "施策一覧", exact: true }),
   ).toBeVisible();

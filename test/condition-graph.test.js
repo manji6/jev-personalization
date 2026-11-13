@@ -204,3 +204,35 @@ test("debug trace reports each graph value and queried node while keeping unneed
   assert.equal(trace.campaigns[0].questions.length, 1);
   assert.equal(trace.model.actualModel, "actual-test");
 });
+
+test("missing offer is reported once and separately from a missing node condition", () => {
+  const graph = (offer, condition) => ({
+    version: 1,
+    offer,
+    nodes: [
+      {
+        id: "jev_1",
+        kind: "jev",
+        key: "q1",
+        format: "raw",
+        instructions: "原文の質問",
+      },
+      { id: "node11", kind: "jev", key: "q2", format: "guided", condition },
+      { id: "node12", kind: "or" },
+      { id: "result", kind: "result" },
+    ],
+    edges: [
+      { id: "e1", from: "jev_1", to: "node12" },
+      { id: "e2", from: "node11", to: "node12" },
+      { id: "e3", from: "node12", to: "result" },
+    ],
+    layout: {},
+  });
+  assert.deepEqual(graphIssues(graph("", "関心がある")), [
+    "「何を伝えたいですか？」を入力してください。",
+  ]);
+  assert.deepEqual(graphIssues(graph("特集を案内する", "")), [
+    "node11：判定する関心・状態を入力してください。",
+  ]);
+  assert.deepEqual(graphIssues(graph("特集を案内する", "関心がある")), []);
+});
