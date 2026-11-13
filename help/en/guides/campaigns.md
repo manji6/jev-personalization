@@ -1,6 +1,6 @@
 # Create and deliver campaigns
 
-"Campaign list (「施策一覧」)" shows your campaigns, including stopped ones and drafts. From "New campaign (「新しい施策」)", you set the audience, the display content and the delivery settings, in that order. You need at least the editor permission.
+"Campaign list (「施策一覧」)" shows your live campaigns and drafts. From "New campaign (「新しい施策」)", you set the audience, the display content and the delivery settings, in that order. You need at least the editor permission.
 
 ## 1. Name the campaign
 
@@ -113,11 +113,11 @@ If you specify an excluded state, a visitor is not treated as a target while the
 
 ## 6. Save a draft and release to production
 
-**Save draft** saves what you are editing. Even if you edit a campaign that is live, the previous delivery content stays in place. You can save partial input too.
+A campaign is either a draft or live. You can check both on a real page from [Preview](./testing) in the list. Only live campaigns are shown to visitors.
 
-Saving in the editor does not start delivery. You release from the campaign list. A campaign with a saved draft shows "Release to production (「本番へリリース」)" in its row. Press it, check the summary, then press "Release to production (「本番へリリースする」)" to apply it to the live settings. You can't release if a judgment condition or display title is empty. Releasing a stopped campaign also resumes delivery, so a stopped campaign with a draft shows no "Resume" button.
+**Save draft** saves what you are editing. You can save partial input too. Saving does not start delivery. You release from the campaign list. A draft shows "Release to production (「本番へリリース」)" in its row. Press it, check the summary, then press "Release to production (「本番へリリースする」)" to make it live. You can't release if a judgment condition or display title is empty. **Saving a live campaign stops it and turns it into a draft.** You are asked to confirm first. Because the live content and the edited content are not kept separately, press "Release to production" again to publish your changes.
 
-Before delivering, check on a real page from [Preview](./testing) in the list. You also stop and resume live campaigns from the list.
+"Stop publishing (「公開を停止」)" in the row of a live campaign stops it and returns it to a draft.
 
 ## If a concurrent edit conflicts
 

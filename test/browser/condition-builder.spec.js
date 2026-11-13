@@ -2,6 +2,14 @@ import { test, expect } from "@playwright/test";
 import { buildManagedApp } from "../../src/app.js";
 import { fixture } from "../helpers.js";
 
+async function clickSaveDraft(page) {
+  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  // 公開中の施策を保存するときだけ、確認モーダルが出る。
+  await page
+    .getByRole("button", { name: "保存して公開を停止", exact: true })
+    .click({ timeout: 1000 })
+    .catch(() => {});
+}
 async function releaseFromList(page) {
   const save = page.getByRole("button", { name: "下書き保存", exact: true });
   if (await save.isVisible()) {
@@ -116,9 +124,9 @@ test.beforeEach(async ({ page, context }) => {
 test.afterEach(async () => app.close());
 async function saveThresholdDraft(page) {
   const saved = page.waitForResponse(
-    (r) => r.url().endsWith("/draft") && r.request().method() === "PUT",
+    (r) => r.url().includes("/draft") && r.request().method() === "PUT",
   );
-  await page.getByRole("button", { name: "下書き保存", exact: true }).click();
+  await clickSaveDraft(page);
   expect((await saved).status()).toBe(200);
   await expect(page.getByRole("status")).toContainText("下書きを保存");
   return (await browserAPI(page, "/admin/api/v2/sites/demo")).drafts[0]

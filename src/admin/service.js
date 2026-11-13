@@ -612,6 +612,64 @@ export function createAdministration({
     }
     return next;
   }
+  // 公開中の施策を公開設定から外し、下書きとして保存する。
+  // 公開設定の更新と下書きの保存は、1つのトランザクションで行う。
+  async function moveToDraft(
+    session,
+    { site, revision, campaignId, body, draft, admin },
+  ) {
+    const nextRevision = crypto.randomUUID(),
+      draftRevision = crypto.randomUUID(),
+      baseHash = await hash(JSON.stringify(null)),
+      nextSite = siteSchema.parse({
+        ...site,
+        campaigns: site.campaigns.filter((c) => c.id !== campaignId),
+      }),
+      siteApplied =
+        "EXISTS(SELECT 1 FROM admin_sites WHERE id=? AND revision=?)";
+    await repo.batch([
+      [
+        `UPDATE admin_sites SET body=?,revision=? WHERE id=? AND revision=? AND ${admin ? actorAdmin : actorPermission}`,
+        JSON.stringify(nextSite),
+        nextRevision,
+        site.id,
+        revision,
+        session.user_id,
+        site.id,
+      ],
+      draft
+        ? [
+            `UPDATE admin_drafts SET body=?,revision=?,base_hash=? WHERE site_id=? AND campaign_id=? AND ${siteApplied}`,
+            body,
+            draftRevision,
+            baseHash,
+            site.id,
+            campaignId,
+            site.id,
+            nextRevision,
+          ]
+        : [
+            `INSERT INTO admin_drafts(site_id,campaign_id,body,revision,base_hash) SELECT ?,?,?,?,? WHERE ${siteApplied}`,
+            site.id,
+            campaignId,
+            body,
+            draftRevision,
+            baseHash,
+            site.id,
+            nextRevision,
+          ],
+    ]);
+    const saved = await repo.one(
+      "SELECT revision FROM admin_drafts WHERE site_id=? AND campaign_id=?",
+      site.id,
+      campaignId,
+    );
+    if (saved?.revision !== draftRevision) {
+      await permission(session, site.id, admin ? "admin" : "edit");
+      fail(409, "config_changed_reload");
+    }
+    return draftRevision;
+  }
   async function verifyDebug(token, siteId, pageOrigin) {
     const claims = await verifyDebugSession(secret, token, siteId, pageOrigin);
     if (!claims?.actor) return null;
@@ -1808,6 +1866,26 @@ export function createAdministration({
         const current = request.headers.get("If-Match");
         if (current !== (draft?.revision || value.revision))
           fail(409, "config_changed_reload");
+        if (published) {
+          // 公開中の施策を保存すると、公開が止まって下書きになる。
+          if (published.enabled && url.searchParams.get("unpublish") !== "1")
+            fail(409, "unpublish_confirmation_required");
+          const revision = await moveToDraft(session, {
+            site,
+            revision: value.revision,
+            campaignId,
+            body: JSON.stringify(c),
+            draft,
+            admin: c.presentation.type === "custom",
+          });
+          await repo.audit(
+            session.user_id,
+            published.enabled ? "campaign.unpublish" : "campaign.draft",
+            siteId,
+            campaignId,
+          );
+          return out({ ok: true, revision });
+        }
         const revision = crypto.randomUUID(),
           baseHash =
             draft?.base_hash || (await hash(JSON.stringify(published || null)));
@@ -1841,6 +1919,35 @@ export function createAdministration({
           if (!changed) fail(409, "config_changed_reload");
         }
         await repo.audit(session.user_id, "campaign.draft", siteId, campaignId);
+        return out({ ok: true, revision });
+      }
+      if (
+        action === "publish" &&
+        request.method === "POST" &&
+        !draft &&
+        published &&
+        !published.enabled
+      ) {
+        // 以前の「停止中」の施策は下書きと同じ扱い。そのまま公開できる。
+        if (request.headers.get("If-Match") !== value.revision)
+          fail(409, "config_changed_reload");
+        const revision = await saveSite(
+          session,
+          {
+            ...site,
+            campaigns: site.campaigns.map((c) =>
+              c.id === campaignId ? { ...c, enabled: true } : c,
+            ),
+          },
+          value.revision,
+          published.presentation.type === "custom",
+        );
+        await repo.audit(
+          session.user_id,
+          "campaign.publish",
+          siteId,
+          campaignId,
+        );
         return out({ ok: true, revision });
       }
       if (action === "publish" && request.method === "POST") {
@@ -1880,24 +1987,36 @@ export function createAdministration({
         return out({ ok: true, revision });
       }
       if (action === "stop" && request.method === "POST") {
+        // 停止は、公開を止めて下書きに戻す操作。
         if (!published) fail(404);
-        const b = z
-          .object({ enabled: z.boolean() })
-          .strict()
-          .parse(await readAdminJSON(request));
-        const next = {
-          ...site,
-          campaigns: site.campaigns.map((c) =>
-            c.id === campaignId ? { ...c, enabled: b.enabled } : c,
-          ),
-        };
-        const revision = await saveSite(
-          session,
-          next,
-          request.headers.get("If-Match"),
-          published.presentation.type === "custom",
+        if (request.headers.get("If-Match") !== value.revision)
+          fail(409, "config_changed_reload");
+        if (
+          !draft &&
+          (
+            await repo.one(
+              "SELECT count(*) AS n FROM admin_drafts WHERE site_id=?",
+              siteId,
+            )
+          ).n >= 20
+        )
+          fail(409, "draft_limit");
+        const revision = await moveToDraft(session, {
+          site,
+          revision: value.revision,
+          campaignId,
+          body: draft
+            ? draft.body
+            : JSON.stringify(normalizeCampaign(published, false)),
+          draft,
+          admin: published.presentation.type === "custom",
+        });
+        await repo.audit(
+          session.user_id,
+          "campaign.unpublish",
+          siteId,
+          campaignId,
         );
-        await repo.audit(session.user_id, "campaign.state", siteId, campaignId);
         return out({ ok: true, revision });
       }
       if (request.method === "DELETE" && !action) {

@@ -859,7 +859,7 @@ function allCampaigns() {
   return [...result.values()];
 }
 function campaignTable(rows) {
-  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : draft ? "draft" : "paused"}">${published?.enabled ? "配信中" : draft ? "下書き" : "停止中"}</span>${draft && published ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${draft && canEdit() ? `<button class="button small primary" data-release="${c.id}" ${c.presentation.type !== "custom" || canManage() ? "" : "disabled"}>本番へリリース</button>` : ""}${published && canEdit() && (published.enabled || !draft) ? `<button class="button small" data-toggle="${c.id}">${published.enabled ? "停止" : "再開"}</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : "draft"}">${published?.enabled ? "公開中" : "下書き"}</span>${draft && published?.enabled ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${(draft || (published && !published.enabled)) && canEdit() ? `<button class="button small primary" data-release="${c.id}" ${c.presentation.type !== "custom" || canManage() ? "" : "disabled"}>本番へリリース</button>` : ""}${published?.enabled && canEdit() ? `<button class="button small" data-stop="${c.id}">公開を停止</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
 }
 function newCampaign() {
   return {
@@ -1461,8 +1461,8 @@ async function render() {
         ),
       ) +
       (route === "campaigns"
-        ? `<div class="filters">${field("施策を検索", "campaignSearch", "", "名前や対象者で検索")}${select("配信状態", "campaignFilter", "all", { all: "すべて", active: "配信中", draft: "下書きあり", paused: "停止中" })}</div>`
-        : `<div class="stats"><div class="card stat"><label>配信中の施策</label><div class="number">${rows.filter((v) => v.published?.enabled).length}<small>件</small></div><span class="stat-icon">${icon("campaigns")}</span></div><div class="card stat"><label>変更の下書き</label><div class="number">${state.value.drafts.length}<small>件</small></div><span class="stat-icon">${icon("settings")}</span></div><div class="card stat"><label>登録されている施策</label><div class="number">${rows.length}<small>件</small></div><span class="stat-icon">${icon("chart")}</span></div></div>`) +
+        ? `<div class="filters">${field("施策を検索", "campaignSearch", "", "名前や対象者で検索")}${select("配信状態", "campaignFilter", "all", { all: "すべて", active: "公開中", draft: "下書き" })}</div>`
+        : `<div class="stats"><div class="card stat"><label>公開中の施策</label><div class="number">${rows.filter((v) => v.published?.enabled).length}<small>件</small></div><span class="stat-icon">${icon("campaigns")}</span></div><div class="card stat"><label>下書き</label><div class="number">${rows.filter((v) => !v.published?.enabled).length}<small>件</small></div><span class="stat-icon">${icon("settings")}</span></div><div class="card stat"><label>登録されている施策</label><div class="number">${rows.length}<small>件</small></div><span class="stat-icon">${icon("chart")}</span></div></div>`) +
       `<section class="card" id="campaignTable">${campaignTable(rows)}</section>` +
       (route === "home" ? helpGuide() : "");
   }
@@ -1588,8 +1588,19 @@ async function saveDraft() {
   readEditor();
   const c = state.edit;
   const draft = state.value.drafts.find((d) => d.campaignId === c.id);
+  const live =
+    state.value.site.campaigns.find((x) => x.id === c.id)?.enabled === true;
+  if (
+    live &&
+    !(await confirmAction(
+      "公開を停止して保存",
+      `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>この施策は公開中です。保存すると公開が止まり、下書きになります。再び公開するには、一覧の「本番へリリース」を押してください。</p>`,
+      "保存して公開を停止",
+    ))
+  )
+    return;
   await api(
-    sitePath() + `/campaigns/${c.id}/draft`,
+    sitePath() + `/campaigns/${c.id}/draft${live ? "?unpublish=1" : ""}`,
     "PUT",
     c,
     draft?.revision || state.value.revision,
@@ -1602,7 +1613,9 @@ async function saveDraft() {
   if (location.hash === "#/campaign/new")
     history.replaceState(null, "", "#/campaign/" + c.id);
   toast(
-    "下書きを保存しました。配信中の内容は、一覧の「本番へリリース」まで変わりません。",
+    live
+      ? "公開を停止して、下書きを保存しました。"
+      : "下書きを保存しました。公開するには、一覧の「本番へリリース」を押してください。",
   );
   await render();
 }
@@ -1851,7 +1864,11 @@ async function handleAction(action) {
     if (
       !(await confirmAction(
         "下書きを破棄",
-        "<p>保存済みの下書きと未保存の編集を破棄します。配信中の内容は維持されます。</p>",
+        state.value.site.campaigns.some(
+          (x) => x.id === state.edit.id && x.enabled,
+        )
+          ? "<p>保存済みの下書きと未保存の編集を破棄します。公開中の内容は維持されます。</p>"
+          : "<p>保存済みの下書きと未保存の編集を破棄します。この施策は一覧から消え、元に戻せません。</p>",
         "破棄する",
       ))
     )
@@ -2081,12 +2098,14 @@ document.addEventListener("click", (event) => {
       const draft = state.value.drafts.find(
         (d) => d.campaignId === target.dataset.release,
       );
-      if (!draft) return;
-      const c = draft.campaign;
+      const c =
+        draft?.campaign ||
+        state.value.site.campaigns.find((x) => x.id === target.dataset.release);
+      if (!c) return;
       if (
         await confirmAction(
           "本番へリリース",
-          `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.offer || c.intent)}</p><p>この内容で問題がなければ、本番へリリースします。${state.value.site.campaigns.find((x) => x.id === c.id)?.enabled === false ? "停止中の施策は、リリースと同時に配信を再開します。" : ""}実サイトでの確認は一覧のプレビューから実行できます。</p>`,
+          `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.offer || c.intent)}</p><p>この内容で問題がなければ、本番へリリースします。実サイトでの確認は一覧のプレビューから実行できます。</p>`,
           "本番へリリースする",
         )
       ) {
@@ -2094,32 +2113,33 @@ document.addEventListener("click", (event) => {
           sitePath() + `/campaigns/${c.id}/publish`,
           "POST",
           {},
-          draft.revision,
+          draft ? draft.revision : state.value.revision,
         );
         await loadSite();
         await render();
         toast("本番へリリースしました。");
       }
     }
-    if (target.dataset.toggle) {
+    if (target.dataset.stop) {
       const c = state.value.site.campaigns.find(
-        (c) => c.id === target.dataset.toggle,
+        (c) => c.id === target.dataset.stop,
       );
       if (
         await confirmAction(
-          c.enabled ? "施策を停止" : "配信を再開",
-          `<p>${esc(c.name || c.content.title)}</p>`,
-          c.enabled ? "停止する" : "再開する",
+          "公開を停止",
+          `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>公開を停止して、下書きに戻します。再び公開するには、「本番へリリース」を押します。</p>`,
+          "停止する",
         )
       ) {
         await api(
           sitePath() + `/campaigns/${c.id}/stop`,
           "POST",
-          { enabled: !c.enabled },
+          {},
           state.value.revision,
         );
         await loadSite();
         await render();
+        toast("公開を停止して、下書きに戻しました。");
       }
     }
     if (
@@ -2420,9 +2440,8 @@ function filterCampaigns() {
           .toLowerCase()
           .includes(query) &&
         (status === "all" ||
-          (status === "draft" && v.draft) ||
-          (status === "active" && v.published?.enabled) ||
-          (status === "paused" && v.published && !v.published.enabled)),
+          (status === "draft" && !v.published?.enabled) ||
+          (status === "active" && v.published?.enabled)),
     ),
   );
 }
