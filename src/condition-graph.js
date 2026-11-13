@@ -124,10 +124,12 @@ export function graphIssues(g, { draft = false } = {}) {
       )
         issues.push(`${n.id}：GETパラメータのキーを入力してください。`);
       if (n.kind === "jev") {
-        if (n.format === "guided" && (!g.offer.trim() || !n.condition?.trim()))
-          issues.push(
-            `${n.id}：案内内容と判定する関心・状態を入力してください。`,
-          );
+        if (n.format === "guided") {
+          if (!g.offer.trim())
+            issues.push("「何を伝えたいですか？」を入力してください。");
+          if (!n.condition?.trim())
+            issues.push(`${n.id}：判定する関心・状態を入力してください。`);
+        }
         if (n.format === "raw" && !n.instructions?.trim())
           issues.push(`${n.id}：判定質問を入力してください。`);
       }
