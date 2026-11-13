@@ -21,7 +21,7 @@ const source = git("rev-parse", "HEAD");
 command(
   process.execPath,
   ["node_modules/vitepress/bin/vitepress.js", "build", "help"],
-  { stdio: "inherit" },
+  { stdio: "inherit", env: { ...process.env, HELP_TRACKING: "on" } },
 );
 command(process.execPath, ["scripts/check-help.js"], { stdio: "inherit" });
 const folder = await mkdtemp(join(tmpdir(), "jevsense-help-"));

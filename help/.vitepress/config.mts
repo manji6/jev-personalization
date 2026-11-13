@@ -1,5 +1,11 @@
 import { defineConfig, type DefaultTheme } from "vitepress";
 
+// 計測タグは公開ビルド（help:publish）だけに入れる。dev・テスト用ビルドでは送信しない。
+const tracking = process.env.HELP_TRACKING === "on";
+const GTM_ID = "GTM-PLPR5WN9";
+const gtmHead = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`;
+const gtmBody = `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${GTM_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`;
+
 type Labels = {
   groups: [string, string, string, string, string];
   items: Record<string, string>;
@@ -138,7 +144,13 @@ export default defineConfig({
   head: [
     ["link", { rel: "icon", href: "/jev-personalization/favicon.svg" }],
     ["meta", { name: "theme-color", content: "#245b44" }],
+    ...(tracking
+      ? ([["script", {}, gtmHead]] as [string, object, string][])
+      : []),
   ],
+  transformHtml(code) {
+    return tracking ? code.replace(/<body[^>]*>/, (m) => m + gtmBody) : code;
+  },
   locales: {
     root: {
       label: "日本語",
