@@ -155,7 +155,7 @@ test("new campaign flows through content and delivery confirmation into filtered
     .getByLabel("何を伝えたいですか？")
     .fill("吸汗速乾ポロシャツの特集を案内する");
   await page
-    .getByLabel("どんな人に届けたいですか？")
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
     .fill("吸汗速乾機能のあるポロシャツに関心がある");
   await page
     .getByRole("button", { name: "表示コンテンツ", exact: true })
@@ -316,7 +316,9 @@ test("question preview inserts both inputs verbatim with no generation or API ac
   const offer = "吸汗速乾ポロシャツの特集を案内する";
   const statement = "吸汗速乾機能のあるポロシャツに関心がある";
   await page.getByLabel("何を伝えたいですか？").fill(offer);
-  await page.getByLabel("どんな人に届けたいですか？").fill(statement);
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill(statement);
   const preview = page.locator("#judgmentPreview .question-text");
   expect(await preview.textContent()).toBe(
     `今回案内する内容：${offer}\n閲覧履歴と連携された行動・状態の情報に基づき、この閲覧者に「${statement}」が当てはまりますか？`,
@@ -347,7 +349,7 @@ test("missing audience or offer does not produce an incomplete question or allow
   await page.getByRole("button", { name: "新規施策を作成" }).click();
   await page.getByLabel("施策名", { exact: true }).fill("未入力の確認");
   await page
-    .getByLabel("どんな人に届けたいですか？")
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
     .fill("速乾性に関心がある");
   await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(0);
   await page
@@ -359,7 +361,7 @@ test("missing audience or offer does not produce an incomplete question or allow
   );
   await page.getByLabel("何を伝えたいですか？").fill("ポロシャツを紹介する");
   await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(1);
-  await page.getByLabel("どんな人に届けたいですか？").fill("   ");
+  await page.getByLabel("どんな関心・状態に当てはまる人ですか？").fill("   ");
   await expect(page.locator("#judgmentPreview .question-text")).toHaveCount(0);
 });
 
@@ -376,11 +378,13 @@ test("writing examples and compound warning guide input without rewriting it", a
   await expect(page.getByLabel("何を伝えたいですか？")).toHaveValue(
     "予約管理サービスの導入事例と比較ガイドを紹介する",
   );
-  await expect(page.getByLabel("どんな人に届けたいですか？")).toHaveValue(
-    "予約管理サービスの導入を比較・検討している",
-  );
+  await expect(
+    page.getByLabel("どんな関心・状態に当てはまる人ですか？"),
+  ).toHaveValue("予約管理サービスの導入を比較・検討している");
   const statement = "予約管理に関心がある、かつ導入事例を比較している";
-  await page.getByLabel("どんな人に届けたいですか？").fill(statement);
+  await page
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
+    .fill(statement);
   await expect(
     page.locator("#judgmentPreview .question-warning"),
   ).toBeVisible();
@@ -402,7 +406,7 @@ test("question preview safely displays text and survives draft save and tab chan
     .getByLabel("何を伝えたいですか？")
     .fill('<img src=x onerror="window.unwanted=1">について案内する');
   await page
-    .getByLabel("どんな人に届けたいですか？")
+    .getByLabel("どんな関心・状態に当てはまる人ですか？")
     .fill("「快適さ」に関心がある");
   const before = await page
     .locator("#judgmentPreview .question-text")
