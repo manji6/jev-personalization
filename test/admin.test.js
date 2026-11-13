@@ -282,6 +282,182 @@ test("saving a live campaign unpublishes it into a draft, deterministic question
     /legacy_config_locked/,
   );
 });
+test("campaign history records saves, releases, stops and restores, keeps ten versions, and restoring a live campaign asks first", async (t) => {
+  const f = await managedFixture();
+  t.after(() => f.app.close());
+  const user = await f.addUser(),
+    viewer = await f.addUser("member", "demo", "viewer");
+  await f.administration.repo.run("UPDATE admin_settings SET initialized=1");
+  const get = async (who = user) =>
+    (
+      await f.dispatch("/admin/api/v2/sites/demo", "GET", undefined, who)
+    ).json();
+  const site = await get();
+  const path = `/admin/api/v2/sites/demo/campaigns/${site.site.campaigns[0].id}`;
+  const history = async (who = user) => {
+    const r = await f.dispatch(path + "/history", "GET", undefined, who);
+    assert.equal(r.statusCode, 200, r.body);
+    return r.json();
+  };
+  assert.deepEqual((await history()).versions, []);
+  const edit = (title) => {
+    const c = structuredClone(site.site.campaigns[0]);
+    c.content.title = title;
+    return c;
+  };
+  // 公開中の施策を保存 → 公開停止＋下書き（履歴に1件）
+  const first = await f.dispatch(
+    path + "/draft?unpublish=1",
+    "PUT",
+    edit("A"),
+    user,
+    { "If-Match": site.revision },
+  );
+  assert.equal(first.statusCode, 200, first.body);
+  const second = await f.dispatch(path + "/draft", "PUT", edit("B"), user, {
+    "If-Match": first.json().revision,
+  });
+  assert.equal(second.statusCode, 200, second.body);
+  const released = await f.dispatch(path + "/publish", "POST", {}, user, {
+    "If-Match": second.json().revision,
+  });
+  assert.equal(released.statusCode, 200, released.body);
+  let versions = (await history()).versions;
+  assert.deepEqual(
+    versions.map((v) => [v.seq, v.kind, v.campaign.content.title]),
+    [
+      [3, "publish", "B"],
+      [2, "draft", "B"],
+      [1, "unpublish_save", "A"],
+    ],
+  );
+  assert.equal(versions[0].actor, "Test User");
+  // 閲覧者も履歴を見られるが、復元はできない。
+  assert.equal((await history(viewer)).versions.length, 3);
+  assert.equal(
+    (
+      await f.dispatch(
+        path + "/history/1/restore?unpublish=1",
+        "POST",
+        {},
+        viewer,
+        {
+          "If-Match": (await get()).revision,
+        },
+      )
+    ).statusCode,
+    403,
+  );
+  // 公開中の施策への復元は、確認なしでは受け付けない。
+  assert.equal(
+    (
+      await f.dispatch(path + "/history/1/restore", "POST", {}, user, {
+        "If-Match": (await get()).revision,
+      })
+    ).json().error,
+    "unpublish_confirmation_required",
+  );
+  const restored = await f.dispatch(
+    path + "/history/1/restore?unpublish=1",
+    "POST",
+    {},
+    user,
+    { "If-Match": (await get()).revision },
+  );
+  assert.equal(restored.statusCode, 200, restored.body);
+  assert.equal(
+    (await f.administration.repo.publicConfig()).sites[0].campaigns.length,
+    0,
+  );
+  let now = await get();
+  assert.equal(now.drafts[0].campaign.content.title, "A");
+  versions = (await history()).versions;
+  assert.equal(versions[0].kind, "restore");
+  assert.equal(versions[0].restoredFrom, 1);
+  assert.equal(versions.length, 4);
+  // 存在しない版は404。
+  assert.equal(
+    (
+      await f.dispatch(path + "/history/99/restore", "POST", {}, user, {
+        "If-Match": now.drafts[0].revision,
+      })
+    ).statusCode,
+    404,
+  );
+  // 下書きに復元しても、いまの内容は履歴に残る。公開して停止すると「公開を停止」が残る。
+  const again = await f.dispatch(path + "/publish", "POST", {}, user, {
+    "If-Match": now.drafts[0].revision,
+  });
+  assert.equal(again.statusCode, 200, again.body);
+  now = await get();
+  const stopped = await f.dispatch(path + "/stop", "POST", {}, user, {
+    "If-Match": now.revision,
+  });
+  assert.equal(stopped.statusCode, 200, stopped.body);
+  assert.deepEqual(
+    (await history()).versions.slice(0, 2).map((v) => v.kind),
+    ["unpublish", "publish"],
+  );
+  // 11回以上保存しても、最新の10件だけが残る。
+  let revision = stopped.json().revision;
+  for (let i = 0; i < 12; i++) {
+    const saved = await f.dispatch(
+      path + "/draft",
+      "PUT",
+      edit("T" + i),
+      user,
+      {
+        "If-Match": revision,
+      },
+    );
+    assert.equal(saved.statusCode, 200, saved.body);
+    revision = saved.json().revision;
+  }
+  versions = (await history()).versions;
+  assert.equal(versions.length, 10);
+  assert.equal(versions[0].campaign.content.title, "T11");
+  assert.equal(versions[9].campaign.content.title, "T2");
+  assert.equal(
+    versions[0].seq - versions[9].seq,
+    9,
+    "sequence numbers stay contiguous",
+  );
+  // 新規の下書きを破棄すると、履歴も消える。
+  const fresh = structuredClone(site.site.campaigns[0]);
+  fresh.id = "history-new";
+  fresh.name = "New";
+  const draftPath = "/admin/api/v2/sites/demo/campaigns/history-new";
+  const created = await f.dispatch(draftPath + "/draft", "PUT", fresh, user, {
+    "If-Match": (await get()).revision,
+  });
+  assert.equal(created.statusCode, 200, created.body);
+  assert.equal(
+    (
+      await f.administration.repo.one(
+        "SELECT count(*) AS n FROM admin_campaign_versions WHERE campaign_id='history-new'",
+      )
+    ).n,
+    1,
+  );
+  const discarded = await f.dispatch(
+    draftPath + "/draft",
+    "DELETE",
+    undefined,
+    user,
+    {
+      "If-Match": created.json().revision,
+    },
+  );
+  assert.equal(discarded.statusCode, 200, discarded.body);
+  assert.equal(
+    (
+      await f.administration.repo.one(
+        "SELECT count(*) AS n FROM admin_campaign_versions WHERE campaign_id='history-new'",
+      )
+    ).n,
+    0,
+  );
+});
 test("single-use preview tickets enforce path, site, revisions, expiration and current permissions without AI", async (t) => {
   const f = await managedFixture();
   t.after(() => f.app.close());

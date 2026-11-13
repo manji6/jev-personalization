@@ -1,6 +1,13 @@
 import { mountConditionBuilder } from "./condition-builder.js";
 import { graphQuestions, describeGraph } from "../condition-graph.js";
 import { urlTargetingFields } from "./url-targeting-ui.js";
+import {
+  KIND_LABELS,
+  compareCampaigns,
+  summarizeChange,
+  layoutGraphDiff,
+  nodeText,
+} from "./history-diff.js";
 import { createMetadataSettings } from "./metadata-ui.js";
 import {
   startRegistration,
@@ -70,6 +77,7 @@ const state = {
   settingsTab: "general",
   dirty: false,
   busy: false,
+  history: null,
 };
 const roleNames = {
   superuser: "Superuser",
@@ -794,6 +802,7 @@ async function navigate(route) {
   metadataSettings.reset();
   state.dirty = false;
   state.edit = null;
+  state.history = null;
   state.tab = "audience";
   if (location.hash === "#/" + route) await render();
   else location.hash = "/" + route;
@@ -859,7 +868,7 @@ function allCampaigns() {
   return [...result.values()];
 }
 function campaignTable(rows) {
-  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : "draft"}">${published?.enabled ? "公開中" : "下書き"}</span>${draft && published?.enabled ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${(draft || (published && !published.enabled)) && canEdit() ? `<button class="button small primary" data-release="${c.id}" ${c.presentation.type !== "custom" || canManage() ? "" : "disabled"}>本番へリリース</button>` : ""}${published?.enabled && canEdit() ? `<button class="button small" data-stop="${c.id}">公開を停止</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : "draft"}">${published?.enabled ? "公開中" : "下書き"}</span>${draft && published?.enabled ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button><button class="button small" data-history="${c.id}">履歴${state.value.historyCounts?.[c.id] ? ` <span class="history-count">${state.value.historyCounts[c.id]}</span>` : ""}</button>${(draft || (published && !published.enabled)) && canEdit() ? `<button class="button small primary" data-release="${c.id}" ${c.presentation.type !== "custom" || canManage() ? "" : "disabled"}>本番へリリース</button>` : ""}${published?.enabled && canEdit() ? `<button class="button small" data-stop="${c.id}">公開を停止</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
 }
 function newCampaign() {
   return {
@@ -1410,6 +1419,188 @@ async function installationPage() {
   );
 }
 let renderVersion = 0;
+
+const fmtDate = (ms) => {
+  const d = new Date(ms),
+    p = (n) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const trim = (text, max) =>
+  text.length > max ? text.slice(0, max - 1) + "…" : text;
+function graphDiffHtml(g) {
+  const L = layoutGraphDiff(g),
+    labels = {
+      url: "URL条件",
+      jev: "Jev条件",
+      and: "AND",
+      or: "OR",
+      result: "表示対象の判定",
+    },
+    marks = {
+      added: "追加",
+      removed: "削除",
+      changed: "変更",
+      same: "変更なし",
+    };
+  const color = { added: "#3f8a4a", removed: "#bf6a58", same: "#9aaba0" };
+  const paths = g.edges
+    .map((e) => {
+      const a = L.positions.get(e.from),
+        b = L.positions.get(e.to);
+      if (!a || !b) return "";
+      const x1 = a.x + L.nodeW / 2,
+        y1 = a.y + L.nodeH,
+        x2 = b.x + L.nodeW / 2,
+        y2 = b.y,
+        dy = Math.max(24, Math.abs(y2 - y1) / 2);
+      return `<path d="M${x1} ${y1} C${x1} ${y1 + dy} ${x2} ${y2 - dy} ${x2} ${y2}" fill="none" stroke="${color[e.status]}" stroke-width="2.5"${e.status === "removed" ? ' stroke-dasharray="6 5"' : ""}></path>`;
+    })
+    .join("");
+  const boxes = g.nodes
+    .map((n) => {
+      const p = L.positions.get(n.id),
+        text = nodeText(n.after || n.before);
+      return `<div class="history-node ${n.status}" data-x="${p.x}" data-y="${p.y}" data-w="${L.nodeW}" data-h="${L.nodeH}"><small>${labels[n.kind] || n.kind} ${esc(trim(n.id, 12))}${n.status === "same" ? "" : ` ・ ${marks[n.status]}`}</small><span>${esc(trim(text, 22))}</span></div>`;
+    })
+    .join("");
+  const edgeList = [...g.addedEdges, ...g.removedEdges];
+  const typeLabel = { added: "追加", removed: "削除", changed: "変更" };
+  return `<div class="history-graph-wrap"><div class="history-graph" data-w="${L.width}" data-h="${L.height}"><svg width="${L.width}" height="${L.height}" aria-hidden="true">${paths}</svg>${boxes}</div></div><div class="history-legend"><span class="added">追加</span><span class="changed">変更</span><span class="removed">削除</span><span class="same">変更なし</span> 位置の違いは比べません。</div><ul class="history-changes">${g.items.map((i) => `<li><span class="chip ${i.type}">${typeLabel[i.type]}</span> ${esc(i.text)}</li>`).join("")}${edgeList.length ? `<li><span class="chip same">接続</span> ${g.addedEdges.length}本を追加、${g.removedEdges.length}本を削除 <details><summary>すべて表示</summary><ul>${edgeList.map((e) => `<li>${e.status === "added" ? "追加" : "削除"}：${esc(e.from)} → ${esc(e.to)}</li>`).join("")}</ul></details></li>` : ""}</ul>`;
+}
+function codeDiffHtml(lines) {
+  return `<pre class="history-code">${lines.map((l) => (l.type === "fold" ? `<span class="fold">… 変更のない ${l.count} 行を折りたたみ</span>` : `<span class="${l.type}">${l.type === "added" ? "＋" : l.type === "removed" ? "−" : "　"} ${esc(l.text)}</span>`)).join("")}</pre>`;
+}
+function historyGroupHtml(g) {
+  let body = g.rows
+    .map(
+      (r) =>
+        `<div class="history-row"><span class="history-label">${esc(r.label)}</span><span class="before">${esc(r.before)}</span><span class="after">${esc(r.after)}</span></div>`,
+    )
+    .join("");
+  if (g.graph && g.count)
+    body += `<div class="history-graph-block">${graphDiffHtml(g.graph)}</div>`;
+  if (g.code)
+    body += canManage()
+      ? codeDiffHtml(g.code)
+      : '<p class="hint">独自JavaScriptの内容は、管理者にだけ表示します。</p>';
+  return `<section class="history-group"><h3>${esc(g.label)}<span class="chip changed">${g.count}か所</span></h3>${body}</section>`;
+}
+// CSP（style-src 'self'）でHTML内のstyle属性が使えないため、位置と大きさはJSから設定する。
+function layoutHistoryGraphs() {
+  for (const el of document.querySelectorAll(".history-graph")) {
+    el.style.width = el.dataset.w + "px";
+    el.style.height = el.dataset.h + "px";
+    // 既存のsvg{width:19px}を上書きして、図の大きさに合わせる。
+    const svg = el.querySelector("svg");
+    svg.style.width = el.dataset.w + "px";
+    svg.style.height = el.dataset.h + "px";
+  }
+  for (const el of document.querySelectorAll(".history-node")) {
+    el.style.left = el.dataset.x + "px";
+    el.style.top = el.dataset.y + "px";
+    el.style.width = el.dataset.w + "px";
+    el.style.height = el.dataset.h + "px";
+  }
+}
+async function historyPage(id) {
+  const entry = allCampaigns().find((v) => v.campaign.id === id);
+  if (!entry) return info("施策が見つかりません。");
+  const c = entry.campaign;
+  if (state.history?.id !== id) {
+    const data = await api(`${sitePath()}/campaigns/${id}/history`);
+    state.history = {
+      id,
+      versions: data.versions,
+      limit: data.limit,
+      selected: data.versions[0]?.seq ?? null,
+      mode: "now",
+    };
+  }
+  const h = state.history,
+    versions = h.versions,
+    live = entry.published?.enabled === true && !entry.draft,
+    nowLabel = live ? "公開中の内容" : "いまの下書き";
+  const crumbs = `<nav class="crumbs" aria-label="パンくず"><a href="#/campaigns" data-nav="campaigns">施策一覧</a> › <a href="#/campaign/${esc(id)}" data-nav="campaign/${esc(id)}">${esc(c.name || c.content.title)}</a> › 履歴</nav>`;
+  const head = `${crumbs}<div class="heading"><div><h1>履歴</h1><p class="desc">${esc(c.name || c.content.title)} ・ 残っている版 ${versions.length} / ${h.limit}件（上限を超えると、古い版から自動で消えます）</p></div></div>`;
+  if (!versions.length)
+    return (
+      head +
+      '<section class="card"><div class="card-body"><p>まだ履歴がありません。下書き保存や本番へのリリースをすると、ここに版が残ります。</p></div></section>'
+    );
+  const currentSeq = versions.find(
+    (v) => compareCampaigns(c, v.campaign).total === 0,
+  )?.seq;
+  const list = versions
+    .map((v, i) => {
+      const prev = versions[i + 1]?.campaign,
+        from = v.restoredFrom
+          ? versions.find((x) => x.seq === v.restoredFrom)
+          : null,
+        summary =
+          v.kind === "restore"
+            ? `${from ? fmtDate(from.createdAt) : "以前"} の版から復元`
+            : summarizeChange(prev, v.campaign);
+      return `<button type="button" class="history-item${h.selected === v.seq ? " selected" : ""}" data-history-select="${v.seq}" aria-current="${h.selected === v.seq}"><span class="history-kind"><strong>${KIND_LABELS[v.kind]}</strong>${v.seq === currentSeq ? `<span class="chip current">${live ? "公開中" : "現在の下書き"}</span>` : ""}${v.kind === "publish" ? '<span class="chip published">公開した版</span>' : ""}</span><small>${fmtDate(v.createdAt)} ・ ${esc(v.actor || "不明")}</small><span class="history-summary">${esc(summary)}</span></button>`;
+    })
+    .join("");
+  const index = Math.max(
+      0,
+      versions.findIndex((v) => v.seq === h.selected),
+    ),
+    v = versions[index],
+    prev = versions[index + 1];
+  const fromCampaign = h.mode === "now" ? c : prev?.campaign;
+  const diff = fromCampaign ? compareCampaigns(fromCampaign, v.campaign) : null;
+  const custom =
+    v.campaign.presentation?.type === "custom" ||
+    c.presentation.type === "custom";
+  const blocked = !canEdit() || (custom && !canManage());
+  const same = h.mode === "now" && diff?.total === 0;
+  const message = !diff
+    ? "これが最初の版です。"
+    : h.mode === "now"
+      ? same
+        ? "この版は、いまの内容と同じです。"
+        : `この版に戻すと、${nowLabel}から${diff.total}か所が変わります。`
+      : diff.total
+        ? `この版で、ひとつ前の版から${diff.total}か所が変わりました。`
+        : "ひとつ前の版から、内容は変わっていません。";
+  const unchanged = diff
+    ? diff.groups
+        .filter((g) => !g.count && g.id !== "basic")
+        .map((g) => g.label)
+    : [];
+  const restoreButton = `<button type="button" class="button primary" data-history-restore="${v.seq}" ${blocked || same ? "disabled" : ""}>${live ? "公開を停止して復元" : "この版を下書きに復元"}</button>`;
+  const pane = `<div class="history-pane-head"><div><h2>${fmtDate(v.createdAt)} の版</h2><p class="desc">${KIND_LABELS[v.kind]} ・ ${esc(v.actor || "不明")}</p></div><div class="history-restore">${restoreButton}${custom && blocked && canEdit() ? '<small class="hint">独自JavaScriptを含む版の復元は、管理者だけができます。</small>' : ""}</div></div><div class="history-toolbar"><div class="segment" role="group" aria-label="比べ方"><button type="button" data-history-mode="now" aria-pressed="${h.mode === "now"}">いまとの違い</button><button type="button" data-history-mode="change" aria-pressed="${h.mode === "change"}">この版の変更点</button></div><p class="desc">「いまとの違い」は、この版に戻すと何が変わるか。「この版の変更点」は、ひとつ前の版から何を変えたか。</p></div><p class="history-message"><strong>${esc(message)}</strong></p>${diff && diff.total ? `<div class="history-columns"><span>項目</span><span class="before">${h.mode === "now" ? nowLabel : "ひとつ前の版"}</span><span class="after">${h.mode === "now" ? "この版（戻した後）" : "この版"}</span></div>${diff.changed.map(historyGroupHtml).join("")}` : ""}${unchanged.length ? `<ul class="history-unchanged">${unchanged.map((l) => `<li><strong>${esc(l)}</strong> ・ 変更なし</li>`).join("")}</ul>` : ""}`;
+  return `${head}<div class="history-layout"><nav class="history-list" aria-label="版の一覧">${list}</nav><main class="card history-pane">${pane}</main></div>`;
+}
+async function restoreVersion(seq) {
+  const h = state.history,
+    version = h?.versions.find((v) => v.seq === seq),
+    entry = allCampaigns().find((v) => v.campaign.id === h?.id);
+  if (!version || !entry) return;
+  const live = entry.published?.enabled === true,
+    diff = compareCampaigns(entry.campaign, version.campaign),
+    name = entry.campaign.name || entry.campaign.content.title;
+  if (
+    !(await confirmAction(
+      live ? "公開を停止して復元しますか？" : "この版を下書きに復元しますか？",
+      `<p><strong>${esc(name)}</strong><br>${fmtDate(version.createdAt)} の版（${esc(version.actor || "不明")}・${KIND_LABELS[version.kind]}）</p><p>${live ? "この施策は公開中です。復元すると公開が止まり、選んだ版の内容の下書きになります。再び公開するには、一覧の「本番へリリース」を押します。" : "いまの下書きを、この版の内容に置き換えます。いまの内容も履歴に残るので、あとから戻せます。"}</p><p>変わるのは${diff.total}か所です${diff.changed.length ? `（${diff.changed.map((g) => esc(g.label)).join("・")}）` : ""}。</p>`,
+      live ? "公開を停止して復元する" : "復元する",
+    ))
+  )
+    return;
+  await api(
+    `${sitePath()}/campaigns/${h.id}/history/${seq}/restore${live ? "?unpublish=1" : ""}`,
+    "POST",
+    {},
+    entry.draft ? entry.draft.revision : state.value.revision,
+  );
+  state.history = null;
+  await loadSite();
+  await render();
+  toast(`${fmtDate(version.createdAt)} の版を下書きに復元しました。`);
+}
 async function render() {
   if (!state.session) return;
   const generation = ++renderVersion;
@@ -1440,7 +1631,9 @@ async function render() {
       state.dirty = id === "new";
     }
     body = state.edit ? editor() : info("施策が見つかりません。");
-  } else if (route === "settings") body = settingsPage();
+  } else if (route.startsWith("campaign-history/"))
+    body = await historyPage(route.slice(17));
+  else if (route === "settings") body = settingsPage();
   else if (route === "diagnostics") body = diagnosticsPage();
   else if (route === "members") body = await membersPage();
   else if (route === "jev") body = await jevPage();
@@ -1468,10 +1661,11 @@ async function render() {
   }
   if (generation !== renderVersion) return;
   $("app").innerHTML = shell(
-    route.startsWith("campaign/") ? "campaigns" : route,
+    route.startsWith("campaign") ? "campaigns" : route,
     body,
   );
   enhanceSelects();
+  layoutHistoryGraphs();
   updateQuestionPreview();
   updateMiniPreview();
   metadataSettings.mount();
@@ -2078,6 +2272,18 @@ document.addEventListener("click", (event) => {
     run(() => navigate("campaign/" + target.dataset.open));
     return;
   }
+  if (target.dataset.history) {
+    run(() => navigate("campaign-history/" + target.dataset.history));
+    return;
+  }
+  if (target.dataset.historySelect || target.dataset.historyMode) {
+    if (!state.history) return;
+    if (target.dataset.historySelect)
+      state.history.selected = Number(target.dataset.historySelect);
+    else state.history.mode = target.dataset.historyMode;
+    run(render);
+    return;
+  }
   if (target.dataset.action) {
     event.preventDefault();
     run(() => handleAction(action));
@@ -2094,6 +2300,10 @@ document.addEventListener("click", (event) => {
     return;
   }
   run(async () => {
+    if (target.dataset.historyRestore) {
+      await restoreVersion(Number(target.dataset.historyRestore));
+      return;
+    }
     if (target.dataset.release) {
       const draft = state.value.drafts.find(
         (d) => d.campaignId === target.dataset.release,

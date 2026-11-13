@@ -74,6 +74,42 @@ test("workerd administration runs D1 migration, protects management APIs, applie
     body: "{}",
   });
   assert.equal(published.status, 200, await published.text());
+  // 履歴（D1）：保存→公開の2件が残り、公開中の版を下書きへ復元できる。
+  const history = await (
+    await f.dispatch(url + "/history", { headers })
+  ).json();
+  assert.deepEqual(
+    history.versions.map((v) => v.kind),
+    ["publish", "unpublish_save"],
+  );
+  assert.equal(history.limit, 10);
+  const afterPublish = await (
+    await f.dispatch("/admin/api/v2/sites/demo", { headers })
+  ).json();
+  const restoredFromHistory = await f.dispatch(
+    url + "/history/1/restore?unpublish=1",
+    {
+      method: "POST",
+      headers: { ...headers, "If-Match": afterPublish.revision },
+      body: "{}",
+    },
+  );
+  const restoredBody = await restoredFromHistory.text();
+  assert.equal(restoredFromHistory.status, 200, restoredBody);
+  assert.equal(
+    (await (await f.dispatch(url + "/history", { headers })).json()).versions[0]
+      .kind,
+    "restore",
+  );
+  const republished = await f.dispatch(url + "/publish", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "If-Match": JSON.parse(restoredBody).revision,
+    },
+    body: "{}",
+  });
+  assert.equal(republished.status, 200, await republished.text());
   const issued = await f.dispatch(url + "/preview", {
     method: "POST",
     headers,
