@@ -206,6 +206,29 @@ async function importGraph(page, g) {
   await h.locator("#graphJSON").fill(JSON.stringify(g));
   await h.getByRole("button", { name: "JSONを反映", exact: true }).click();
 }
+test("test results show on nodes only in the test tab; no preset scenarios", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.getByRole("button", { name: "新しい施策", exact: true }).click();
+  const h = page.locator("#conditionBuilder");
+  await h.locator("#offer").fill("ポロシャツのご案内");
+  await h.locator('[data-edit="jev_1"]').click();
+  await h.locator("#nodeEditDialog textarea").fill("ポロシャツに興味がある人");
+  await h.locator("#nodeEditForm button[type=submit]").click();
+  await h.locator('[data-tab="test"]').click();
+  await expect(h.locator("[data-scenario]")).toHaveCount(0);
+  await h.locator("#testRun").click();
+  await expect(h.locator(".node .tag").first()).toBeVisible();
+  await expect(h.locator(".node.result")).toContainText(
+    /条件を満たす|対象外|情報不足/,
+  );
+  await h.locator('[data-tab="edit"]').click();
+  await expect(h.locator(".node .tag")).toHaveCount(0);
+  await expect(h.locator(".node.result")).not.toContainText("条件を満たす");
+  await h.locator('[data-tab="test"]').click();
+  await expect(h.locator(".node .tag").first()).toBeVisible();
+});
 test("node buttons and context menu edit/cancel/delete/undo; ports build nested conditions and reject cycles", async ({
   page,
 }, testInfo) => {

@@ -63,40 +63,15 @@ export function mountConditionBuilder(host, ctx) {
     pointer = null,
     drag = null,
     history = [],
-    scenario = 0,
     worldH = 1000;
   let worldW = 1020;
-  const scenarios = [
-    {
-      name: "メールから流入",
-      entry: "https://example.com/ja/?cid=mail_runner",
-      current: "https://example.com/ja/products/polo",
-      interest: 0.86,
-      comparison: 0.79,
-    },
-    {
-      name: "閲覧から判断",
-      entry: "https://example.com/ja/",
-      current: "https://example.com/ja/",
-      interest: 0.86,
-      comparison: 0.79,
-    },
-    {
-      name: "対象外",
-      entry: "https://example.com/ja/?cid=walker",
-      current: "https://example.com/ja/news",
-      interest: 0.18,
-      comparison: 0.22,
-    },
-    {
-      name: "情報不足",
-      entry: "https://example.com/ja/",
-      current: "https://example.com/ja/",
-      interest: null,
-      comparison: null,
-    },
-  ];
-  let sample = { ...scenarios[0] },
+  const defaultSample = {
+    entry: "https://example.com/ja/?cid=mail_runner",
+    current: "https://example.com/ja/products/polo",
+    interest: 0.86,
+    comparison: 0.79,
+  };
+  let sample = { ...defaultSample },
     probabilities = {},
     modalDraft = null;
   const node = (id) => nodes.find((n) => n.id === id),
@@ -125,9 +100,8 @@ export function mountConditionBuilder(host, ctx) {
     history.push(JSON.stringify({ nodes, edges, worldH }));
     if (history.length > 30) history.shift();
   }
-  function setSample(i) {
-    scenario = i;
-    sample = { ...scenarios[i] };
+  function setSample() {
+    sample = { ...defaultSample };
     probabilities = Object.fromEntries(
       nodes
         .filter((n) => n.kind === "jev")
@@ -145,7 +119,7 @@ export function mountConditionBuilder(host, ctx) {
     tab = "edit";
     sequence = 10;
     loadGraph(graphFromCampaign(ctx.campaign(), { draft: ctx.isDraft() }));
-    setSample(0);
+    setSample();
     snapshot = JSON.stringify(readGraph());
     render();
     fit(false);
@@ -206,6 +180,8 @@ export function mountConditionBuilder(host, ctx) {
   }
   function stateOf(id) {
     if (!activeNodes().has(id)) return { class: "", label: "未接続" };
+    // 判定結果のラベルはテストタブを開いている間だけ表示する。
+    if (tab !== "test") return { class: "", label: "" };
     if (!validTest())
       return {
         class: "",
@@ -241,7 +217,7 @@ export function mountConditionBuilder(host, ctx) {
                   ? "すべて満たす"
                   : n.kind === "or"
                     ? "どれかを満たす"
-                    : validTest()
+                    : tab === "test" && validTest()
                       ? issues.length
                         ? "接続を確認してください"
                         : lastTest.value === null
@@ -250,7 +226,7 @@ export function mountConditionBuilder(host, ctx) {
                             ? "表示対象の条件を満たす"
                             : "今回は対象外"
                       : "ここで最終結果を確認";
-        return `<article class="node ${n.kind} ${selected === n.id ? "selected" : ""}" data-node="${n.id}"  aria-label="${title(n)} ${n.id}">${n.kind !== "url" && n.kind !== "jev" ? `<button class="port in" data-in="${n.id}" aria-label="入力 ${n.id}"></button>` : ""}<div class="node-head" data-drag="${n.id}"><span class="node-title">${title(n)}</span><span class="node-id">${n.id}</span></div><p class="node-copy">${esc(short)}</p><div class="node-meta"><span class="tag ${s.class}">${s.label}</span>${n.kind !== "result" ? `<div class="node-actions"><button class="tiny" data-edit="${n.id}" aria-label="${n.id}を編集">編集</button><button class="tiny delete-action" data-delete-node="${n.id}" aria-label="${n.id}を削除">削除</button></div>` : ""}</div>${n.kind !== "result" ? `<button class="port out ${connecting === n.id ? "connecting" : ""}" data-out="${n.id}" aria-label="出力 ${n.id}"></button>` : ""}</article>`;
+        return `<article class="node ${n.kind} ${selected === n.id ? "selected" : ""}" data-node="${n.id}"  aria-label="${title(n)} ${n.id}">${n.kind !== "url" && n.kind !== "jev" ? `<button class="port in" data-in="${n.id}" aria-label="入力 ${n.id}"></button>` : ""}<div class="node-head" data-drag="${n.id}"><span class="node-title">${title(n)}</span><span class="node-id">${n.id}</span></div><p class="node-copy">${esc(short)}</p><div class="node-meta">${s.label ? `<span class="tag ${s.class}">${s.label}</span>` : "<span></span>"}${n.kind !== "result" ? `<div class="node-actions"><button class="tiny" data-edit="${n.id}" aria-label="${n.id}を編集">編集</button><button class="tiny delete-action" data-delete-node="${n.id}" aria-label="${n.id}を削除">削除</button></div>` : ""}</div>${n.kind !== "result" ? `<button class="port out ${connecting === n.id ? "connecting" : ""}" data-out="${n.id}" aria-label="出力 ${n.id}"></button>` : ""}</article>`;
       })
       .join("");
     for (const n of nodes) {
@@ -336,8 +312,8 @@ export function mountConditionBuilder(host, ctx) {
     else if (n.kind === "jev")
       html +=
         n.format === "raw"
-          ? `<label for="instructions">判定質問（原文）</label><textarea id="instructions" data-property="instructions" maxlength="1000">${esc(n.instructions)}</textarea><p class="hint">既存の原文と質問ID ${esc(n.key)}を保持します。共通の案内内容を変更しても、この原文は自動変更しません。</p>`
-          : `<label for="condition">どんな人に届けたいですか？</label><textarea id="condition" data-property="condition" maxlength="400">${esc(n.condition)}</textarea><p class="hint">1つの判断を書き、AND/ORは接続で指定します。</p><details open><summary>Jevへ送る判定質問</summary><pre id="question">${esc(question(n))}</pre></details>`;
+          ? `<label for="instructions">判定質問（原文）</label><textarea id="instructions" data-property="instructions" maxlength="1000">${esc(n.instructions)}</textarea><p class="hint">この条件は、Jevへ送る質問の原文をそのまま保存した従来の形式です。新しく追加するJev条件は「どんな人に届けたいですか？」に「◯◯に興味がある人」のように書く形式で、質問は自動で組み立てられます。既存の原文と質問ID ${esc(n.key)}を保持します。共通の案内内容を変更しても、この原文は自動変更しません。</p>`
+          : `<label for="condition">どんな人に届けたいですか？</label><textarea id="condition" data-property="condition" maxlength="400" placeholder="例：吸汗速乾ポロシャツに興味がある人">${esc(n.condition)}</textarea><p class="hint">このコンテンツを見せたい人は、どんな状態の人ですか？「◯◯に興味がある人」「◯◯について知りたそうな人」のように書きます。1つの判断だけを書き、AND/ORは接続で指定します。</p><details open><summary>Jevへ送る判定質問</summary><pre id="question">${esc(question(n))}</pre></details>`;
     else if (n.kind === "and" || n.kind === "or")
       html += `<label>組み合わせ</label>${choice("kind", n.kind, { and: "すべて満たす（AND）", or: "どれか満たす（OR）" })}<p>${parents(n.id).length}本の入力が接続されています。</p><p class="note">入力は2本以上。情報不足は不成立と区別します。</p>`;
     else
@@ -347,7 +323,7 @@ export function mountConditionBuilder(host, ctx) {
   }
   function testPanel() {
     const active = activeNodes();
-    return `<h2>この設定を試す</h2><p class="hint">本番と同じ条件評価ロジックを使います。Jevの判定値はサンプルで、有料APIは呼びません。</p><div class="scenarios">${scenarios.map((s, i) => `<button type="button" data-scenario="${i}" aria-pressed="${scenario === i}">${s.name}</button>`).join("")}</div><label for="sampleEntry">流入ページのURL</label><input id="sampleEntry" data-sample="entry" value="${esc(sample.entry)}"><label for="sampleCurrent">現在ページのURL</label><input id="sampleCurrent" data-sample="current" value="${esc(sample.current)}"><h3>Jevの判定値を試す</h3>${nodes
+    return `<h2>この設定を試す</h2><p class="hint">本番と同じ条件評価ロジックを使います。Jevの判定値はサンプルで、有料APIは呼びません。</p><label for="sampleEntry">流入ページのURL</label><input id="sampleEntry" data-sample="entry" value="${esc(sample.entry)}"><label for="sampleCurrent">現在ページのURL</label><input id="sampleCurrent" data-sample="current" value="${esc(sample.current)}"><h3>Jevの判定値を試す</h3>${nodes
       .filter((n) => n.kind === "jev" && active.has(n.id))
       .map(
         (n) =>
@@ -355,7 +331,7 @@ export function mountConditionBuilder(host, ctx) {
       )
       .join(
         "",
-      )}<p class="hint">空欄は情報不足。サイトの除外キーは送信前に適用します。</p><button type="button" id="testRun" class="primary" ${readOnly || running ? "disabled" : ""}>${running ? "テスト中…" : "テストを実行"}</button><div class="test-result"><strong id="testOutcome"></strong><p id="testWhy"></p><p class="hint" id="testCost"></p></div><p class="note">同意・履歴数・表示ページ・表示回数の制約や、実際の推論精度は動作確認で別に確認します。URL情報と結果をサーバーへ保存しません。</p>`;
+      )}<p class="hint">空欄は「情報不足」（Jevが判定できなかった場合）として扱います。サイトの除外キーは送信前に適用します。</p><button type="button" id="testRun" class="primary" ${readOnly || running ? "disabled" : ""}>${running ? "テスト中…" : "テストを実行"}</button><div class="test-result"><strong id="testOutcome"></strong><p id="testWhy"></p><p class="hint" id="testCost"></p></div><p class="note">同意・過去の有効閲覧数・表示ページ・表示回数の制約や、実際の推論精度は動作確認で別に確認します。URL情報と結果をサーバーへ保存しません。</p>`;
   }
   function renderSide() {
     $("inspector").innerHTML = tab === "test" ? testPanel() : editPanel();
@@ -680,11 +656,6 @@ export function mountConditionBuilder(host, ctx) {
       render();
       return;
     }
-    if (d.scenario !== undefined) {
-      setSample(Number(d.scenario));
-      render();
-      return;
-    }
     if (b?.id === "testRun") {
       void runTest();
       return;
@@ -730,20 +701,14 @@ export function mountConditionBuilder(host, ctx) {
     }
     if (el.dataset.sample) {
       sample[el.dataset.sample] = el.value;
-      scenario = -1;
       renderNodes();
     }
     if (el.dataset.prob) {
-      scenario = -1;
       const p = el.value === "" ? null : Number(el.value);
       probabilities[el.dataset.prob] =
         p !== null && (!Number.isFinite(p) || p < 0 || p > 1) ? null : p;
       renderNodes();
     }
-    if (el.dataset.sample || el.dataset.prob)
-      root
-        .querySelectorAll("[data-scenario]")
-        .forEach((b) => b.setAttribute("aria-pressed", "false"));
   });
   $("offer").oninput = (event) => {
     event.stopPropagation();
@@ -1127,17 +1092,8 @@ export function mountConditionBuilder(host, ctx) {
   });
   const site = ctx.site(),
     path = site.allowedPathPrefixes[0] || "/";
-  for (const s of scenarios) {
-    s.entry =
-      site.origins[0] +
-      path +
-      (s.name === "メールから流入"
-        ? "?cid=mail_runner"
-        : s.name === "対象外"
-          ? "?cid=walker"
-          : "");
-    s.current = site.origins[0] + path;
-  }
+  defaultSample.entry = site.origins[0] + path + "?cid=mail_runner";
+  defaultSample.current = site.origins[0] + path;
   initialize();
   return {
     read: () => structuredClone(readGraph()),

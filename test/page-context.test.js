@@ -65,6 +65,21 @@ test("URL retains encoding/order and removes all matching decoded keys, credenti
     "http://localhost:3000/?cid=runner",
   );
 });
+test("site minimum of 0 past views is valid and judges from the first page", async () => {
+  const site = fixture().sites[0],
+    c = site.campaigns[0];
+  site.minQualifiedVisits = 0;
+  delete c.minimumHistory;
+  assert.equal(siteSchema.safeParse(site).success, true);
+  site.minQualifiedVisits = -1;
+  assert.equal(siteSchema.safeParse(site).success, false);
+  site.minQualifiedVisits = 0;
+  const input = await body(site);
+  assert.equal(input.visits.length, 0);
+  assert.equal(prepare(site, input).reason, undefined);
+  site.minQualifiedVisits = 1;
+  assert.equal(prepare(site, input).reason, "insufficient_observation");
+});
 test("current/entry context and qualified past history stay separate; URL conditions do not require a model", async () => {
   const site = fixture().sites[0],
     c = site.campaigns[0];
