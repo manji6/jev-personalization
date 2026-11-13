@@ -946,15 +946,15 @@ function editor() {
       c.minimumHistory === undefined ? "" : String(c.minimumHistory),
       {
         "": "サイト設定を使う",
-        0: "履歴を必須にしない（0件）",
+        0: "0件（流入直後の1ページ目から判定）",
         ...Object.fromEntries(
           Array.from({ length: 10 }, (_, i) => [
             String(i + 1),
-            `${i + 1}件以上`,
+            `${i + 1}件以上（${i + 2}ページ目から判定）`,
           ]),
         ),
       },
-      "現在ページは過去の有効閲覧に数えません。配信制約として常に適用します。",
+      "いま開いているページは数えません。「有効な閲覧」は、サイトで決めた最低表示時間以上見られた、収集対象のページです。配信制約として常に適用します。",
     );
     fields +=
       '<div id="conditionBuilder"></div>' + thresholdControl(c.threshold);
@@ -1215,11 +1215,11 @@ function settingsPage() {
         { type: "number", min: 1000 },
       ) +
       field(
-        "判定に必要な有効閲覧数",
+        "判定に必要な過去の有効閲覧数",
         "minQualifiedVisits",
         site.minQualifiedVisits,
-        "1〜10。新しいページを開いたときは過去の有効閲覧も使ってすぐ確認します。",
-        { type: "number", min: 1 },
+        "0〜10。いま開いているページは数えません。0なら流入直後の1ページ目から、1なら2ページ目から判定します。施策ごとの指定がある場合は、そちらを使います。",
+        { type: "number", min: 0 },
       ) +
       field(
         "追加連携するイベント名",

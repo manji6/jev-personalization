@@ -33,7 +33,7 @@ A site-only key needs the runtime secret `JEV_KEYRING`. Only Node.js can instead
 | Display count                        | 1 to 10                                          |
 | Priority                             | 0 to 100                                         |
 | Valid viewing time                   | 1000 to 300000 milliseconds                      |
-| Valid views required                 | 1 to 10                                          |
+| Valid past views required            | 0 to 10                                          |
 | Saved drafts                         | Up to 20 per site                                |
 | Passkeys                             | Up to 10 per user                                |
 

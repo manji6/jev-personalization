@@ -4,16 +4,16 @@ Select the target site in the header and open "Site settings (「サイト設定
 
 ## Basic settings
 
-| Item                          | Example and meaning                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| Site name                     | The name used in the admin console. Can be changed later                        |
-| Site ID                       | Matches `data-site` in the SDK. Can't be changed after creation                 |
-| Allowed origins               | `https://example.com`. No path and no trailing slash                            |
-| Paths to collect              | `/ja/`. Prefix match, one per line                                              |
-| Paths not to collect          | `/ja/account`, `/ja/checkout`, `/ja/search` and so on                           |
-| Metadata sending              | Enable it after you've checked the information on the target pages              |
-| Display time for a valid view | In milliseconds. The threshold for excluding very short views from the evidence |
-| Valid views required          | The number of valid page views needed before judging starts                     |
+| Item                          | Example and meaning                                                                                                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Site name                     | The name used in the admin console. Can be changed later                                                                                                                                     |
+| Site ID                       | Matches `data-site` in the SDK. Can't be changed after creation                                                                                                                              |
+| Allowed origins               | `https://example.com`. No path and no trailing slash                                                                                                                                         |
+| Paths to collect              | `/ja/`. Prefix match, one per line                                                                                                                                                           |
+| Paths not to collect          | `/ja/account`, `/ja/checkout`, `/ja/search` and so on                                                                                                                                        |
+| Metadata sending              | Enable it after you've checked the information on the target pages                                                                                                                           |
+| Display time for a valid view | In milliseconds. The threshold for excluding very short views from the evidence                                                                                                              |
+| Valid past views required     | The number of past valid page views needed before judging starts (0 to 10). The page that is open now is not counted. 0 judges from the first page right after entry, 1 from the second page |
 
 A newly created site has sending and campaigns disabled. Check the settings and choose "Save settings (「設定を保存」)". After you change what is collected, reload the target pages so the SDK picks up the new settings.
 

@@ -309,7 +309,7 @@ export const siteSchema = z
     actionNames: z.array(id).max(30),
     factNames: z.array(id).max(20),
     minVisibleMs: z.number().int().min(1000).max(300000),
-    minQualifiedVisits: z.number().int().min(1).max(10),
+    minQualifiedVisits: z.number().int().min(0).max(10),
     campaigns: z.array(campaignSchema).max(5),
   })
   .strict()

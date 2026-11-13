@@ -145,4 +145,12 @@ This condition doesn't ask Jev and is checked in code. GET parameters are compar
 
 If you also want to infer an interest or state, connect a Jev condition with AND/OR. In a campaign where only URL conditions connect to the final result, neither the request to Jev nor the judgment threshold is used. If the URL or its parameters are missing, that condition is not met.
 
-**Valid past views required for judging** is 0 for new campaigns. Set 0 if you want to display on the first visit with only an entry condition. For a campaign that needs past browsing, specify a count or use the site setting. The current page doesn't count as a past valid view. An existing campaign with no value keeps the site setting.
+**Valid past views required for judging** is 0 for new campaigns. The choices also show from which page judging starts.
+
+| Setting   | When judging starts                    |
+| --------- | -------------------------------------- |
+| 0         | From the first page, right after entry |
+| 1 or more | From the second page                   |
+| 2 or more | From the third page                    |
+
+The page that is open now is not counted. A "valid view" is a collected page that was viewed for at least the site's minimum display time. Set 0 if you want to display on the first visit with only an entry condition. For a campaign that needs past browsing, specify a count or use the site setting, which also accepts 0 to 10. An existing campaign with no value keeps the site setting.
