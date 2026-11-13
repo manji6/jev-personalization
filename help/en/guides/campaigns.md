@@ -111,13 +111,13 @@ Choose a type and set the display title, message, button, link and image. Detail
 
 If you specify an excluded state, a visitor is not treated as a target while the value is unknown. Pass it explicitly from the [SDK](../integration/sdk): false while incomplete, true once complete.
 
-## 6. Save a draft and start delivery
+## 6. Save a draft and release to production
 
 **Save draft** saves what you are editing. Even if you edit a campaign that is live, the previous delivery content stays in place. You can save partial input too.
 
-Press "Review delivery content (「配信内容を確認」)", check the content, then press "Start delivery with this content (「この内容で配信開始」)" to apply it to the live settings. You can't start if a judgment condition or display title is empty.
+Saving in the editor does not start delivery. You release from the campaign list. A campaign with a saved draft shows "Release to production (「本番へリリース」)" in its row. Press it, check the summary, then press "Release to production (「本番へリリースする」)" to apply it to the live settings. You can't release if a judgment condition or display title is empty.
 
-Before delivering, check on a real page from [Preview](./testing) in the list. You stop and resume from the list.
+Before delivering, check on a real page from [Preview](./testing) in the list. You also stop and resume live campaigns from the list.
 
 ## If a concurrent edit conflicts
 
@@ -127,7 +127,7 @@ To avoid overwriting someone else's change, saving or delivering outdated edits 
 
 When you open an existing campaign, the registered URL conditions and questions are shown as nodes, keeping their original AND/OR meaning. Question IDs, original text and the presented content are kept, and delivery settings don't change until you save. You can edit a custom question in "Judgment question (original text) (「判定質問（原文）」)". The original text doesn't change automatically when you change the shared presented content.
 
-"View condition graph JSON (「条件グラフのJSONを見る」)" shows the saved format, and "Edit as JSON (「JSONで編集」)" lets you copy, paste and edit directly. "Apply JSON (「JSONを反映」)" validates IDs, connection targets and loops. Invalid JSON never replaces the diagram. To deliver, you still need to "Save draft" and "Review delivery content" separately.
+"View condition graph JSON (「条件グラフのJSONを見る」)" shows the saved format, and "Edit as JSON (「JSONで編集」)" lets you copy, paste and edit directly. "Apply JSON (「JSONを反映」)" validates IDs, connection targets and loops. Invalid JSON never replaces the diagram. To deliver, you still need to "Save draft" and then "Release to production" from the list.
 
 ## Narrow the audience by URL conditions
 

@@ -1,6 +1,17 @@
 import { test, expect } from "@playwright/test";
 import { buildManagedApp } from "../../src/app.js";
 import { fixture } from "../helpers.js";
+
+async function releaseFromList(page) {
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page
+    .getByRole("button", { name: "本番へリリース", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "本番へリリースする", exact: true })
+    .click();
+}
+
 const origin = "https://admin.example.com",
   token = "test-bootstrap-".repeat(4);
 let app, db, calls, admin, authenticator;
@@ -145,12 +156,7 @@ test("node editor creates, edits, tests and reopens a campaign without losing gr
   await page
     .getByRole("textbox", { name: "表示タイトル", exact: true })
     .fill("夏の案内");
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(
     page.getByRole("heading", { name: "施策一覧", exact: true }),
   ).toBeVisible();

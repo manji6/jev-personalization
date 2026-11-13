@@ -859,7 +859,7 @@ function allCampaigns() {
   return [...result.values()];
 }
 function campaignTable(rows) {
-  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : draft ? "draft" : "paused"}">${published?.enabled ? "配信中" : draft ? "下書き" : "停止中"}</span>${draft && published ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${published && canEdit() ? `<button class="button small" data-toggle="${c.id}">${published.enabled ? "停止" : "再開"}</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>状態</th><th>施策名 / 対象者</th><th>表示形式</th><th>対象ページ</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ campaign: c, published, draft }) => `<tr><td><span class="badge ${published?.enabled ? "active" : draft ? "draft" : "paused"}">${published?.enabled ? "配信中" : draft ? "下書き" : "停止中"}</span>${draft && published ? "<small>変更の下書きあり</small>" : ""}</td><td class="title"><button class="row-link" data-open="${c.id}">${esc(c.name || c.content.title)}</button><small>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.conditions.join(" / ") || c.intent)}</small></td><td><span class="pill">${types[c.presentation.type]}</span></td><td>${c.target.mode === "all" ? "すべて" : esc(c.target.paths.join(", "))}</td><td><div class="row-actions"><button class="button small" data-open="${c.id}">${canEdit() ? "編集" : "表示"}</button><button class="button small" data-preview="${c.id}" ${canEdit() && (c.presentation.type !== "custom" || canManage()) ? "" : "disabled"}>プレビュー</button>${draft && canEdit() ? `<button class="button small primary" data-release="${c.id}" ${c.presentation.type !== "custom" || canManage() ? "" : "disabled"}>本番へリリース</button>` : ""}${published && canEdit() ? `<button class="button small" data-toggle="${c.id}">${published.enabled ? "停止" : "再開"}</button>` : ""}</div></td></tr>`).join("") : '<tr><td colspan="5" class="empty">まだ施策がありません。新しい施策から作成してください。</td></tr>'}</tbody></table></div>`;
 }
 function newCampaign() {
   return {
@@ -1070,7 +1070,7 @@ function editor() {
         "任意連携された状態がtrueなら除外します。",
       ) +
       info(
-        "下書き保存では配信されません。「配信内容を確認」で内容を確認してから配信開始します。公開中の施策を編集しても、配信開始まで以前の内容が使われます。",
+        "下書き保存では配信されません。保存後、施策一覧の「本番へリリース」で内容を確認してから配信します。公開中の施策を編集しても、リリースするまで以前の内容が使われます。",
       );
   return (
     heading(
@@ -1091,7 +1091,7 @@ function editor() {
       )
       .join(
         "",
-      )}</div><form id="campaignForm" class="card-body"><fieldset ${disabled ? "disabled" : ""}>${fields}</fieldset></form></section><div class="editor-footer"><span id="dirtyState">${state.dirty ? "未保存の変更があります" : "保存済みの内容です"}</span><div class="actions">${state.value.drafts.some((d) => d.campaignId === c.id) ? button("下書きを破棄", "discard-draft", "", disabled) : ""}${button("下書き保存", "save-draft", "", disabled)}${button("配信内容を確認", "review-campaign", "primary", disabled)}</div></div></div><aside class="card preview-card ${state.tab === "audience" ? "node-editor-content-preview" : ""}"><header class="card-header"><h3>表示のイメージ</h3><span class="pill">プレビュー</span></header><div class="preview-stage" id="previewStage"></div><p class="preview-caption">サイトの共通デザインを適用します。独自JavaScriptは実ページで確認してください。</p></aside></div>`
+      )}</div><form id="campaignForm" class="card-body"><fieldset ${disabled ? "disabled" : ""}>${fields}</fieldset></form></section><div class="editor-footer"><span id="dirtyState">${state.dirty ? "未保存の変更があります" : "保存済みの内容です"}</span><div class="actions">${state.value.drafts.some((d) => d.campaignId === c.id) ? button("下書きを破棄", "discard-draft", "", disabled) : ""}${button("下書き保存", "save-draft", "primary", disabled)}</div></div></div><aside class="card preview-card ${state.tab === "audience" ? "node-editor-content-preview" : ""}"><header class="card-header"><h3>表示のイメージ</h3><span class="pill">プレビュー</span></header><div class="preview-stage" id="previewStage"></div><p class="preview-caption">サイトの共通デザインを適用します。独自JavaScriptは実ページで確認してください。</p></aside></div>`
   );
 }
 function updateQuestionPreview() {
@@ -1601,7 +1601,9 @@ async function saveDraft() {
   );
   if (location.hash === "#/campaign/new")
     history.replaceState(null, "", "#/campaign/" + c.id);
-  toast("下書きを保存しました。配信中の内容は配信開始まで維持されます。");
+  toast(
+    "下書きを保存しました。配信中の内容は、一覧の「本番へリリース」まで変わりません。",
+  );
   await render();
 }
 let launch;
@@ -1870,33 +1872,6 @@ async function handleAction(action) {
     return navigate("campaigns");
   }
   if (action === "save-draft") return saveDraft();
-  if (action === "review-campaign") {
-    readEditor();
-    if (state.edit.judgment) guidedQuestions(state.edit.judgment);
-    await saveDraft();
-    const c = state.edit;
-    if (
-      await confirmAction(
-        "配信内容を確認",
-        `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.offer || c.intent)}</p><p>この内容で配信を開始します。実サイトでの確認は一覧のプレビューから実行できます。</p>`,
-        "この内容で配信開始",
-      )
-    ) {
-      const draft = state.value.drafts.find((d) => d.campaignId === c.id);
-      await api(
-        sitePath() + `/campaigns/${c.id}/publish`,
-        "POST",
-        {},
-        draft.revision,
-      );
-      await loadSite();
-      state.edit = null;
-      state.dirty = false;
-      toast("配信を開始しました。");
-      return navigate("campaigns");
-    }
-    return;
-  }
   if (action === "invite") {
     dialog(
       "メンバーを招待",
@@ -2102,6 +2077,30 @@ document.addEventListener("click", (event) => {
     return;
   }
   run(async () => {
+    if (target.dataset.release) {
+      const draft = state.value.drafts.find(
+        (d) => d.campaignId === target.dataset.release,
+      );
+      if (!draft) return;
+      const c = draft.campaign;
+      if (
+        await confirmAction(
+          "本番へリリース",
+          `<p><strong>${esc(c.name || c.content.title)}</strong></p><p>表示：${types[c.presentation.type]}<br>対象：${c.target.mode === "all" ? "許可された全ページ" : esc(c.target.paths.join(", "))}</p><p>${esc(c.conditionGraph ? describeGraph(c.conditionGraph) : c.judgment?.offer || c.intent)}</p><p>この内容で問題がなければ、本番へリリースします。実サイトでの確認は一覧のプレビューから実行できます。</p>`,
+          "本番へリリースする",
+        )
+      ) {
+        await api(
+          sitePath() + `/campaigns/${c.id}/publish`,
+          "POST",
+          {},
+          draft.revision,
+        );
+        await loadSite();
+        await render();
+        toast("本番へリリースしました。");
+      }
+    }
     if (target.dataset.toggle) {
       const c = state.value.site.campaigns.find(
         (c) => c.id === target.dataset.toggle,

@@ -1,6 +1,17 @@
 import { test, expect } from "@playwright/test";
 import { buildManagedApp } from "../../src/app.js";
 import { fixture } from "../helpers.js";
+
+async function releaseFromList(page) {
+  await page.locator('a[data-nav="campaigns"]').click();
+  await page
+    .getByRole("button", { name: "本番へリリース", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "本番へリリースする", exact: true })
+    .click();
+}
+
 const origin = "https://admin.example.com",
   token = "test-bootstrap-".repeat(4);
 let app, db, calls, admin, authenticator;
@@ -177,12 +188,7 @@ test("threshold presets save numeric values, publish normally and fit desktop an
     .getByRole("textbox", { name: "表示タイトル", exact: true })
     .fill("導入ガイド");
   await saveThresholdDraft(page);
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(page.getByRole("heading", { name: "施策一覧" })).toBeVisible();
   const published = (await admin.repo.publicConfig()).sites[0].campaigns.find(
     (c) => c.id === broad.id,
@@ -495,12 +501,7 @@ test("guided editing saves isolated draft, renders question preview, publishes a
   await page.getByRole("button", { name: "下書き保存", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("下書きを保存");
   expect((await admin.repo.publicConfig()).sites[0].campaigns.length).toBe(1); // existing fixture only
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(page.getByRole("heading", { name: "施策一覧" })).toBeVisible();
   expect((await admin.repo.publicConfig()).sites[0].campaigns.length).toBe(2);
   expect(calls).toBe(0);
@@ -1278,12 +1279,7 @@ test("URL-only campaign editor saves an entry cid condition with zero required h
   await page
     .getByRole("textbox", { name: "表示タイトル", exact: true })
     .fill("ランナー向け特集");
-  await page
-    .getByRole("button", { name: "配信内容を確認", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "この内容で配信開始", exact: true })
-    .click();
+  await releaseFromList(page);
   await expect(
     page.getByRole("heading", { name: "施策一覧", exact: true }),
   ).toBeVisible();
@@ -1355,12 +1351,7 @@ for (const variant of ["current", "legacy", "original"])
     const draft = await saveThresholdDraft(page);
     expect(draft.questions).toEqual(c.questions);
     expect(draft.combination).toBe("any");
-    await page
-      .getByRole("button", { name: "配信内容を確認", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "この内容で配信開始", exact: true })
-      .click();
+    await releaseFromList(page);
     await expect(
       page.getByRole("heading", { name: "施策一覧", exact: true }),
     ).toBeVisible();

@@ -1117,7 +1117,7 @@ export function mountConditionBuilder(host, ctx) {
       $("jsonEditor").close();
       render();
       say(
-        "JSONの条件を反映しました。下書き保存・配信開始は画面下から行います。",
+        "JSONの条件を反映しました。下書き保存は画面下から、本番への配信は施策一覧の「本番へリリース」から行います。",
       );
     } catch (error) {
       $("jsonError").textContent =
